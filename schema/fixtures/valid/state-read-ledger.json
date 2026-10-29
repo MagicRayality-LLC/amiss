@@ -1,0 +1,15 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-read-ledger",
+  "origin": "model",
+  "tool": "state.read",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "ledger",
+    "target_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "after_sequence": 0,
+    "max_entries": 10
+  }
+}

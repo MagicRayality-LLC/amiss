@@ -1,0 +1,15 @@
+{
+  "tool_schema_version": "1.0.0",
+  "idempotency_scope": {"episode_id": "synthetic-episode", "target_trial_id": "trial-a"},
+  "call_id": "call-stale",
+  "fingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "outcome": "rejected",
+  "reason_code": "stale_trial_ref",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "accepted_command_id": null,
+  "execution_receipt": null,
+  "rejection_stage": "step_3",
+  "replay": false
+}

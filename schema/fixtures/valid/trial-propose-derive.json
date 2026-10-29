@@ -1,0 +1,26 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-propose-derive",
+  "origin": "model",
+  "tool": "trial.propose",
+  "target": {
+    "kind": "new_trial",
+    "episode_id": "synthetic-episode",
+    "source_trial_ref": {"trial_id": "trial-a", "trial_revision": 1}
+  },
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "derive",
+    "setup_family_token_id": "setup-token-a",
+    "target_parameters": {"density": 1.5},
+    "input_delta": {
+      "parameter_id": "density",
+      "from_value": 1.0,
+      "to_value": 1.5,
+      "unit": "synthetic-unit",
+      "downstream_effect_ids": ["particle-count"]
+    },
+    "expected_invariant_ids": ["finite-energy"]
+  }
+}

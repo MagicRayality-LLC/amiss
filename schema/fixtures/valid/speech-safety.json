@@ -1,0 +1,16 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-speech-safety",
+  "origin": "guide_default",
+  "tool": "speech.emit",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "safety",
+    "text": "Synthetic safety text.",
+    "source_global_revision": 1,
+    "citations": [],
+    "safety_candidate_id": "safety-a"
+  }
+}

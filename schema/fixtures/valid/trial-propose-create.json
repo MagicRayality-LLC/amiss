@@ -1,0 +1,20 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-propose-create",
+  "origin": "model",
+  "tool": "trial.propose",
+  "target": {"kind": "new_trial", "episode_id": "synthetic-episode", "source_trial_ref": null},
+  "basis_trial_ref": null,
+  "refs": [],
+  "parameters": {
+    "operation": "create",
+    "setup_family_token_id": "setup-token-a",
+    "target_parameters": {"density": 1.0},
+    "input_delta": {
+      "parameter_id": "density",
+      "to_value": 1.0,
+      "downstream_effect_ids": ["particle-count"]
+    },
+    "expected_invariant_ids": ["finite-energy"]
+  }
+}

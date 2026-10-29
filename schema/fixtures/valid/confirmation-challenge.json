@@ -1,0 +1,9 @@
+{
+  "record_kind": "challenge",
+  "challenge_id": "challenge-a",
+  "call_id": "call-confirm",
+  "fingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}]
+}

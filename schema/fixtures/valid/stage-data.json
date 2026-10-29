@@ -1,0 +1,36 @@
+{
+  "stage_data_format_version": "1.0.0",
+  "policy_version": "synthetic-policy-v1",
+  "episode_id": "synthetic-episode",
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "status": "verified"
+  },
+  "stage_graph": {
+    "initial_stage_id": "stage-a",
+    "nodes": [
+      {
+        "stage_id": "stage-a",
+        "default_path_id": "default-a",
+        "evidence_pair_rules": [
+          {"rule_id": "pair-a", "first_fact_kind": "action-a", "second_fact_kind": "state-a"}
+        ],
+        "user_controls": ["skip", "replay"],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-b",
+        "default_path_id": "default-b",
+        "evidence_pair_rules": [],
+        "user_controls": ["replay", "free_exploration"],
+        "terminal": true
+      }
+    ]
+  },
+  "evidence_flag_definitions": [
+    {"fact_kind": "action-a", "fact_class": "action", "measurement_path_id": "input-path"},
+    {"fact_kind": "state-a", "fact_class": "state", "measurement_path_id": "measurement-path"}
+  ],
+  "allowed_action_set": {"action_ids": ["synthetic-action"]}
+}

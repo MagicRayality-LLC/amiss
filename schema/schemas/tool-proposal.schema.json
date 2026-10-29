@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tool-proposal.schema.json",
+  "title": "Amiss closed ToolProposal envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tool_schema_version",
+    "call_id",
+    "origin",
+    "tool",
+    "target",
+    "basis_trial_ref",
+    "refs",
+    "parameters"
+  ],
+  "properties": {
+    "tool_schema_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+    "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+    "origin": {"enum": ["model", "guide_default"]},
+    "tool": {
+      "enum": [
+        "state.read",
+        "trial.propose",
+        "trial.orchestrate",
+        "presentation.request",
+        "speech.emit"
+      ]
+    },
+    "target": {"$ref": "common.schema.json#/$defs/Target"},
+    "basis_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+    "refs": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 4,
+      "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+    },
+    "parameters": {"$ref": "#/$defs/Parameters"},
+    "confirmation_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+  },
+  "$defs": {
+    "Parameters": {
+      "oneOf": [
+        {"$ref": "#/$defs/ReadSnapshot"},
+        {"$ref": "#/$defs/ReadLedger"},
+        {"$ref": "#/$defs/ReadMeasurements"},
+        {"$ref": "#/$defs/ProposeCreate"},
+        {"$ref": "#/$defs/ProposeDerive"},
+        {"$ref": "#/$defs/Orchestrate"},
+        {"$ref": "#/$defs/HighlightSurface"},
+        {"$ref": "#/$defs/ReplaySlow"},
+        {"$ref": "#/$defs/OpenChart"},
+        {"$ref": "#/$defs/ShowSubtitle"},
+        {"$ref": "#/$defs/SpeechAnswer"},
+        {"$ref": "#/$defs/SpeechProactive"},
+        {"$ref": "#/$defs/SpeechSafety"}
+      ]
+    },
+    "ReadSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "target_trial_ref"],
+      "properties": {
+        "operation": {"const": "snapshot"},
+        "target_trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"}
+      }
+    },
+    "ReadLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "target_trial_ref", "after_sequence", "max_entries"],
+      "properties": {
+        "operation": {"const": "ledger"},
+        "target_trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"},
+        "after_sequence": {"type": "integer", "minimum": 0},
+        "max_entries": {"type": "integer", "minimum": 1}
+      }
+    },
+    "ReadMeasurements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "target_trial_ref", "measurement_ids"],
+      "properties": {
+        "operation": {"const": "measurements"},
+        "target_trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"},
+        "measurement_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        }
+      }
+    },
+    "ProposeCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "setup_family_token_id",
+        "target_parameters",
+        "input_delta",
+        "expected_invariant_ids"
+      ],
+      "properties": {
+        "operation": {"const": "create"},
+        "setup_family_token_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "target_parameters": {"$ref": "common.schema.json#/$defs/TargetParameters"},
+        "input_delta": {"$ref": "common.schema.json#/$defs/InputDelta"},
+        "expected_invariant_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        }
+      }
+    },
+    "ProposeDerive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "setup_family_token_id",
+        "target_parameters",
+        "input_delta",
+        "expected_invariant_ids"
+      ],
+      "properties": {
+        "operation": {"const": "derive"},
+        "setup_family_token_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "target_parameters": {"$ref": "common.schema.json#/$defs/TargetParameters"},
+        "input_delta": {"$ref": "common.schema.json#/$defs/InputDelta"},
+        "expected_invariant_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        }
+      }
+    },
+    "Orchestrate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "target_trial_ref"],
+      "properties": {
+        "operation": {
+          "enum": ["start", "pause", "resume", "begin_measurement", "archive", "present"]
+        },
+        "target_trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"}
+      }
+    },
+    "HighlightSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "surface_id", "highlight_id", "requested_state"],
+      "properties": {
+        "operation": {"const": "highlight_surface"},
+        "surface_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "highlight_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "requested_state": {"enum": ["on", "off"]}
+      }
+    },
+    "ReplaySlow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "event_id", "replay_speed_id"],
+      "properties": {
+        "operation": {"const": "replay_slow"},
+        "event_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "replay_speed_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+      }
+    },
+    "OpenChart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "slot_id", "chart_id"],
+      "properties": {
+        "operation": {"const": "open_chart"},
+        "slot_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "chart_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+      }
+    },
+    "ShowSubtitle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "subtitle_id",
+        "text",
+        "source_global_revision",
+        "citations"
+      ],
+      "properties": {
+        "operation": {"const": "show_subtitle"},
+        "subtitle_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "text": {"type": "string"},
+        "source_global_revision": {"type": "integer", "minimum": 1},
+        "citations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "common.schema.json#/$defs/Citation"}
+        }
+      }
+    },
+    "SpeechAnswer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "text", "source_global_revision", "citations"],
+      "properties": {
+        "operation": {"const": "answer"},
+        "text": {"type": "string"},
+        "source_global_revision": {"type": "integer", "minimum": 1},
+        "citations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "common.schema.json#/$defs/Citation"}
+        },
+        "solicitation_token_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+      }
+    },
+    "SpeechProactive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "text",
+        "source_global_revision",
+        "citations",
+        "candidate_token_id"
+      ],
+      "properties": {
+        "operation": {"const": "proactive"},
+        "text": {"type": "string"},
+        "source_global_revision": {"type": "integer", "minimum": 1},
+        "citations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "common.schema.json#/$defs/Citation"}
+        },
+        "candidate_token_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "solicitation_token_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+      }
+    },
+    "SpeechSafety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "text",
+        "source_global_revision",
+        "citations",
+        "safety_candidate_id"
+      ],
+      "properties": {
+        "operation": {"const": "safety"},
+        "text": {"type": "string"},
+        "source_global_revision": {"type": "integer", "minimum": 1},
+        "citations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "common.schema.json#/$defs/Citation"}
+        },
+        "safety_candidate_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+      }
+    }
+  }
+}

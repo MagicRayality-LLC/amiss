@@ -1,0 +1,22 @@
+{
+  "tool_schema_version": "1.0.0",
+  "idempotency_scope": {"episode_id": "synthetic-episode", "target_trial_id": "trial-a"},
+  "call_id": "call-read-snapshot",
+  "fingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "outcome": "executed",
+  "reason_code": null,
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "accepted_command_id": "command-a",
+  "execution_receipt": {
+    "before_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "after_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "trial_revision_delta": 0,
+    "global_revision": null,
+    "diff": {"kind": "none", "changed_field_ids": []},
+    "postcondition_evidence_ids": ["read-committed"]
+  },
+  "rejection_stage": null,
+  "replay": false
+}

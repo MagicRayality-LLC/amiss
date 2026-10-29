@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "snapshot.schema.json",
+  "title": "Amiss immutable SnapshotEnvelope and Measurement records",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "identity",
+    "space",
+    "configuration",
+    "measurements",
+    "progress",
+    "behaviour_summary",
+    "session_comfort",
+    "predictions",
+    "policy_tokens",
+    "diagnostics",
+    "episode_extension"
+  ],
+  "properties": {
+    "identity": {"$ref": "#/$defs/SnapshotIdentity"},
+    "space": {"$ref": "#/$defs/SpaceSummary"},
+    "configuration": {"$ref": "#/$defs/Configuration"},
+    "measurements": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/Measurement"}
+    },
+    "progress": {"$ref": "#/$defs/Progress"},
+    "behaviour_summary": {"$ref": "#/$defs/BehaviourSummary"},
+    "session_comfort": {"$ref": "#/$defs/SessionComfort"},
+    "predictions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "common.schema.json#/$defs/PredictionRecord"}
+    },
+    "policy_tokens": {"$ref": "common.schema.json#/$defs/PolicyTokenSet"},
+    "diagnostics": {"$ref": "#/$defs/Diagnostics"},
+    "episode_extension": {"$ref": "#/$defs/EpisodeExtension"}
+  },
+  "$defs": {
+    "SnapshotIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_envelope_version",
+        "app_build_version",
+        "session_id",
+        "episode_id",
+        "episode_module_version",
+        "trial_identity",
+        "refs",
+        "global_revision",
+        "current_trial_ref",
+        "tick",
+        "diagnostic_wall_timestamp"
+      ],
+      "properties": {
+        "snapshot_envelope_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+        "app_build_version": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "session_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "episode_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "episode_module_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+        "trial_identity": {"$ref": "common.schema.json#/$defs/TrialIdentity"},
+        "refs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+        },
+        "global_revision": {"type": "integer", "minimum": 1},
+        "current_trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"},
+        "tick": {"type": "integer", "minimum": 0},
+        "diagnostic_wall_timestamp": {"type": "string", "maxLength": 128}
+      }
+    },
+    "SpaceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_valid",
+        "collision_representation_id",
+        "collision_representation_version",
+        "dimensions_m",
+        "effective_volume_m3",
+        "virtual_boundary"
+      ],
+      "properties": {
+        "scene_valid": {"type": "boolean"},
+        "collision_representation_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "collision_representation_version": {"type": "integer", "minimum": 1},
+        "dimensions_m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "z"],
+          "properties": {
+            "x": {"type": "number", "exclusiveMinimum": 0},
+            "y": {"type": "number", "exclusiveMinimum": 0},
+            "z": {"type": "number", "exclusiveMinimum": 0}
+          }
+        },
+        "effective_volume_m3": {"type": "number", "minimum": 0},
+        "virtual_boundary": {"type": "boolean"}
+      }
+    },
+    "Configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "setup_family_id",
+        "target_parameters",
+        "seed",
+        "rng_expansion_id",
+        "actual_initial_invariant_ids",
+        "collision_representation_id",
+        "collision_representation_version",
+        "source_input_delta",
+        "declared_downstream_effect_ids"
+      ],
+      "properties": {
+        "setup_family_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "target_parameters": {"$ref": "common.schema.json#/$defs/TargetParameters"},
+        "seed": {"type": "integer", "minimum": 0},
+        "rng_expansion_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "actual_initial_invariant_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        },
+        "collision_representation_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "collision_representation_version": {"type": "integer", "minimum": 1},
+        "source_input_delta": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/InputDelta"},
+            {"type": "null"}
+          ]
+        },
+        "declared_downstream_effect_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        }
+      }
+    },
+    "MeasurementWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window_id", "start_tick", "end_tick", "duration_seconds"],
+      "properties": {
+        "window_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "start_tick": {"type": "integer", "minimum": 0},
+        "end_tick": {"type": "integer", "minimum": 0},
+        "duration_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "DisplayTuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_tuple_id", "components"],
+      "properties": {
+        "display_tuple_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["component_id", "value", "unit_id"],
+            "properties": {
+              "component_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+              "value": {"type": "number"},
+              "unit_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+            }
+          }
+        }
+      }
+    },
+    "Measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measurement_id",
+        "trial_ref",
+        "value",
+        "unit_id",
+        "coordinate_frame_id",
+        "quantity_convention_id",
+        "window",
+        "sample_count",
+        "uncertainty",
+        "sufficient",
+        "applicability",
+        "calculation_version"
+      ],
+      "properties": {
+        "measurement_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "trial_ref": {"$ref": "common.schema.json#/$defs/TrialRef"},
+        "value": {
+          "anyOf": [
+            {"type": "number"},
+            {"type": "null"}
+          ]
+        },
+        "unit_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "coordinate_frame_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "quantity_convention_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "window": {"$ref": "#/$defs/MeasurementWindow"},
+        "sample_count": {"type": "integer", "minimum": 0},
+        "uncertainty": {
+          "anyOf": [
+            {"type": "number", "minimum": 0},
+            {"type": "null"}
+          ]
+        },
+        "sufficient": {"type": "boolean"},
+        "applicability": {
+          "enum": ["valid", "not_applicable", "masked_until_prediction"]
+        },
+        "calculation_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+        "display_tuple": {"$ref": "#/$defs/DisplayTuple"}
+      }
+    },
+    "Progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "guide",
+        "trial_state",
+        "preferences",
+        "last_proactive_speech_trial_ref"
+      ],
+      "properties": {
+        "guide": {"$ref": "common.schema.json#/$defs/GuideProgress"},
+        "trial_state": {"$ref": "common.schema.json#/$defs/TrialState"},
+        "preferences": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mute", "tips_enabled", "guidance_preference_id"],
+          "properties": {
+            "mute": {"type": "boolean"},
+            "tips_enabled": {"type": "boolean"},
+            "guidance_preference_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+          }
+        },
+        "last_proactive_speech_trial_ref": {
+          "$ref": "common.schema.json#/$defs/NullableTrialRef"
+        }
+      }
+    },
+    "BehaviourSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_count",
+        "effective_action_count",
+        "ticks_since_last_effective_action",
+        "panel_interaction_count",
+        "head_orientation_category"
+      ],
+      "properties": {
+        "attempt_count": {"type": "integer", "minimum": 0},
+        "effective_action_count": {"type": "integer", "minimum": 0},
+        "ticks_since_last_effective_action": {"type": "integer", "minimum": 0},
+        "panel_interaction_count": {"type": "integer", "minimum": 0},
+        "head_orientation_category": {
+          "enum": ["forward", "left", "right", "up", "down", "unknown"]
+        }
+      }
+    },
+    "SessionComfort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_duration_seconds",
+        "seated",
+        "safety_warning_count",
+        "tracking_quality",
+        "paused"
+      ],
+      "properties": {
+        "session_duration_seconds": {"type": "number", "minimum": 0},
+        "seated": {"type": "boolean"},
+        "safety_warning_count": {"type": "integer", "minimum": 0},
+        "tracking_quality": {"enum": ["good", "degraded", "lost", "unknown"]},
+        "paused": {"type": "boolean"}
+      }
+    },
+    "Diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numerical_state",
+        "tracking_state",
+        "scene_state",
+        "network_state",
+        "voice_state",
+        "rejected_proposal_id",
+        "rejected_reason_code"
+      ],
+      "properties": {
+        "numerical_state": {"enum": ["ok", "invalid"]},
+        "tracking_state": {"enum": ["ok", "degraded", "lost", "unknown"]},
+        "scene_state": {"enum": ["valid", "invalid", "unavailable"]},
+        "network_state": {"enum": ["not_used", "online", "offline", "failed"]},
+        "voice_state": {"enum": ["idle", "capturing", "playing", "muted", "unavailable"]},
+        "rejected_proposal_id": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/Identifier"},
+            {"type": "null"}
+          ]
+        },
+        "rejected_reason_code": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/Identifier"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "EpisodeExtension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "schema_version", "facts"],
+      "properties": {
+        "namespace": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "schema_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+        "facts": {"type": "object", "maxProperties": 128}
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-invalid",
+  "origin": "model",
+  "tool": "state.read",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "snapshot",
+    "target_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "script": "synthetic-nonexecutable-text"
+  }
+}

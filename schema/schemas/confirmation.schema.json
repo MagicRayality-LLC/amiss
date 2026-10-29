@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "confirmation.schema.json",
+  "title": "Amiss single-use confirmation records",
+  "oneOf": [
+    {"$ref": "#/$defs/ConfirmationChallenge"},
+    {"$ref": "#/$defs/ConfirmationGrant"}
+  ],
+  "$defs": {
+    "ConfirmationChallenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_kind",
+        "challenge_id",
+        "call_id",
+        "fingerprint",
+        "target",
+        "basis_trial_ref",
+        "refs"
+      ],
+      "properties": {
+        "record_kind": {"const": "challenge"},
+        "challenge_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "fingerprint": {"$ref": "common.schema.json#/$defs/Sha256"},
+        "target": {"$ref": "common.schema.json#/$defs/Target"},
+        "basis_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+        "refs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+        }
+      }
+    },
+    "ConfirmationGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_kind",
+        "challenge_id",
+        "call_id",
+        "fingerprint",
+        "basis_trial_ref",
+        "refs"
+      ],
+      "properties": {
+        "record_kind": {"const": "grant"},
+        "challenge_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "fingerprint": {"$ref": "common.schema.json#/$defs/Sha256"},
+        "basis_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+        "refs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+        }
+      }
+    }
+  }
+}

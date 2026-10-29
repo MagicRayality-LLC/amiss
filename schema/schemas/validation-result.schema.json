@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation-result.schema.json",
+  "title": "Amiss ValidationResult and execution records",
+  "$ref": "#/$defs/ValidationResult",
+  "$defs": {
+    "ReasonCode": {
+      "enum": [
+        "unsupported_contract_version",
+        "malformed_parameters",
+        "idempotency_conflict",
+        "unknown_trial",
+        "stale_trial_ref",
+        "ref_outside_comparison",
+        "citation_not_in_context",
+        "masked_measurement_citation",
+        "display_tuple_unavailable",
+        "token_invalid",
+        "preference_blocked",
+        "confirmation_required",
+        "confirmation_stale",
+        "confirmation_fingerprint_mismatch",
+        "proposal_not_accepted",
+        "invalid_transition",
+        "episode_precondition_failed",
+        "input_delta_invalid",
+        "result_quantity_forbidden",
+        "numeric_invariant_failed",
+        "safety_boundary_failed",
+        "execution_postcondition_failed",
+        "execution_unavailable"
+      ]
+    },
+    "IdempotencyScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["episode_id", "target_trial_id"],
+      "properties": {
+        "episode_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "target_trial_id": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/Identifier"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "ExecutionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "before_trial_ref",
+        "after_trial_ref",
+        "trial_revision_delta",
+        "global_revision",
+        "diff",
+        "postcondition_evidence_ids"
+      ],
+      "properties": {
+        "before_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+        "after_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+        "trial_revision_delta": {"enum": [0, 1]},
+        "global_revision": {
+          "anyOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "null"}
+          ]
+        },
+        "diff": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "changed_field_ids"],
+          "properties": {
+            "kind": {"enum": ["none", "trial_state", "presentation", "voice"]},
+            "changed_field_ids": {
+              "type": "array",
+              "maxItems": 256,
+              "uniqueItems": true,
+              "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+            }
+          }
+        },
+        "postcondition_evidence_ids": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/Identifier"}
+        }
+      }
+    },
+    "AcceptedCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_id",
+        "idempotency_scope",
+        "call_id",
+        "fingerprint",
+        "tool",
+        "parameters",
+        "refs"
+      ],
+      "properties": {
+        "command_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "idempotency_scope": {"$ref": "#/$defs/IdempotencyScope"},
+        "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "fingerprint": {"$ref": "common.schema.json#/$defs/Sha256"},
+        "tool": {
+          "enum": [
+            "state.read",
+            "trial.propose",
+            "trial.orchestrate",
+            "presentation.request",
+            "speech.emit"
+          ]
+        },
+        "parameters": {"$ref": "tool-proposal.schema.json#/$defs/Parameters"},
+        "refs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+        }
+      }
+    },
+    "ValidationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_schema_version",
+        "idempotency_scope",
+        "call_id",
+        "fingerprint",
+        "outcome",
+        "reason_code",
+        "target",
+        "basis_trial_ref",
+        "refs",
+        "accepted_command_id",
+        "execution_receipt",
+        "rejection_stage",
+        "replay"
+      ],
+      "properties": {
+        "tool_schema_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+        "idempotency_scope": {"$ref": "#/$defs/IdempotencyScope"},
+        "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "fingerprint": {"$ref": "common.schema.json#/$defs/Sha256"},
+        "outcome": {"enum": ["executed", "rejected"]},
+        "reason_code": {
+          "anyOf": [
+            {"$ref": "#/$defs/ReasonCode"},
+            {"type": "null"}
+          ]
+        },
+        "target": {"$ref": "common.schema.json#/$defs/Target"},
+        "basis_trial_ref": {"$ref": "common.schema.json#/$defs/NullableTrialRef"},
+        "refs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+        },
+        "accepted_command_id": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/Identifier"},
+            {"type": "null"}
+          ]
+        },
+        "execution_receipt": {
+          "anyOf": [
+            {"$ref": "#/$defs/ExecutionReceipt"},
+            {"type": "null"}
+          ]
+        },
+        "rejection_stage": {
+          "anyOf": [
+            {"enum": ["step_1", "step_2", "step_3", "step_4", "step_5", "step_6", "step_7"]},
+            {"type": "null"}
+          ]
+        },
+        "replay": {"type": "boolean"}
+      }
+    },
+    "IdempotencyRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_scope", "call_id", "fingerprint", "first_result"],
+      "properties": {
+        "idempotency_scope": {"$ref": "#/$defs/IdempotencyScope"},
+        "call_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "fingerprint": {"$ref": "common.schema.json#/$defs/Sha256"},
+        "first_result": {"$ref": "#/$defs/ValidationResult"}
+      }
+    }
+  }
+}

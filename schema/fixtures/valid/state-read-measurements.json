@@ -1,0 +1,14 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-read-measurements",
+  "origin": "model",
+  "tool": "state.read",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "measurements",
+    "target_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "measurement_ids": ["measurement-a"]
+  }
+}

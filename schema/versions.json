@@ -1,0 +1,10 @@
+{
+  "framework_api_version": "1.0.0",
+  "snapshot_envelope_version": "1.0.0",
+  "tool_schema_version": "1.0.0",
+  "save_format_version": "1.0.0",
+  "stage_data_format_version": "1.0.0",
+  "context_payload_version": "1.0.0",
+  "fixture_format_version": "1.0.0",
+  "provenance_contract_version": "1.0.0"
+}

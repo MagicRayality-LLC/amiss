@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-payload.schema.json",
+  "title": "Amiss public-client ContextPayload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_payload_version",
+    "comparison_package",
+    "refs",
+    "policy_tokens",
+    "compressed_session_context",
+    "current_user_utterance"
+  ],
+  "properties": {
+    "context_payload_version": {"$ref": "common.schema.json#/$defs/ContractVersion"},
+    "comparison_package": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {"$ref": "snapshot.schema.json"}
+    },
+    "refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {"$ref": "common.schema.json#/$defs/TrialRef"}
+    },
+    "policy_tokens": {"$ref": "common.schema.json#/$defs/PolicyTokenSet"},
+    "compressed_session_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_duration_seconds", "preferences", "minimal_profile"],
+      "properties": {
+        "session_duration_seconds": {"type": "number", "minimum": 0},
+        "preferences": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mute", "tips_enabled", "guidance_preference_id"],
+          "properties": {
+            "mute": {"type": "boolean"},
+            "tips_enabled": {"type": "boolean"},
+            "guidance_preference_id": {"$ref": "common.schema.json#/$defs/Identifier"}
+          }
+        },
+        "minimal_profile": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["started_episode_id", "last_stage_id", "completion_flag"],
+              "properties": {
+                "started_episode_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+                "last_stage_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+                "completion_flag": {"type": "boolean"}
+              }
+            },
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "current_user_utterance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["utterance_id", "text"],
+      "properties": {
+        "utterance_id": {"$ref": "common.schema.json#/$defs/Identifier"},
+        "text": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "fixture_format_version": "1.0.0",
+  "scenario_id": "synthetic-vertical-slice",
+  "policy_version": "synthetic-policy-v1",
+  "contract_versions": {
+    "framework_api_version": "1.0.0",
+    "snapshot_envelope_version": "1.0.0",
+    "tool_schema_version": "1.0.0",
+    "save_format_version": "1.0.0",
+    "stage_data_format_version": "1.0.0",
+    "context_payload_version": "1.0.0",
+    "fixture_format_version": "1.0.0",
+    "provenance_contract_version": "1.0.0",
+    "episode_model_version": "1.0.0"
+  },
+  "deterministic_recipe": {
+    "episode_id": "synthetic-episode",
+    "seed": 0,
+    "initial_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+    "stage_id": "stage-a",
+    "input_event_ids": ["synthetic-event-a"]
+  },
+  "request": {
+    "request_contract_version": "1.0.0",
+    "turn_id": "synthetic-turn-a",
+    "request_id": "synthetic-request-a",
+    "origin": "guide_default",
+    "model": "muse-spark-1.3",
+    "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+    "context_payload": {
+      "context_payload_version": "1.0.0",
+      "comparison_package": [
+        {
+          "identity": {
+            "snapshot_envelope_version": "1.0.0",
+            "app_build_version": "synthetic-build",
+            "session_id": "synthetic-session",
+            "episode_id": "synthetic-episode",
+            "episode_module_version": "1.0.0",
+            "trial_identity": {
+              "trial_id": "trial-a",
+              "episode_id": "synthetic-episode",
+              "episode_model_version": "1.0.0",
+              "episode_module_version": "1.0.0",
+              "app_build_version": "synthetic-build",
+              "contract_versions": {
+                "framework_api_version": "1.0.0",
+                "snapshot_envelope_version": "1.0.0",
+                "tool_schema_version": "1.0.0",
+                "save_format_version": "1.0.0"
+              },
+              "source_trial_ref": null
+            },
+            "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+            "global_revision": 1,
+            "current_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+            "tick": 0,
+            "diagnostic_wall_timestamp": "2000-01-01T00:00:00Z"
+          },
+          "space": {
+            "scene_valid": true,
+            "collision_representation_id": "synthetic-collision",
+            "collision_representation_version": 1,
+            "dimensions_m": {"x": 1.0, "y": 1.0, "z": 1.0},
+            "effective_volume_m3": 1.0,
+            "virtual_boundary": true
+          },
+          "configuration": {
+            "setup_family_id": "synthetic-setup",
+            "target_parameters": {"level": 1},
+            "seed": 0,
+            "rng_expansion_id": "synthetic-rng",
+            "actual_initial_invariant_ids": ["finite-energy"],
+            "collision_representation_id": "synthetic-collision",
+            "collision_representation_version": 1,
+            "source_input_delta": null,
+            "declared_downstream_effect_ids": []
+          },
+          "measurements": [],
+          "progress": {
+            "guide": {
+              "stage_id": "stage-a",
+              "satisfied_evidence_fact_ids": [],
+              "policy_version": "synthetic-policy-v1",
+              "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}
+            },
+            "trial_state": {
+              "phase": "baseline",
+              "acceptance": "accepted",
+              "activity": "running",
+              "terminal_reason": null,
+              "trial_revision": 1,
+              "tick": 0
+            },
+            "preferences": {"mute": false, "tips_enabled": true, "guidance_preference_id": "default"},
+            "last_proactive_speech_trial_ref": null
+          },
+          "behaviour_summary": {
+            "attempt_count": 0,
+            "effective_action_count": 0,
+            "ticks_since_last_effective_action": 0,
+            "panel_interaction_count": 0,
+            "head_orientation_category": "forward"
+          },
+          "session_comfort": {
+            "session_duration_seconds": 0.0,
+            "seated": true,
+            "safety_warning_count": 0,
+            "tracking_quality": "good",
+            "paused": false
+          },
+          "predictions": [],
+          "policy_tokens": {
+            "episode_id": "synthetic-episode",
+            "stage_id": "stage-a",
+            "policy_version": "synthetic-policy-v1",
+            "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+            "tokens": [{"token_id": "stage-token-a", "kind": "stage", "value_id": "stage-a"}]
+          },
+          "diagnostics": {
+            "numerical_state": "ok",
+            "tracking_state": "ok",
+            "scene_state": "valid",
+            "network_state": "not_used",
+            "voice_state": "unavailable",
+            "rejected_proposal_id": null,
+            "rejected_reason_code": null
+          },
+          "episode_extension": {
+            "namespace": "synthetic_episode",
+            "schema_version": "1.0.0",
+            "facts": {"counter": 3}
+          }
+        }
+      ],
+      "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+      "policy_tokens": {
+        "episode_id": "synthetic-episode",
+        "stage_id": "stage-a",
+        "policy_version": "synthetic-policy-v1",
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+        "tokens": [{"token_id": "stage-token-a", "kind": "stage", "value_id": "stage-a"}]
+      },
+      "compressed_session_context": {
+        "session_duration_seconds": 0.0,
+        "preferences": {"mute": false, "tips_enabled": true, "guidance_preference_id": "default"},
+        "minimal_profile": null
+      },
+      "current_user_utterance": {"utterance_id": "utterance-a", "text": "Synthetic utterance."}
+    },
+    "policy_envelope": {
+      "policy_version": "synthetic-policy-v1",
+      "system": "Synthetic system instruction."
+    }
+  },
+  "response": {
+    "response_contract_version": "1.0.0",
+    "request_id": "synthetic-request-a",
+    "refs": [{"trial_id": "trial-a", "trial_revision": 2}],
+    "speech_units": [],
+    "tool_proposals": [
+      {
+        "tool_schema_version": "1.0.0",
+        "call_id": "call-read-snapshot",
+        "origin": "model",
+        "tool": "state.read",
+        "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+        "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+        "parameters": {"operation": "snapshot", "target_trial_ref": {"trial_id": "trial-a", "trial_revision": 1}}
+      }
+    ]
+  },
+  "provenance": {
+    "model": "muse-spark-1.3",
+    "endpoint_host": "api.meta.ai",
+    "request_id": "synthetic-request-a",
+    "ts_start": "2026-10-29T12:00:00Z",
+    "ts_end": "2026-10-29T12:00:01Z",
+    "input_tokens": 123,
+    "output_tokens": 45,
+    "prompt_hash": "f2b809c608f40e9f7f6be88d4f69ba066896d68000d02bbb042345e79c98d0d4",
+    "response_hash": "92f4ef86177c4acc07e09792999d1e8e3060dd09ba84b5aaad9851c947441805",
+    "mode": "recorded"
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "a3f413129ac95bddf7b97f62abeafb37b734b3df67daac1b160a1898b8347e51"
+  }
+}

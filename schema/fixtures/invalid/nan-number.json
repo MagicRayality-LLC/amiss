@@ -1,0 +1,16 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-invalid",
+  "origin": "model",
+  "tool": "trial.propose",
+  "target": {"kind": "new_trial", "episode_id": "synthetic-episode", "source_trial_ref": null},
+  "basis_trial_ref": null,
+  "refs": [],
+  "parameters": {
+    "operation": "create",
+    "setup_family_token_id": "setup-token-a",
+    "target_parameters": {"density": NaN},
+    "input_delta": {"parameter_id": "density", "to_value": 1.0, "downstream_effect_ids": []},
+    "expected_invariant_ids": []
+  }
+}

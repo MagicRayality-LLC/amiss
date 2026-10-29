@@ -1,0 +1,30 @@
+# Local simulation
+
+The simulation is the source of truth for each Trial. This directory contains a standard-library Python kernel that runs without rendering, network, voice, model, device-storage, or headset dependencies. Its only contract dependency is `schema/`.
+
+## Implemented contracts
+
+- Trial creation, explicit proposal acceptance, rejection, return to source, derivation, lifecycle transitions, pause/resume, and immutable setup projections.
+- Exact Trial revision changes for semantic events, with free Ticks, held-pose samples, panel refreshes, and comparison selection leaving the Trial revision unchanged.
+- Immutable-by-value snapshot projections, complete measurements and display tuples, structured prediction gates, target masking, and stale-reference refusal in both directions.
+- Append-only Trial and guide ledgers with scientific facts and reason categories rather than tutor wording.
+- Versioned mechanical stage loading, current-token whitelists, independent evidence pairs, user skip/replay/free-exploration controls, and a deterministic offline default path.
+- A pure proposal validator for all five closed tools, canonical SHA-256 fingerprints, seven ordered checks, durable first-result replay, exact single-use confirmation, and atomic execution receipts.
+- A non-product fake discrete episode covering declaration, load gate, all eleven behaviour faces, setup, measurement, derivation, guide completion, and residue-free unload.
+
+Unresolved prediction gates are held inside the kernel. Published `predictions[]` contains resolved records, while targeted measurements carry the active mask. This keeps every published prediction consistent with the public snapshot contract.
+
+`ProposalValidator` receives an injected idempotency store and executors. The in-memory store and local effect executor are deterministic headless fixtures, not device persistence or headset presentation. They export and restore records for restart tests without file, network, or device access.
+
+Device persistence, fixed-Tick physics, rendering, transport, and device integration belong to later actions. No device or model result is claimed here.
+
+## Validation
+
+Run from the repository root:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s simulation/tests -v
+PYTHONDONTWRITEBYTECODE=1 python3 schema/validate.py
+```
+
+The tests cover Trial/guide scenarios 1–7, the non-persistence portion of scenario 9, and all twelve proposal-validator headless scenarios. Save/recovery scenario 8 and fake-episode device persistence remain outside these actions.

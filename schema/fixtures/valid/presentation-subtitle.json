@@ -1,0 +1,16 @@
+{
+  "tool_schema_version": "1.0.0",
+  "call_id": "call-presentation-subtitle",
+  "origin": "model",
+  "tool": "presentation.request",
+  "target": {"kind": "existing", "trial_ref": {"trial_id": "trial-a", "trial_revision": 1}},
+  "basis_trial_ref": {"trial_id": "trial-a", "trial_revision": 1},
+  "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+  "parameters": {
+    "operation": "show_subtitle",
+    "subtitle_id": "subtitle-a",
+    "text": "Synthetic subtitle.",
+    "source_global_revision": 1,
+    "citations": []
+  }
+}
