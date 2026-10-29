@@ -1,5 +1,23 @@
 from .guide import GuideRunner, StageLoadError
 from .kernel import KernelError, TrialKernel, TrialRef
+from .runtime import (
+    FAILURE_LAYERS,
+    DEFAULT_UNIT_CONVENTION,
+    CollisionContractError,
+    CollisionRepresentation,
+    HeadlessBallWriter,
+    ModelDeterminismDeclaration,
+    NamedRandomStreams,
+    RuntimeBudgetProfile,
+    RuntimeContractError,
+    ScientificWriterSlot,
+    SimulationRuntime,
+    box_representation,
+    failure_report,
+    kinetic_energies,
+    kinetic_temperature,
+    round_trip_units,
+)
 from .validator import (
     ExecutionError,
     InMemoryIdempotencyStore,
@@ -9,14 +27,30 @@ from .validator import (
 )
 
 __all__ = [
+    "CollisionContractError",
+    "CollisionRepresentation",
+    "DEFAULT_UNIT_CONVENTION",
     "ExecutionError",
+    "FAILURE_LAYERS",
     "GuideRunner",
+    "HeadlessBallWriter",
     "InMemoryIdempotencyStore",
     "KernelError",
     "LocalGates",
+    "ModelDeterminismDeclaration",
+    "NamedRandomStreams",
     "ProposalValidator",
+    "RuntimeBudgetProfile",
+    "RuntimeContractError",
+    "ScientificWriterSlot",
+    "SimulationRuntime",
     "StageLoadError",
     "ToolDeclaration",
     "TrialKernel",
     "TrialRef",
+    "box_representation",
+    "failure_report",
+    "kinetic_energies",
+    "kinetic_temperature",
+    "round_trip_units",
 ]
