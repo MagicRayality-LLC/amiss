@@ -4,6 +4,9 @@
     "references": [
         "Amiss.Contracts",
         "Amiss.Shell",
+        "meta.xr.mrutilitykit",
+        "Oculus.VR",
+        "Oculus.VR.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

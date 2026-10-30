@@ -4,6 +4,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source tools/unity.sh
 mkdir -p build
+METHOD="Amiss.EditorTools.AmissBuild.ConfigureAndBuild"
+if [ "${1:-}" = "--development" ]; then
+    METHOD="Amiss.EditorTools.AmissBuild.ConfigureAndBuildDevelopment"
+elif [ $# -gt 0 ]; then
+    echo "Unknown option: $1 (only --development is supported)" >&2
+    exit 2
+fi
 if [ -f "Temp/UnityLockfile" ]; then
     echo "Unity Editor has this project open (Temp/UnityLockfile exists). Close it first." >&2
     exit 1
@@ -11,7 +18,7 @@ fi
 echo "==> Building Builds/Amiss.apk (Unity batchmode, $(basename "$(dirname "$(dirname "$UNITY")")"))"
 set +e
 "$UNITY" -batchmode -nographics -quit -buildTarget Android \
-    -projectPath "$(pwd)" -executeMethod Amiss.EditorTools.AmissBuild.ConfigureAndBuild \
+    -projectPath "$(pwd)" -executeMethod "$METHOD" \
     -logFile build/unity-build.log
 BUILD_RC=$?
 set -e

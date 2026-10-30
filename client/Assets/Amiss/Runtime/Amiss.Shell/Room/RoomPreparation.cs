@@ -1,0 +1,183 @@
+using System;
+using UnityEngine;
+
+namespace Amiss.Shell.Room
+{
+    public sealed class RoomPreparation
+    {
+        int sequence;
+        double minimumVolumeM3;
+
+        public event Action Changed;
+        public RoomPreparationStatus Status { get; private set; } = RoomPreparationStatus.Idle;
+        public RoomFailureReason Failure { get; private set; }
+        public string PreparationId { get; private set; } = "";
+        public RoomDraft Draft { get; private set; }
+        public RoomConfirmation Confirmation { get; private set; }
+        public CollisionRepresentation Collision { get; private set; }
+        public bool Restricted => Status == RoomPreparationStatus.Restricted;
+        public bool RoomConfirmed => Status == RoomPreparationStatus.Confirmed && Confirmation != null &&
+                                     Collision != null && Collision.VerifyIntegrity();
+        public bool CanCreateTrial => false;
+
+        public string Begin(double episodeMinimumVolumeM3)
+        {
+            sequence++;
+            PreparationId = sequence.ToString("D4");
+            minimumVolumeM3 = episodeMinimumVolumeM3;
+            Draft = null;
+            Confirmation = null;
+            Collision = null;
+            Failure = RoomFailureReason.None;
+            Status = RoomPreparationStatus.Explanation;
+            if (!double.IsFinite(episodeMinimumVolumeM3) || episodeMinimumVolumeM3 <= 0d)
+                Restrict(RoomFailureReason.InvalidGeometry);
+            Changed?.Invoke();
+            return PreparationId;
+        }
+
+        public bool RequestPermission(string preparationId)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.Explanation))
+                return false;
+            Status = RoomPreparationStatus.PermissionRequested;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool CompletePermission(string preparationId, bool granted)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.PermissionRequested))
+                return false;
+            if (!granted)
+            {
+                Restrict(RoomFailureReason.ScenePermission);
+                return true;
+            }
+            Failure = RoomFailureReason.None;
+            Status = RoomPreparationStatus.SpaceSetupReady;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool RequestSpaceSetup(string preparationId)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.SpaceSetupReady))
+                return false;
+            Status = RoomPreparationStatus.SpaceSetupRequested;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool CompleteSpaceSetup(string preparationId, bool succeeded, bool cancelled = false)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.SpaceSetupRequested))
+                return false;
+            if (cancelled || !succeeded)
+            {
+                Restrict(cancelled ? RoomFailureReason.SpaceSetupCancelled : RoomFailureReason.SpaceSetupFailed);
+                return true;
+            }
+            Failure = RoomFailureReason.None;
+            Status = RoomPreparationStatus.SceneLoading;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool CompleteSceneLoad(string preparationId, RoomDraft draft,
+            RoomFailureReason loadFailure = RoomFailureReason.None)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.SceneLoading))
+                return false;
+            if (loadFailure != RoomFailureReason.None || draft == null)
+            {
+                Restrict(loadFailure == RoomFailureReason.None ? RoomFailureReason.NoScene : loadFailure);
+                return true;
+            }
+
+            Draft = draft;
+            Failure = draft.Validate(minimumVolumeM3);
+            if (Failure == RoomFailureReason.InvalidGeometry)
+            {
+                Restrict(Failure);
+                return true;
+            }
+            Status = RoomPreparationStatus.AwaitingConfirmation;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool AddVirtualSupplements(string preparationId)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation) || Draft == null)
+                return false;
+            Draft = Draft.WithVirtualSupplements();
+            Failure = Draft.Validate(minimumVolumeM3);
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool ChooseManualBoundary(string preparationId, Vector3 userPosition, Vector3 userForward)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.Restricted) &&
+                !Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation))
+                return false;
+            var floorY = Draft != null ? Draft.Region.min.y : userPosition.y;
+            var region = new Bounds(
+                new Vector3(userPosition.x, floorY + 1.25f, userPosition.z), new Vector3(3f, 2.5f, 3f));
+            Draft = RoomDraft.CreateManual(region, userPosition, userForward);
+            Failure = Draft.Validate(minimumVolumeM3);
+            Status = RoomPreparationStatus.AwaitingConfirmation;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool Confirm(string preparationId)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation) || Draft == null)
+                return false;
+            if (!CollisionRepresentation.TryCreate(PreparationId, Draft, minimumVolumeM3,
+                    out var collision, out var failure))
+            {
+                Failure = failure;
+                Changed?.Invoke();
+                return false;
+            }
+            Collision = collision;
+            Confirmation = new RoomConfirmation(PreparationId, Draft, collision);
+            Failure = RoomFailureReason.None;
+            Status = RoomPreparationStatus.Confirmed;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public void Rescan()
+        {
+            Begin(minimumVolumeM3 > 0d ? minimumVolumeM3 : 1d);
+        }
+
+        public void Cancel()
+        {
+            sequence++;
+            PreparationId = "";
+            Draft = null;
+            Confirmation = null;
+            Collision = null;
+            Failure = RoomFailureReason.None;
+            Status = RoomPreparationStatus.Idle;
+            Changed?.Invoke();
+        }
+
+        void Restrict(RoomFailureReason reason)
+        {
+            Failure = reason;
+            Status = RoomPreparationStatus.Restricted;
+            Confirmation = null;
+            Collision = null;
+            Changed?.Invoke();
+        }
+
+        bool Owns(string preparationId, RoomPreparationStatus expected) =>
+            !string.IsNullOrEmpty(preparationId) && preparationId == PreparationId && Status == expected;
+    }
+}

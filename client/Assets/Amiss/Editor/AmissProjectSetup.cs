@@ -12,6 +12,8 @@ using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features;
 using Amiss.Shell;
+using Amiss.Shell.Room;
+using Meta.XR.MRUtilityKit;
 
 namespace Amiss.EditorTools
 {
@@ -79,6 +81,7 @@ namespace Amiss.EditorTools
         {
             var config = OVRProjectConfig.CachedProjectConfig;
             config.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
+            config.sceneSupport = OVRProjectConfig.FeatureSupport.Required;
             config.insightPassthroughSupport = OVRProjectConfig.FeatureSupport.Supported;
             config.systemLoadingScreenBackground =
                 OVRProjectConfig.SystemLoadingScreenBackground.ContextualPassthrough;
@@ -92,6 +95,8 @@ namespace Amiss.EditorTools
                 throw new System.Exception("handtracking entry missing from generated manifest");
             if (!manifestText.Contains("com.oculus.feature.PASSTHROUGH"))
                 throw new System.Exception("passthrough feature missing from generated manifest");
+            if (!manifestText.Contains(OVRPermissionsRequester.ScenePermission))
+                throw new System.Exception("scene permission missing from generated manifest");
             if (!manifestText.Contains("passthrough-contextual"))
                 throw new System.Exception("loading screen is not contextual passthrough");
             Debug.Log("[Amiss] OVR project config and Android manifest regenerated");
@@ -255,7 +260,7 @@ namespace Amiss.EditorTools
         /// and the agent stays disabled; scrub both so the committed public
         /// tree never carries a build-machine address or token.
         /// </summary>
-        static void ScrubBuildMachineAddress()
+        public static void ScrubBuildMachineAddress()
         {
             var path = "Assets/Resources/DevAgentSettings.asset";
             if (!File.Exists(path))
@@ -297,6 +302,9 @@ namespace Amiss.EditorTools
             {
                 manager.trackingOriginType = OVRManager.TrackingOrigin.FloorLevel;
                 manager.isInsightPassthroughEnabled = true;
+                var serializedManager = new SerializedObject(manager);
+                serializedManager.FindProperty("requestScenePermissionOnStartup").boolValue = false;
+                serializedManager.ApplyModifiedPropertiesWithoutUndo();
             }
             if (rig.GetComponent<OVRPassthroughLayer>() == null)
                 rig.AddComponent<OVRPassthroughLayer>();
@@ -309,12 +317,23 @@ namespace Amiss.EditorTools
 
             var systems = new GameObject("Systems");
             systems.AddComponent<ShellServices>();
+            var mrukGo = new GameObject("MRUK");
+            mrukGo.transform.SetParent(systems.transform, false);
+            var mruk = mrukGo.AddComponent<MRUK>();
+            mruk.SceneSettings = new MRUK.MRUKSettings();
+            mruk.SceneSettings.DataSource = MRUK.SceneDataSource.Device;
+            mruk.SceneSettings.LoadSceneOnStartup = false;
+            mruk.EnableWorldLock = true;
+            systems.AddComponent<MetaRoomAdapter>();
+            systems.AddComponent<RoomPreparationController>();
+            systems.AddComponent<RoomHighlights>();
 
-            var panelGo = new GameObject("LibraryPanel");
+            var panelGo = new GameObject("InstrumentRoot");
             panelGo.transform.SetParent(systems.transform, false);
-            panelGo.transform.localPosition = new Vector3(0f, 1.35f, 0.95f);
-            panelGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            panelGo.transform.localPosition = new Vector3(0f, 1.35f, 1.5f);
+            panelGo.transform.localRotation = Quaternion.identity;
             panelGo.AddComponent<ShellLibraryUI>();
+            panelGo.AddComponent<InstrumentRoot>();
 
             var inputGo = new GameObject("InputScaffold");
             inputGo.transform.SetParent(systems.transform, false);

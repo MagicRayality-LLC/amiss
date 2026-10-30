@@ -1,6 +1,7 @@
 using Amiss.Contracts;
 using Amiss.Shell.Fixtures;
 using Amiss.Shell.Ports;
+using Amiss.Shell.Room;
 using UnityEngine;
 
 namespace Amiss.Shell
@@ -20,6 +21,7 @@ namespace Amiss.Shell
         public GuideRunnerPort GuideRunner { get; private set; }
         public TutorTransportPort TutorTransport { get; private set; }
         public PersistenceAdapterPort PersistenceAdapter { get; private set; }
+        public RoomPreparationController Room { get; private set; }
 
         void Awake()
         {
@@ -33,6 +35,7 @@ namespace Amiss.Shell
                 ShellCapabilityManifest.ThisBuild(),
                 EpisodeHost,
                 FrameworkContractFixtures.ResolveCriticalAsset);
+            Room = GetComponent<RoomPreparationController>();
 
             BuildIdentity.Log();
         }

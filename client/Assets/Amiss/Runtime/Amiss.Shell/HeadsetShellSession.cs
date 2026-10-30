@@ -10,6 +10,10 @@ namespace Amiss.Shell
         CardSelected,
         StartBlocked,
         StartReady,
+        RoomPreparation,
+        RoomConfirmed,
+        SetupAccepted,
+        Restricted,
         MountFailed
     }
 
@@ -71,22 +75,35 @@ namespace Amiss.Shell
                 State = ShellSessionState.StartReady;
         }
 
-        /// <summary>
-        /// Requests the start of the selected, runnable, bundled episode.
-        /// Mounting is fail-closed in this build; a failed mount leaves the
-        /// library state intact and shows a readable reason.
-        /// </summary>
         public void RequestStart()
         {
             if (State != ShellSessionState.StartReady || SelectedVerdict is not { Runnable: true })
                 return;
+            State = ShellSessionState.RoomPreparation;
+        }
 
-            var result = episodeHost.Mount(Selected);
-            if (!result.Success)
-            {
-                MountFailureReason = result.ReadableReason;
-                State = ShellSessionState.MountFailed;
-            }
+        public void MarkRestricted()
+        {
+            if (State == ShellSessionState.RoomPreparation)
+                State = ShellSessionState.Restricted;
+        }
+
+        public void MarkRoomPreparation()
+        {
+            if (State != ShellSessionState.Library && State != ShellSessionState.StartBlocked)
+                State = ShellSessionState.RoomPreparation;
+        }
+
+        public void MarkRoomConfirmed()
+        {
+            if (State == ShellSessionState.RoomPreparation || State == ShellSessionState.Restricted)
+                State = ShellSessionState.RoomConfirmed;
+        }
+
+        public void MarkSetupAccepted()
+        {
+            if (State == ShellSessionState.RoomConfirmed)
+                State = ShellSessionState.SetupAccepted;
         }
 
         /// <summary>

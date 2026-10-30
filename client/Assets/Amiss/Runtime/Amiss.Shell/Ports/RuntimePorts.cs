@@ -19,6 +19,10 @@ namespace Amiss.Shell.Ports
     {
         /// <summary>True once a runtime binding is registered in this build.</summary>
         bool Available { get; }
+        bool PauseRequested { get; }
+        string PauseReason { get; }
+        void RequestPause(string reason);
+        void RequestResume();
     }
 
     /// <summary>

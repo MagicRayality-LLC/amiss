@@ -6,6 +6,7 @@
         "Amiss.Shell",
         "Oculus.VR",
         "Oculus.VR.Editor",
+        "meta.xr.mrutilitykit",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.XR.Management",
         "Unity.XR.Management.Editor",

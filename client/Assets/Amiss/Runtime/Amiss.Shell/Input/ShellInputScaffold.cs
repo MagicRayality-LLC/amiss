@@ -3,12 +3,11 @@ using UnityEngine;
 namespace Amiss.Shell
 {
     /// <summary>
-    /// Controller-driven library navigation for the shell build. Emits only
-    /// semantic commands (move selection, confirm, back) into the session;
-    /// it never writes physics, panel state, or episode data directly. This
-    /// scaffold exists for the library smoke build; the equivalent-input
-    /// integration (hand and controller parity, validity checks, swing
-    /// classification) replaces it in its owning build step.
+    /// Controller-driven library and room-preparation commands. Emits only
+    /// semantic local commands into the session and room owner; it never
+    /// writes physics or episode data directly. Equivalent hand/controller
+    /// physical input, validity checks, and swing classification remain with
+    /// their owning build step.
     /// </summary>
     public sealed class ShellInputScaffold : MonoBehaviour
     {
@@ -42,12 +41,16 @@ namespace Amiss.Shell
                 MoveSelection(direction);
             }
 
-            if (OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger, OVRInput.Controller.RTouch))
+            if (OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger, OVRInput.Controller.RTouch) ||
+                OVRInput.GetDown(OVRInput.RawButton.A, OVRInput.Controller.RTouch))
                 Confirm();
-
-            if (OVRInput.GetDown(OVRInput.RawButton.B, OVRInput.Controller.RTouch) ||
-                OVRInput.GetDown(OVRInput.RawButton.LThumbstick, OVRInput.Controller.LTouch) ||
-                OVRInput.GetDown(OVRInput.RawButton.RThumbstick, OVRInput.Controller.RTouch))
+            if (OVRInput.GetDown(OVRInput.RawButton.X, OVRInput.Controller.LTouch))
+                services.Room?.ManualOrSupplement();
+            if (OVRInput.GetDown(OVRInput.RawButton.Y, OVRInput.Controller.LTouch))
+                services.Room?.Rescan();
+            if (OVRInput.GetDown(OVRInput.RawButton.RThumbstick, OVRInput.Controller.RTouch))
+                services.Room?.RelocatePanel();
+            if (OVRInput.GetDown(OVRInput.RawButton.B, OVRInput.Controller.RTouch))
                 Back();
         }
 
@@ -71,20 +74,30 @@ namespace Amiss.Shell
                 case ShellSessionState.Library:
                     if (session.SelectedIndex < 0 && session.Cards.Count > 0)
                         session.SelectCard(0);
-                    else
-                        session.RequestStart();
                     break;
                 case ShellSessionState.StartReady:
                     session.RequestStart();
+                    services.Room?.BeginSelectedEpisode();
+                    break;
+                case ShellSessionState.RoomPreparation:
+                case ShellSessionState.RoomConfirmed:
+                case ShellSessionState.SetupAccepted:
+                case ShellSessionState.Restricted:
+                    services.Room?.PrimaryAction();
                     break;
             }
         }
 
         void Back()
         {
-            var session = services.Session;
-            if (session.State != ShellSessionState.Library)
-                session.ReturnToLibrary();
+            if (services.Room != null &&
+                services.Room.Preparation.Status == Room.RoomPreparationStatus.SpaceSetupRequested)
+            {
+                services.Room.CancelSpaceSetup();
+                return;
+            }
+            if (services.Session.State != ShellSessionState.Library)
+                services.Room?.ExitToLibrary();
         }
     }
 }

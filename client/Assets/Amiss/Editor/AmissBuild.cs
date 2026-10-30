@@ -22,6 +22,12 @@ namespace Amiss.EditorTools
             Build(ApkPath, BuildOptions.None);
         }
 
+        public static void ConfigureAndBuildDevelopment()
+        {
+            Configure();
+            Build(ApkPath, BuildOptions.Development);
+        }
+
         static void Configure()
         {
             if (!File.Exists(ScenePath))
@@ -35,6 +41,7 @@ namespace Amiss.EditorTools
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel34;
 
             OVRManifestPreprocessor.GenerateOrUpdateAndroidManifest(true);
+            AmissProjectSetup.ScrubBuildMachineAddress();
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();

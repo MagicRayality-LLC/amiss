@@ -190,13 +190,13 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void StartFailsClosedWithAReadableReasonInThisBuild()
+        public void StartEntersRoomPreparationWithoutMountingOrStartingATrial()
         {
             var (session, _) = Build(new FrameworkContractFixtures.DeclarationSource());
             session.SelectCard(0);
             session.RequestStart();
-            Assert.AreEqual(ShellSessionState.MountFailed, session.State);
-            StringAssert.Contains("No episode module", session.MountFailureReason);
+            Assert.AreEqual(ShellSessionState.RoomPreparation, session.State);
+            Assert.AreEqual("", session.MountFailureReason);
         }
 
         [Test]

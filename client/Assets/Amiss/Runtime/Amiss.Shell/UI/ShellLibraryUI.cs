@@ -181,13 +181,67 @@ namespace Amiss.Shell
                 case ShellSessionState.StartBlocked:
                     return ComposeBlocked(session);
                 case ShellSessionState.StartReady:
-                    return "Load check: runnable. The experiment episode itself is not\n" +
-                           "built into this shell yet; starting it will report that.\n" +
-                           "Trigger: start · B: back to library.";
+                    return "Load check: runnable. Next is room preparation, not a Trial.\n" +
+                           "Trigger: prepare room · B: back to library.";
+                case ShellSessionState.RoomPreparation:
+                case ShellSessionState.RoomConfirmed:
+                case ShellSessionState.SetupAccepted:
+                case ShellSessionState.Restricted:
+                    return ComposeRoom(services.Room);
                 case ShellSessionState.MountFailed:
                     return session.MountFailureReason + "\nPress B to return to the library.";
                 default:
                     return session.State.ToString();
+            }
+        }
+
+        static string ComposeRoom(Room.RoomPreparationController room)
+        {
+            if (room == null)
+                return "Room preparation is unavailable. B: library.";
+            var recovery = room.Recovery;
+            var prefix = recovery.SafetyHold
+                ? "SAFETY HOLD: boundary invalid. Trigger: reconfirm; resume stays explicit.\n"
+                : recovery.ResumeRequired ? "Paused locally. Trigger: explicit resume; no catch-up.\n" : "";
+            if (recovery.SceneUpdateAvailable)
+                prefix += "Scene update: existing collision pin unchanged; rescan is future-only.\n";
+            if (recovery.Panel != null && recovery.Panel.Status == Room.PanelPlacementStatus.RecoveryNeeded)
+                prefix += "Panel alignment uncertain. Right stick: relocate; Trial pin unchanged.\n";
+
+            if (recovery.SetupAccepted)
+                return prefix + "Actual setup accepted and collision pinned. No balls or Trial started.\n" +
+                       "Y: future-only rescan · right stick: relocate panel · B: library.";
+            var preparation = room.Preparation;
+            switch (preparation.Status)
+            {
+                case Room.RoomPreparationStatus.Explanation:
+                    return prefix + "Scene data is used locally for room collision. Nothing starts yet.\n" +
+                           "Trigger: request scene permission · B: library.";
+                case Room.RoomPreparationStatus.PermissionRequested:
+                    return prefix + "Waiting for the single scene-permission request…";
+                case Room.RoomPreparationStatus.SpaceSetupReady:
+                    return prefix + "Permission granted. Trigger: enter on-device Space Setup · B: library.";
+                case Room.RoomPreparationStatus.SpaceSetupRequested:
+                    return prefix + "Complete Space Setup on device. B: cancel setup.";
+                case Room.RoomPreparationStatus.SceneLoading:
+                    return prefix + "Loading the device Scene Model; no room fallback is allowed…";
+                case Room.RoomPreparationStatus.AwaitingConfirmation:
+                    var draft = preparation.Draft;
+                    var issue = preparation.Failure == Room.RoomFailureReason.None ? "" :
+                        "\nNot confirmable yet: " + preparation.Failure + ". X: supplement · Y: rescan.";
+                    return prefix + (draft != null ? draft.BoundaryLabel : "Room draft") +
+                           "\nEffective region: " + Room.RoomGeometry.Meters(draft?.EffectiveVolumeM3 ?? 0f) +
+                           " m3. Review surfaces and clear swing volume." + issue +
+                           "\nTrigger: confirm room · X: virtual supplements · Y: rescan · B: exit.";
+                case Room.RoomPreparationStatus.Confirmed:
+                    return prefix + preparation.Confirmation.BoundaryLabel +
+                           "\nRoom confirmed; collision checksum is pinned. No balls or Trial.\n" +
+                           "Trigger: separately accept actual setup · Y: future rescan.";
+                case Room.RoomPreparationStatus.Restricted:
+                    return prefix + "Restricted: " + preparation.Failure +
+                           ". No balls or Trial.\nTrigger: retry · X: manual virtual boundary · B: exit.";
+                default:
+                    return prefix + "Room preparation idle.";
             }
         }
 

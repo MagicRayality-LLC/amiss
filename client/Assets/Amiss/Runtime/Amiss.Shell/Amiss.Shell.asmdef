@@ -4,6 +4,7 @@
     "references": [
         "Amiss.Contracts",
         "Oculus.VR",
+        "meta.xr.mrutilitykit",
         "Unity.InputSystem",
         "UnityEngine.UI"
     ],
