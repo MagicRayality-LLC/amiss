@@ -1,0 +1,28 @@
+# Unity generated caches and build output (this directory is the Unity project root)
+/.utmp/
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+*.log
+*.csproj
+*.sln
+*.slnx
+*.user
+*.userprefs
+*.apk
+*.aab
+*.unitypackage
+ExportedObj/
+.idea/
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+*.keystore
+.env
+# Test runner artifacts
+InitTestScene*.unity*
