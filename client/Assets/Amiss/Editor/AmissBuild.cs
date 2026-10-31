@@ -15,6 +15,7 @@ namespace Amiss.EditorTools
     {
         const string ScenePath = "Assets/Amiss/Shell.unity";
         const string ApkPath = "Builds/Amiss.apk";
+        const string DebugApkPath = "Builds/Amiss-debug.apk";
 
         public static void ConfigureAndBuild()
         {
@@ -26,6 +27,13 @@ namespace Amiss.EditorTools
         {
             Configure();
             Build(ApkPath, BuildOptions.Development);
+        }
+
+        public static void ConfigureAndBuildDebug()
+        {
+            PlayerSettings.Android.useCustomKeystore = false;
+            Configure();
+            Build(DebugApkPath, BuildOptions.Development);
         }
 
         static void Configure()

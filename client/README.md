@@ -1,6 +1,6 @@
 # Headset client
 
-The Unity Quest 3 headset shell. This directory is the Unity project root:
+The Unity Quest Pro headset shell. This directory is the Unity project root:
 open it with Unity Hub or build it from the command line with the scripts in
 `tools/`. The shell owns the session, the episode library and load gate, the
 world-anchored panel, input normalization, and the platform adapters; pure
@@ -45,19 +45,67 @@ pinned versions rather than bumping existing ones.
 
 ## Commands
 
-Run from this directory (or from the repository root with the path prefix
-`client/`):
+For a public checkout, `tools/build-debug.sh` builds only
+`Builds/Amiss-debug.apk`. It uses Unity debug signing with the custom keystore
+disabled; it does not build a store or release package and needs no company
+credential. Install Unity 6000.6.5f1 with Android Build Support, IL2CPP, and an
+Android SDK/JDK. Standard Unity Hub paths on Linux, macOS, and Windows Git
+Bash are detected automatically. On any other setup, set `UNITY` to the
+editor executable first:
 
 ```bash
+UNITY=/path/to/Unity client/tools/build-debug.sh
+```
+
+Run the other commands from this directory (or from the repository root with
+the path prefix `client/`):
+
+```bash
+tools/build-debug.sh            # debug only: Builds/Amiss-debug.apk
+tools/build-install-debug.sh    # debug only: build + install + launch on a headset
 tools/setup-project.sh          # idempotent: configure the Unity project once
 tools/run-tests.sh               # edit-mode test suite, headless
-tools/build-apk.sh              # Builds/Amiss.apk for Quest 3
+tools/build-apk.sh              # Builds/Amiss.apk for Quest Pro
 tools/build-install-launch.sh   # build + adb install + launch on a headset
 ```
 
 All Unity invocations are batchmode `-nographics`. The scripts refuse to run
 while the Editor holds the project open. `ADB`/`UNITY` environment variables
 and `--device SERIAL` select overrides; only adb `device` state counts.
+
+`tools/build-install-debug.sh` is the judge-facing one-shot: it builds with
+Unity debug signing only (custom keystore disabled, no store or release
+package), installs on the attached headset, and launches it. Device selection
+is shared with `tools/build-install-launch.sh` through
+`tools/device-select.sh`: one attached headset is used directly, several get
+an interactive numbered picker, and a non-interactive shell lists the serials
+and exits instead of guessing.
+
+Typical runs, from this directory:
+
+```bash
+tools/build-install-debug.sh --list            # show attached headsets, exit
+tools/build-install-debug.sh                   # build + install + launch
+tools/build-install-debug.sh --device <serial> # pick one of several headsets
+tools/build-install-debug.sh --no-build        # reinstall the existing APK
+tools/build-install-debug.sh --no-launch       # build + install only
+```
+
+With one headset attached the serial is not needed. With several, the script
+numbers them and asks for one:
+
+```
+Several devices attached:
+  1) 1WMHH8600V1106  (Quest_2)
+  2) 230YC01DCC00YM  (Quest_Pro)
+  3) 2G0YC5ZF9301NX  (Quest_3)
+Target headset [1-3]:
+```
+
+A failed install because the on-device copy carries a different signing key is
+reported with the manual uninstall command; the script never uninstalls by
+itself. If the launch reports no process, wake and unlock the headset and check
+its screen for a system dialog.
 
 ## Layout
 

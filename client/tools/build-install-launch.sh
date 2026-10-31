@@ -8,6 +8,9 @@
 #   tools/build-install-launch.sh --no-launch       # build + install only
 #   tools/build-install-launch.sh --device SERIAL   # pick the target headset
 #
+# Device selection is shared with tools/build-install-debug.sh: one attached
+# headset is used directly, several get an interactive numbered picker.
+#
 # Environment overrides: UNITY (editor path), ADB (adb path),
 # ANDROID_SERIAL (same as --device). Only adb 'device' state counts.
 set -euo pipefail
@@ -35,40 +38,8 @@ PKG="com.magicrayality.amiss"
 ACTIVITY="$PKG/com.unity3d.player.UnityPlayerGameActivity"
 ADB="${ADB:-adb}"
 
-SERIALS=()
-MODELS=()
-while IFS=$'\t' read -r serial model; do
-    SERIALS+=("$serial")
-    MODELS+=("$model")
-done < <("$ADB" devices -l | awk '$2 == "device" {
-  model = "-"
-  for (i = 3; i <= NF; i++)
-    if (substr($i, 1, 6) == "model:") { model = substr($i, 7); break }
-  print $1 "\t" model
-}')
-if [ "${#SERIALS[@]}" -eq 0 ]; then
-    echo "No headset attached in adb 'device' state — run 'adb devices' first." >&2
-    exit 1
-fi
-MODEL=""
-if [ -n "$DEVICE" ]; then
-    found=0
-    for i in "${!SERIALS[@]}"; do
-        if [ "${SERIALS[$i]}" = "$DEVICE" ]; then
-            MODEL="${MODELS[$i]}"; found=1; break
-        fi
-    done
-    [ "$found" = 1 ] || { echo "Device '$DEVICE' is not attached:" >&2
-        for i in "${!SERIALS[@]}"; do echo "  ${SERIALS[$i]}  (${MODELS[$i]})" >&2; done
-        exit 2; }
-elif [ "${#SERIALS[@]}" -gt 1 ]; then
-    echo "Multiple headsets attached — pick one with --device SERIAL:" >&2
-    for i in "${!SERIALS[@]}"; do echo "  ${SERIALS[$i]}  (${MODELS[$i]})" >&2; done
-    exit 2
-else
-    DEVICE="${SERIALS[0]}"
-    MODEL="${MODELS[0]}"
-fi
+source tools/device-select.sh
+amiss_select_device || exit $?
 ADB_TARGET=("$ADB" -s "$DEVICE")
 echo "==> Target device: $DEVICE ($MODEL)"
 
