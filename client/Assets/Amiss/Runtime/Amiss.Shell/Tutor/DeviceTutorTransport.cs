@@ -353,6 +353,20 @@ namespace Amiss.Shell.Tutor
             string authorization, double connectDeadlineSeconds, double deadlineSeconds,
             CancellationToken cancellation = default)
         {
+            IReadOnlyDictionary<string, object> canonicalRequest;
+            try
+            {
+                canonicalRequest = CanonicalJsonReader.Parse(System.Text.Encoding.UTF8.GetString(body))
+                    as IReadOnlyDictionary<string, object>;
+            }
+            catch (Exception)
+            {
+                throw new SenderRefusedException("malformed_request");
+            }
+            if (canonicalRequest == null)
+                throw new SenderRefusedException("malformed_request");
+            var wireBody = MetaChatCompletionCodec.RequestBytes(canonicalRequest);
+
             // Hackathon evaluation only. The person saves a Meta Model API key in
             // the device settings. The product sends the trial to the company
             // endpoint first. That endpoint calls the model.
@@ -360,7 +374,7 @@ namespace Amiss.Shell.Tutor
             var clock = System.Diagnostics.Stopwatch.StartNew();
             using var request = new UnityWebRequest(endpointAddress,
                 UnityWebRequest.kHttpVerbPOST);
-            request.uploadHandler = new UploadHandlerRaw(body);
+            request.uploadHandler = new UploadHandlerRaw(wireBody);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("Authorization", "Bearer " + authorization);
@@ -388,30 +402,24 @@ namespace Amiss.Shell.Tutor
             if (request.result != UnityWebRequest.Result.Success)
                 throw new SenderRefusedException(request.error);
 
-            var parsed = CanonicalJsonReader.Parse(request.downloadHandler.text);
-            if (parsed is not IReadOnlyDictionary<string, object> response)
+            IReadOnlyDictionary<string, object> completion;
+            try
+            {
+                completion = CanonicalJsonReader.Parse(request.downloadHandler.text)
+                    as IReadOnlyDictionary<string, object>;
+            }
+            catch (Exception)
+            {
                 throw new SenderRefusedException("malformed_response");
-            var usage = UsageTokens(response);
+            }
+            if (completion == null)
+                throw new SenderRefusedException("malformed_response");
+            var response = MetaChatCompletionCodec.Response(completion);
+            var usage = MetaChatCompletionCodec.UsageTokens(completion);
             return new ModelReply(response, elapsed,
                 UtcStamp(started), UtcStamp(started.AddSeconds(elapsed)),
                 usage.input, usage.output);
         }
-
-        static (int? input, int? output) UsageTokens(IReadOnlyDictionary<string, object> response)
-        {
-            if (!response.TryGetValue("usage", out var raw) ||
-                raw is not IReadOnlyDictionary<string, object> usage)
-                return (null, null);
-            return (TokenCount(usage.GetValueOrDefault("input_tokens")),
-                TokenCount(usage.GetValueOrDefault("output_tokens")));
-        }
-
-        static int? TokenCount(object value) => value switch
-        {
-            int count when count >= 0 => count,
-            long count when count >= 0 && count <= int.MaxValue => (int)count,
-            _ => null
-        };
 
         static string UtcStamp(DateTime value) =>
             value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);

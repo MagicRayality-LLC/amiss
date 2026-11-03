@@ -27,7 +27,7 @@ from schema.validate import (
 
 REQUEST_CONTRACT_VERSION = "1.0.0"
 RESPONSE_CONTRACT_VERSION = "1.0.0"
-ENDPOINT_ADDRESS = "https://api.meta.ai/v1"
+ENDPOINT_ADDRESS = "https://api.meta.ai/v1/chat/completions"
 ENDPOINT_HOST = "api.meta.ai"
 MODEL_ID = "muse-spark-1.3"
 CONNECT_DEADLINE_SECONDS = 5.0

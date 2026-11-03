@@ -643,6 +643,102 @@ namespace Amiss.Tests
             return context;
         }
 
+        [Test]
+        public void MetaChatCodecWrapsTheCanonicalRequestWithoutDuplicatingPolicy()
+        {
+            var request = new Dictionary<string, object>
+            {
+                ["request_contract_version"] = "1.0.0",
+                ["request_id"] = "request-wire",
+                ["model"] = EvaluationContract.ModelId,
+                ["refs"] = new List<object>
+                {
+                    new Dictionary<string, object> { ["trial_id"] = "trial-a", ["trial_revision"] = 1 }
+                },
+                ["policy_envelope"] = new Dictionary<string, object>
+                {
+                    ["policy_version"] = "policy-a",
+                    ["system"] = "Synthetic system instruction."
+                }
+            };
+
+            var wire = Map(CanonicalJsonReader.Parse(
+                Encoding.UTF8.GetString(MetaChatCompletionCodec.RequestBytes(request))));
+
+            Assert.AreEqual(EvaluationContract.ModelId, Text(wire["model"]));
+            var messages = List(wire["messages"]);
+            Assert.AreEqual(2, messages.Count);
+            Assert.AreEqual("system", Text(Map(messages[0])["role"]));
+            Assert.AreEqual("Synthetic system instruction.", Text(Map(messages[0])["content"]));
+            var userContent = Map(CanonicalJsonReader.Parse(Text(Map(messages[1])["content"])));
+            Assert.AreEqual("request-wire", Text(userContent["request_id"]));
+            Assert.IsFalse(userContent.ContainsKey("policy_envelope"));
+            Assert.AreEqual(CanonicalJson.Text(request["refs"]), CanonicalJson.Text(userContent["refs"]));
+            var responseFormat = Map(wire["response_format"]);
+            Assert.AreEqual("json_schema", Text(responseFormat["type"]));
+            Assert.AreEqual("amiss_tutor_response",
+                Text(Map(responseFormat["json_schema"])["name"]));
+        }
+
+        [Test]
+        public void MetaChatCodecExtractsTheStructuredResponseAndProviderUsage()
+        {
+            var expected = new Dictionary<string, object>
+            {
+                ["response_contract_version"] = "1.0.0",
+                ["request_id"] = "request-wire",
+                ["refs"] = new List<object>(),
+                ["speech_units"] = new List<object>(),
+                ["tool_proposals"] = new List<object>()
+            };
+            var completion = new Dictionary<string, object>
+            {
+                ["choices"] = new List<object>
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["message"] = new Dictionary<string, object>
+                        {
+                            ["content"] = CanonicalJson.Text(expected)
+                        }
+                    }
+                },
+                ["usage"] = new Dictionary<string, object>
+                {
+                    ["prompt_tokens"] = 123,
+                    ["completion_tokens"] = 45
+                }
+            };
+
+            var actual = MetaChatCompletionCodec.Response(completion);
+            var usage = MetaChatCompletionCodec.UsageTokens(completion);
+
+            Assert.AreEqual(CanonicalJson.Text(expected), CanonicalJson.Text(actual));
+            Assert.AreEqual(123, usage.input);
+            Assert.AreEqual(45, usage.output);
+        }
+
+        [Test]
+        public void MetaChatCodecRejectsMissingOrNonJsonMessageContent()
+        {
+            var missing = new Dictionary<string, object> { ["choices"] = new List<object>() };
+            Assert.Throws<SenderRefusedException>(() => MetaChatCompletionCodec.Response(missing));
+
+            var invalid = new Dictionary<string, object>
+            {
+                ["choices"] = new List<object>
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["message"] = new Dictionary<string, object> { ["content"] = "not JSON" }
+                    }
+                }
+            };
+            var error = Assert.Throws<SenderRefusedException>(
+                () => MetaChatCompletionCodec.Response(invalid));
+            StringAssert.StartsWith("malformed_response", error.Message);
+        }
+
         sealed class ScriptedSender : IModelSender
         {
             readonly ModelReply reply;

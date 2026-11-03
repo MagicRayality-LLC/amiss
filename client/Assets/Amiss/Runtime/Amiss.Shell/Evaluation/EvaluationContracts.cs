@@ -14,7 +14,7 @@ namespace Amiss.Shell.Evaluation
     /// </summary>
     public static class EvaluationContract
     {
-        public const string EndpointAddress = "https://api.meta.ai/v1";
+        public const string EndpointAddress = "https://api.meta.ai/v1/chat/completions";
         public const string EndpointHost = "api.meta.ai";
         public const string ModelId = "muse-spark-1.3";
         public const string RequestContractVersion = "1.0.0";
