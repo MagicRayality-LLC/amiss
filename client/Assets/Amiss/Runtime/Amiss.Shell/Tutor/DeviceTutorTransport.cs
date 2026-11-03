@@ -149,6 +149,8 @@ namespace Amiss.Shell.Tutor
         {
             if (policy == null)
             {
+                Debug.Log("[Amiss] model transport closed: no policy envelope (request " +
+                    requestId + ")");
                 lastOutcome = TransportOutcome.Failed(EvaluationDirectTransport.Mode, requestId,
                     new TransportFailure("no_policy", "no_policy", NoPolicyDetail, requestId));
                 lastAdmission = AdmissionResult.Rejected(lastOutcome.Failure,
@@ -164,6 +166,8 @@ namespace Amiss.Shell.Tutor
             }
             catch (EvaluationContractException error)
             {
+                Debug.Log("[Amiss] model request build failed code=" + error.ReasonCode +
+                    " (request " + requestId + ")");
                 lastOutcome = TransportOutcome.Failed(EvaluationDirectTransport.Mode, requestId,
                     new TransportFailure(error.ReasonCode, error.ReasonCode, error.Message,
                         requestId));
@@ -174,6 +178,8 @@ namespace Amiss.Shell.Tutor
 
             if (inFlight)
             {
+                Debug.Log("[Amiss] model request refused: one already in flight (request " +
+                    requestId + ")");
                 lastSpeech = Array.Empty<string>();
                 lastOutcome = TransportOutcome.Failed(EvaluationDirectTransport.Mode, requestId,
                     new TransportFailure("request_in_flight", "request_in_flight",
@@ -188,6 +194,7 @@ namespace Amiss.Shell.Tutor
             {
                 var transport = new EvaluationDirectTransport(
                     sender ?? new UnityModelSender(), keyStore?.OpenHandle() ?? key, policy);
+                Debug.Log("[Amiss] model send start (request " + requestId + ")");
                 lastOutcome = await transport.Send(request, cancellation);
             }
             finally
@@ -197,6 +204,8 @@ namespace Amiss.Shell.Tutor
 
             if (!lastOutcome.Ok)
             {
+                Debug.Log("[Amiss] model send failed code=" + lastOutcome.Failure.ReasonCode +
+                    " (request " + requestId + ")");
                 lastSpeech = Array.Empty<string>();
                 lastAdmission = AdmissionResult.Rejected(lastOutcome.Failure, lastOutcome.Mode);
                 return lastAdmission;
@@ -206,6 +215,8 @@ namespace Amiss.Shell.Tutor
             lastSpeech = lastAdmission.Admitted
                 ? lastAdmission.AcceptedSpeech
                 : Array.Empty<string>();
+            Debug.Log("[Amiss] model send ok; admitted=" + lastAdmission.Admitted +
+                " speech=" + lastSpeech.Count + " (request " + requestId + ")");
             if (lastAdmission.Admitted && lastAdmission.Provenance != null)
                 lastProvenance = lastAdmission.Provenance;
             return lastAdmission;
@@ -366,6 +377,8 @@ namespace Amiss.Shell.Tutor
             if (canonicalRequest == null)
                 throw new SenderRefusedException("malformed_request");
             var wireBody = MetaChatCompletionCodec.RequestBytes(canonicalRequest);
+            Debug.Log("[Amiss] model http start " + endpointAddress +
+                " bytes=" + wireBody.Length);
 
             // Hackathon evaluation only. The person saves a Meta Model API key in
             // the device settings. The product sends the trial to the company
@@ -387,20 +400,30 @@ namespace Amiss.Shell.Tutor
             var state = await ModelRequestWait.AwaitAsync(wait, null);
             if (state == ModelRequestWait.State.Cancelled)
             {
+                Debug.Log("[Amiss] model http cancelled");
                 request.Abort();
                 throw new OperationCanceledException(cancellation);
             }
             if (state != ModelRequestWait.State.Done)
             {
+                Debug.Log("[Amiss] model http deadline exceeded after " +
+                    clock.Elapsed.TotalSeconds.ToString("0.0") + "s");
                 request.Abort();
                 throw new TimeoutException("model_deadline_exceeded");
             }
 
             var elapsed = clock.Elapsed.TotalSeconds;
             if (request.result == UnityWebRequest.Result.ConnectionError)
+            {
+                Debug.Log("[Amiss] model http connection error: " + request.error);
                 throw new SenderUnavailableException(request.error);
+            }
             if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log("[Amiss] model http refused status=" + request.responseCode +
+                    " error=" + request.error);
                 throw new SenderRefusedException(request.error);
+            }
 
             IReadOnlyDictionary<string, object> completion;
             try
@@ -416,6 +439,11 @@ namespace Amiss.Shell.Tutor
                 throw new SenderRefusedException("malformed_response");
             var response = MetaChatCompletionCodec.Response(completion);
             var usage = MetaChatCompletionCodec.UsageTokens(completion);
+            Debug.Log("[Amiss] model http ok status=" + request.responseCode +
+                " elapsed=" + elapsed.ToString("0.0") + "s" +
+                " bytes=" + (request.downloadHandler != null
+                    ? request.downloadedBytes
+                    : 0));
             return new ModelReply(response, elapsed,
                 UtcStamp(started), UtcStamp(started.AddSeconds(elapsed)),
                 usage.input, usage.output);

@@ -12,8 +12,16 @@ namespace Amiss.Shell.Voice
     public sealed class DictationCallbacks
     {
         public Action Activated { get; set; } = () => { };
+        public Action<string> PartialText { get; set; } = _ => { };
+        public Action CaptureEnded { get; set; } = () => { };
         public Action<string> FinalText { get; set; } = _ => { };
         public Action<string> Failed { get; set; } = _ => { };
+    }
+
+    public enum DictationActivationMode
+    {
+        Immediate,
+        Automatic
     }
 
     /// <summary>
@@ -76,12 +84,13 @@ namespace Amiss.Shell.Voice
         /// cannot start; the window's activation callback fires only once the
         /// microphone is actually recording.
         /// </summary>
-        IDictationSession Begin(string turnId, DictationCallbacks callbacks);
+        IDictationSession Begin(string turnId, DictationCallbacks callbacks,
+            DictationActivationMode mode = DictationActivationMode.Immediate);
     }
 
     /// <summary>
-    /// The provider-independent synthesis port. It accepts only an already
-    /// validated speech unit text, plays it from the approved speaker, and
+    /// The provider-independent synthesis port. It accepts whole-response
+    /// validated text or the episode-owned opening goal, plays it from the approved speaker, and
     /// stops all loading and audio on demand.
     /// </summary>
     public interface ISpeechSynthesisPort

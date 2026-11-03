@@ -329,7 +329,7 @@ namespace Amiss.Shell
                     return "MIC READY";
             }
 
-            if (!panel.MicrophoneConsentAccepted)
+            if (!panel.MicrophoneConsentAccepted || !panel.VoiceEnabled)
                 return "MIC OFF";
             if (!panel.MicrophonePermissionGranted)
                 return permissionRequested ? "MIC PERM PENDING" : "MIC NO PERM";
@@ -690,11 +690,6 @@ namespace Amiss.Shell
                 new Vector2(110f, 52f), setting, ClearModelKey);
             clear.text = "CLEAR";
             clear.fontSize = 17f;
-            var ask = SettingButton(panel, "AskTutor", new Vector2(-25f, -400f),
-                new Vector2(150f, 52f), setting, AskTutor);
-            ask.text = "ASK TUTOR";
-            ask.fontSize = 17f;
-
             modelKeyText = Text(panel, "ModelKeyStatus", new Vector2(215f, -400f),
                 new Vector2(300f, 52f), 14f, EpisodeSelectBoard.Muted, TextAlignmentOptions.Left);
             modelKeyText.textWrappingMode = TextWrappingModes.Normal;
@@ -891,21 +886,6 @@ namespace Amiss.Shell
             RefreshModelKeyLabel();
         }
 
-        async void AskTutor()
-        {
-            if (services == null || services.TutorConversation == null)
-                return;
-            var admission = await services.AskTutor();
-            if (this == null)
-                return;
-            tutorStatus = services.TutorConversation.LastSubtitle.Length > 0
-                ? services.TutorConversation.LastSubtitle
-                : services.TutorConversation.LastStatus;
-            RefreshModelKeyLabel();
-            Debug.Log("[Amiss] tutor ask admitted=" + admission.Admitted +
-                      " reason=" + (admission.Failure != null ? admission.Failure.ReasonCode : "none"));
-        }
-
         void RefreshModelKeyLabel()
         {
             if (modelKeyText == null || services == null)
@@ -933,6 +913,7 @@ namespace Amiss.Shell
         void ExitApp()
         {
             Debug.Log("[Amiss] hub exit");
+            services?.VoiceControl?.EndTrialEpisode();
             services?.SimulationRuntime?.StopTrial("exit_app");
             Application.Quit();
 #if UNITY_ANDROID && !UNITY_EDITOR

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Amiss.Shell.Evaluation
 {
@@ -49,13 +50,21 @@ namespace Amiss.Shell.Evaluation
                 : "";
             if (policy == null || request == null ||
                 !request.TryGetValue("policy_envelope", out var envelope) || envelope == null)
+            {
+                Debug.Log("[Amiss] model live path closed: no policy envelope (request " +
+                    requestId + ")");
                 return TransportOutcome.Failed(Mode, requestId, new TransportFailure(
                     "no_policy", "no_policy",
                     "No policy envelope is supplied, so the live path is closed.", requestId));
+            }
             if (!key.Present)
+            {
+                Debug.Log("[Amiss] model live path closed: no key held (request " +
+                    requestId + ")");
                 return TransportOutcome.Failed(Mode, requestId, new TransportFailure(
                     "no_credential", "no_credential",
                     "No evaluation model key is held; return to recorded mode.", requestId));
+            }
 
             var authorization = key.Use();
             var body = EvaluationRequestBuilder.RequestBytes(request);

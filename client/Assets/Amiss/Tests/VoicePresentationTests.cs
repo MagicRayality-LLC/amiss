@@ -88,14 +88,19 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void MicrophoneControlIsWiredToTheVoiceGate()
+        public void MicrophoneControlTogglesGlobalVoice()
         {
             var voice = new VoiceController(new StubDictation(), new StubSpeech(),
                 new StubTutor(), VoiceConsentStatus.Accepted);
             var panel = Panel(voice);
 
             Assert.IsTrue(panel.Apply(new PanelCommand(PanelCommandKind.ToggleMicrophone)));
-            StringAssert.Contains("Microphone starting", panel.LastCommandOutcome);
+            StringAssert.Contains("Voice off", panel.LastCommandOutcome);
+            Assert.IsFalse(panel.MicrophoneAvailable);
+            Assert.AreEqual("MIC OFF", EpisodeHub.MicLabel(panel));
+
+            Assert.IsTrue(panel.Apply(new PanelCommand(PanelCommandKind.ToggleMicrophone)));
+            StringAssert.Contains("Voice enabled", panel.LastCommandOutcome);
             Assert.IsTrue(panel.MicrophoneAvailable);
             Assert.IsTrue(panel.MicrophoneConsentAccepted);
         }
@@ -108,6 +113,16 @@ namespace Amiss.Tests
             Assert.IsFalse(panel.Apply(new PanelCommand(PanelCommandKind.ToggleMicrophone)));
             Assert.IsFalse(panel.MicrophoneAvailable);
             Assert.AreEqual(VoiceState.Closed, panel.VoiceState);
+        }
+
+        [Test]
+        public void HubHasNoAskTutorControl()
+        {
+            var source = System.IO.File.ReadAllText(
+                "Assets/Amiss/Runtime/Amiss.Shell/UI/EpisodeHub.cs");
+
+            Assert.IsFalse(source.Contains("\"AskTutor\""));
+            Assert.IsFalse(source.Contains("ASK TUTOR"));
         }
 
         [Test]
@@ -131,6 +146,32 @@ namespace Amiss.Tests
             Assert.IsFalse(setup.Configured);
             Assert.IsTrue(string.IsNullOrEmpty(setup.Configuration.GetClientAccessToken()),
                 "a build without a device token carries no Wit identity");
+        }
+
+        [Test]
+        public void RuntimeCreatedWitSpeakerSubscribesToAvailablePlaybackEvents()
+        {
+            var tokens = new WitTokenStore("amiss.test.voice_token_" + Guid.NewGuid().ToString("N"));
+            tokens.Save("editor-test-token");
+            var setup = new WitVoiceSetup(tokens);
+            var configuration = setup.Configuration;
+            var root = new GameObject("VoiceSpeakerTest", typeof(AudioSource));
+            var adapter = new WitSpeechSynthesisAdapter(setup, () => root.transform);
+            try
+            {
+                var ensure = typeof(WitSpeechSynthesisAdapter).GetMethod("EnsureSpeaker",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Assert.IsNotNull(ensure);
+                object speaker = null;
+                Assert.DoesNotThrow(() => speaker = ensure.Invoke(adapter, null));
+                Assert.IsNotNull(speaker);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                UnityEngine.Object.DestroyImmediate(configuration);
+                tokens.Clear();
+            }
         }
 
         static int Count(string text, string value)
@@ -169,7 +210,8 @@ namespace Amiss.Tests
 
             public string TurnId => "stub-turn";
 
-            public IDictationSession Begin(string turnId, DictationCallbacks callbacks) => this;
+            public IDictationSession Begin(string turnId, DictationCallbacks callbacks,
+                DictationActivationMode mode = DictationActivationMode.Immediate) => this;
 
             public void Close()
             {

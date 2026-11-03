@@ -3,9 +3,9 @@ using System;
 namespace Amiss.Shell.Voice
 {
     /// <summary>
-    /// The one public voice projection of design 06 section 3. Both the hub
-    /// microphone row and the speaker indicator read this single value; no
-    /// adapter keeps a second visible state.
+    /// The public voice projection of design 06 section 3. Listening takes
+    /// precedence while playback is also active, so the microphone indicator
+    /// never hides actual capture; playback remains visible through PlaybackActive.
     /// </summary>
     public enum VoiceState
     {
@@ -32,11 +32,13 @@ namespace Amiss.Shell.Voice
     public enum VoiceTurnKind
     {
         Explicit,
+        Automatic,
         Answer
     }
 
     public enum VoiceUnitKind
     {
+        OpeningGoal,
         Answer,
         Proactive,
         Safety
@@ -96,8 +98,8 @@ namespace Amiss.Shell.Voice
     }
 
     /// <summary>
-    /// One validated speech unit. Only accepted, already validated model text
-    /// is ever put in <see cref="Text"/>; the controller is the only writer of
+    /// One speech unit. Text is either whole-response-validated model text or
+    /// the episode-owned fixed opening goal; the controller is the only writer of
     /// <see cref="Completion"/>.
     /// </summary>
     public sealed class SpeechUnit

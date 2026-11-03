@@ -15,6 +15,9 @@ namespace Amiss.Shell.Episodes
     {
         public const string EpisodeId = "what_is_temperature";
         public const string CompletionStageId = "stage-7-transfer";
+        public const string OpeningGoal =
+            "Explore what determines the temperature of a group of balls. " +
+            "Use the bat to change their speeds, watch the temperature, and ask questions at any time.";
 
         // Stable ids for the enabled P0 scope. The racket and glove belong to
         // P1, so they stay decorative and cannot change P0 meaning when absent.

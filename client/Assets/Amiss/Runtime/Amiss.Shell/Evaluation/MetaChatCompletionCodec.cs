@@ -29,6 +29,7 @@ namespace Amiss.Shell.Evaluation
             var wire = new Dictionary<string, object>
             {
                 ["model"] = model,
+                ["reasoning_effort"] = EvaluationContract.ReasoningEffort,
                 ["messages"] = new List<object>
                 {
                     new Dictionary<string, object>

@@ -72,11 +72,14 @@ The easiest way to enter both is from the PC that installed the build:
 prompt; the hub status then reads "keys imported from PC", and each saved
 value shows only a masked tail. Without the PC, use the hub fields instead:
 type or PASTE into META MODEL API KEY and press SAVE KEY, and type or PASTE
-into WIT CLIENT TOKEN and press SAVE TOKEN or Enter. Then press ASK TUTOR
-for the instructor, or MIC for voice. Before the first capture a consent
-notice appears; press MIC again to accept it. Voice also needs microphone
-access granted to the app on the headset. Keys and tokens are stored only
-on the device and are never part of this repository. Without them the
-experiment still runs locally, and the voice and model features stay off.
+into WIT CLIENT TOKEN and press SAVE TOKEN or Enter. Use MIC once to enable
+voice: before the first capture a consent notice appears; press MIC again to
+accept it and grant the app microphone access. Trial start then speaks the
+episode's fixed local goal through Wit without a model request. Automatic
+listening continues during answers; speak to interrupt playback immediately,
+without pressing MIC. MIC remains an explicit interruption fallback and global
+voice off control. Keys and tokens are stored only on the device and are never
+part of this repository. Without them the experiment still runs locally, and
+the voice and model features stay off.
 
 Copyright MagicRayality LLC. All rights reserved. No license is granted to copy, modify, or distribute this repository.

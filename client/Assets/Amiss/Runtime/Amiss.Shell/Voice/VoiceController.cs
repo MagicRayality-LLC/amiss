@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using UnityEngine;
 
 namespace Amiss.Shell.Voice
 {
@@ -10,15 +11,12 @@ namespace Amiss.Shell.Voice
     /// against the current turn id and lifecycle epoch, so a late result from
     /// an old window is dropped instead of closing a newer one.
     ///
-    /// The lifecycle of design 06 section 3 is
-    /// <c>closed</c> to <c>listening</c> to <c>transcribing</c> to
-    /// <c>waiting_model</c> to <c>playing_interruptible</c>, with consent,
-    /// configuration, and microphone permission gates checked before any
-    /// capture or synthesis request. The gates run in that order, so a press
-    /// before consent only shows the notice and a press before configuration
-    /// asks the platform for nothing. Once both pass and the permission is
-    /// missing, the same press raises the system prompt at most once; no
-    /// capture window opens until a later press observes the grant.
+    /// Capture, tutor waiting, and playback are composite states: automatic
+    /// capture remains active during opening and answer TTS, and current-turn
+    /// speech stops playback without closing that capture. Consent,
+    /// configuration, and microphone permission gates still precede every
+    /// capture or synthesis request. A first MIC press shows consent; a later
+    /// press accepts it. Permission prompts never themselves open capture.
     /// </summary>
     public sealed class VoiceController
     {
@@ -28,8 +26,9 @@ namespace Amiss.Shell.Voice
         /// no-retention rule, and no other processor.
         /// </summary>
         public const string ConsentNotice =
-            "VOICE CONSENT: speech is sent to Wit for transcription, and the " +
-            "tutor's reply text is sent to Wit for synthesis. Raw audio is not " +
+            "VOICE CONSENT: during an enabled Trial, speech is sent to Wit for " +
+            "transcription, including speech during playback. The opening goal and " +
+            "tutor reply text are sent to Wit for synthesis. Raw audio is not " +
             "stored. Press MIC again to accept.";
 
         public const string ConsentVersion = "wit-voice-consent-1";
@@ -57,6 +56,11 @@ namespace Amiss.Shell.Voice
         int epoch;
         int queueEpoch = 1;
         bool muted;
+        bool voiceEnabled;
+        bool trialActive;
+        bool lifecycleBlocked;
+        bool rearmPending;
+        int openingSequence;
         SpeechUnit active;
         SpeechUnit pending;
         VoiceConsentStatus consentStatus;
@@ -79,6 +83,7 @@ namespace Amiss.Shell.Voice
             this.speech = speech ?? throw new ArgumentNullException(nameof(speech));
             this.tutor = tutor ?? throw new ArgumentNullException(nameof(tutor));
             consentStatus = consent;
+            voiceEnabled = ConsentAccepted;
             this.clock = clock ?? (() => 0.0);
         }
 
@@ -88,13 +93,22 @@ namespace Amiss.Shell.Voice
 
         public bool ConsentAccepted => consentStatus == VoiceConsentStatus.Accepted;
 
+        public bool VoiceEnabled => voiceEnabled;
+
+        public bool TrialActive => trialActive;
+
+        public bool CaptureActive => activationPending || session != null;
+
+        public bool PlaybackActive => active != null || pending != null;
+
         /// <summary>
         /// True when the hub may offer capture: consent accepted, a provider
         /// configuration is present, and the system microphone is granted.
         /// It is never inferred from consent alone (06 section 4.1).
         /// </summary>
         public bool MicrophoneAvailable =>
-            ConsentAccepted && dictation.Configured && dictation.MicrophonePermissionGranted;
+            voiceEnabled && ConsentAccepted && dictation.Configured &&
+            dictation.MicrophonePermissionGranted;
 
         /// <summary>Synthesis needs consent and a configuration, not the microphone.</summary>
         public bool SpeechAvailable => ConsentAccepted && speech.Configured;
@@ -142,6 +156,72 @@ namespace Amiss.Shell.Voice
         /// </summary>
         public bool IsBusy => activationPending || State != VoiceState.Closed;
 
+        public VoiceOutcome StartTrialEpisode(string openingGoal)
+        {
+            trialActive = true;
+            lifecycleBlocked = false;
+            rearmPending = false;
+            CancelEverything(VoiceUnitCompletion.Interrupted);
+            AdvanceEpoch();
+            State = VoiceState.Closed;
+
+            if (voiceEnabled)
+            {
+                EnqueueValidatedSpeech("opening-" + (++openingSequence).ToString("D4"),
+                    openingGoal, VoiceUnitKind.OpeningGoal);
+                EnsureAutomaticCapture();
+            }
+
+            return Accept(voiceEnabled ? "voice_trial_started" : "voice_disabled",
+                voiceEnabled
+                    ? "Trial voice started with the local opening goal."
+                    : "Voice is off; the local opening goal stays as a subtitle.");
+        }
+
+        public VoiceOutcome EndTrialEpisode()
+        {
+            trialActive = false;
+            rearmPending = false;
+            CancelEverything(VoiceUnitCompletion.Interrupted);
+            AdvanceEpoch();
+            State = VoiceState.Closed;
+            return Accept("voice_trial_closed", "Trial voice closed; no capture remains.");
+        }
+
+        public VoiceOutcome ToggleVoice()
+        {
+            if (voiceEnabled && !dictation.MicrophonePermissionGranted)
+                voiceEnabled = false;
+            if (!voiceEnabled)
+            {
+                var gate = CaptureGate();
+                if (!ConsentAccepted)
+                    return gate;
+                voiceEnabled = true;
+                lifecycleBlocked = false;
+                if (!gate.Accepted)
+                    return gate;
+                if (trialActive)
+                    return ToggleExplicitCapture();
+                return Accept("voice_enabled", "Voice enabled; listening starts with the Trial.");
+            }
+
+            if (PlaybackActive)
+            {
+                StopForCapture();
+                if (!CaptureActive && trialActive)
+                    return ToggleExplicitCapture();
+                return Accept("voice_interrupted", "Playback stopped; the current capture continues.");
+            }
+
+            voiceEnabled = false;
+            rearmPending = false;
+            CancelEverything(VoiceUnitCompletion.Interrupted);
+            AdvanceEpoch();
+            State = VoiceState.Closed;
+            return Accept("voice_disabled", "Voice off; capture and playback stopped.");
+        }
+
         /// <summary>
         /// One explicit microphone action: open a capture window, close the
         /// open one, raise the system microphone prompt once when the
@@ -157,30 +237,53 @@ namespace Amiss.Shell.Voice
             if (!gate.Accepted)
                 return gate;
 
-            StopForCapture();
+            return BeginCapture(VoiceTurnKind.Explicit, DictationActivationMode.Immediate, true);
+        }
+
+        void EnsureAutomaticCapture()
+        {
+            if (!voiceEnabled || !trialActive || lifecycleBlocked || !ConsentAccepted ||
+                !dictation.Configured || !dictation.MicrophonePermissionGranted ||
+                activationPending || session != null || State == VoiceState.Transcribing ||
+                State == VoiceState.WaitingModel)
+                return;
+            BeginCapture(VoiceTurnKind.Automatic, DictationActivationMode.Automatic, false);
+        }
+
+        VoiceOutcome BeginCapture(VoiceTurnKind kind, DictationActivationMode mode,
+            bool stopPlayback)
+        {
+            if (stopPlayback)
+                StopForCapture();
 
             var opened = new VoiceTurn("voice-turn-" + (++sequence).ToString("D4"),
-                VoiceTurnKind.Explicit, ++epoch);
+                kind, ++epoch);
             turn = opened;
-
-            DictationCallbacks callbacks;
-            callbacks = new DictationCallbacks
+            var callbacks = new DictationCallbacks
             {
                 Activated = () => OnActivated(opened, opened.Epoch),
+                PartialText = text => OnPartialText(opened, opened.Epoch, text),
+                CaptureEnded = () => OnCaptureEnded(opened, opened.Epoch),
                 FinalText = text => OnFinalText(opened, opened.Epoch, text),
                 Failed = code => OnDictationFailed(opened, opened.Epoch, code)
             };
 
+            // The pending flag is raised before the platform call: a reused
+            // dictation service raises its start-listening event synchronously
+            // inside Begin, and OnActivated drops that event when the flag is
+            // not yet set, leaving the turn permanently pending.
+            activationPending = true;
             IDictationSession started;
             try
             {
-                started = dictation.Begin(opened.TurnId, callbacks);
+                started = dictation.Begin(opened.TurnId, callbacks, mode);
             }
             catch (Exception)
             {
                 started = null;
             }
 
+            rearmPending = false;
             if (started == null)
             {
                 session = null;
@@ -193,10 +296,10 @@ namespace Amiss.Shell.Voice
             }
 
             session = started;
-            activationPending = true;
-            // The indicator follows actual adapter state: the turn is not
-            // "listening" until the platform reports the microphone on.
-            State = VoiceState.Closed;
+            // A synchronous activation inside Begin already cleared the flag
+            // and set Listening; keep that state instead of overwriting it.
+            if (activationPending)
+                State = active != null ? VoiceState.PlayingInterruptible : VoiceState.Closed;
             return Accept("voice_activating", "Microphone starting.");
         }
 
@@ -241,7 +344,10 @@ namespace Amiss.Shell.Voice
         /// </summary>
         public VoiceOutcome CloseForLifecycle(string reason)
         {
+            Debug.Log("[Amiss] voice lifecycle close reason=" + reason + " state=" + State);
             var code = string.IsNullOrEmpty(reason) ? "voice_lifecycle_closed" : "voice_" + reason;
+            voiceEnabled = false;
+            rearmPending = false;
             CancelEverything(VoiceUnitCompletion.Interrupted);
             AdvanceEpoch();
             State = VoiceState.Closed;
@@ -270,6 +376,8 @@ namespace Amiss.Shell.Voice
         {
             consentStatus = VoiceConsentStatus.Revoked;
             revokedAt = clock();
+            voiceEnabled = false;
+            rearmPending = false;
             CancelEverything(VoiceUnitCompletion.Interrupted);
             AdvanceEpoch();
             State = VoiceState.Closed;
@@ -299,16 +407,22 @@ namespace Amiss.Shell.Voice
         /// <summary>Drives the local 10-second transcription deadline.</summary>
         public VoiceOutcome Tick()
         {
-            if (State != VoiceState.Transcribing)
-                return VoiceOutcome.Accept("", "");
-            if (clock() - captureClosedAt <= TranscriptionDeadlineSeconds)
-                return VoiceOutcome.Accept("", "");
-            return FailTranscription("No transcript arrived within 10 seconds of capture close; " +
-                                     "no text is fabricated. The panel path continues.");
+            var outcome = VoiceOutcome.Accept("", "");
+            if (State == VoiceState.Transcribing &&
+                clock() - captureClosedAt > TranscriptionDeadlineSeconds)
+            {
+                outcome = FailTranscription("No transcript arrived within 10 seconds of capture close; " +
+                    "no text is fabricated. The panel path continues.");
+            }
+
+            if (rearmPending && session == null && !activationPending &&
+                State != VoiceState.Transcribing && State != VoiceState.WaitingModel)
+                EnsureAutomaticCapture();
+            return outcome;
         }
 
         /// <summary>
-        /// Queues one already validated speech unit. The queue bound is one
+        /// Queues one validated speech unit or fixed local opening goal. The queue bound is one
         /// active unit plus one admitted pending unit; a third unit is refused
         /// rather than accumulated (06 section 2). Muted units keep their
         /// subtitle and request no audible synthesis.
@@ -322,7 +436,10 @@ namespace Amiss.Shell.Voice
                 return Refuse("voice_consent_required",
                     "Voice is disabled without consent; the accepted text stays a subtitle.");
 
-            var unit = new SpeechUnit(unitId, turnId ?? (turn != null ? turn.TurnId : ""),
+            var unit = new SpeechUnit(unitId,
+                kind == VoiceUnitKind.OpeningGoal
+                    ? ""
+                    : turnId ?? (turn != null ? turn.TurnId : ""),
                 kind, text, queueEpoch);
 
             if (muted)
@@ -330,6 +447,7 @@ namespace Amiss.Shell.Voice
                 unit.Completion = VoiceUnitCompletion.Suppressed;
                 LastCode = "voice_muted";
                 LastReadable = "Muted: the accepted text stays a subtitle and no audio is requested.";
+                EnsureAutomaticCapture();
                 return Accept(LastCode, LastReadable);
             }
 
@@ -362,10 +480,42 @@ namespace Amiss.Shell.Voice
             LastReadable = "Microphone on; dictation is recording.";
         }
 
+        void OnPartialText(VoiceTurn captured, int capturedEpoch, string text)
+        {
+            if (!Matches(captured, capturedEpoch) || State != VoiceState.Listening ||
+                active == null || string.IsNullOrWhiteSpace(text))
+                return;
+            StopPlayback(VoiceUnitCompletion.Interrupted, "voice_interrupted");
+        }
+
+        void OnCaptureEnded(VoiceTurn captured, int capturedEpoch)
+        {
+            if (!Matches(captured, capturedEpoch) ||
+                (State != VoiceState.Listening && !activationPending))
+                return;
+            session = null;
+            activationPending = false;
+            State = VoiceState.Transcribing;
+            captureClosedAt = clock();
+        }
+
         async void OnFinalText(VoiceTurn captured, int capturedEpoch, string text)
         {
-            if (!Matches(captured, capturedEpoch) || State != VoiceState.Transcribing)
+            Debug.Log("[Amiss] voice final text enter turn=" +
+                (captured != null ? captured.TurnId : "null") + " epoch=" + capturedEpoch +
+                " state=" + State + " text=\"" + (text ?? "") + "\"");
+            if (!Matches(captured, capturedEpoch))
+            {
+                Debug.Log("[Amiss] voice final dropped: turn superseded");
                 return;
+            }
+            if (State == VoiceState.Listening)
+                OnCaptureEnded(captured, capturedEpoch);
+            if (State != VoiceState.Transcribing)
+            {
+                Debug.Log("[Amiss] voice final dropped: state=" + State);
+                return;
+            }
             if (clock() - captureClosedAt > TranscriptionDeadlineSeconds)
             {
                 FailTranscription("The transcript arrived after the 10-second deadline; it was dropped.");
@@ -386,13 +536,16 @@ namespace Amiss.Shell.Voice
             }
 
             State = VoiceState.WaitingModel;
+            Debug.Log("[Amiss] voice transcript turn=" + captured.TurnId +
+                " text=\"" + utterance + "\"");
             TutorTurnOutcome outcome;
             try
             {
                 outcome = await tutor.Ask(AnswerOrigin, captured.TurnId, utterance);
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                Debug.Log("[Amiss] tutor ask exception " + error.GetType().Name);
                 outcome = TutorTurnOutcome.Silent("model_unavailable");
             }
 
@@ -400,7 +553,10 @@ namespace Amiss.Shell.Voice
             // supersedes this turn while the request is in flight, so its reply
             // is dropped rather than spoken into a newer window (06 section 7).
             if (!Matches(captured, capturedEpoch) || State != VoiceState.WaitingModel)
+            {
+                Debug.Log("[Amiss] tutor reply dropped; the turn was superseded");
                 return;
+            }
 
             if (!outcome.Admitted)
             {
@@ -409,6 +565,8 @@ namespace Amiss.Shell.Voice
                     ? "model_unavailable"
                     : outcome.FailureCode;
                 LastReadable = "The tutor reply was not admitted, so nothing is spoken.";
+                Debug.Log("[Amiss] tutor reply refused code=" + LastCode);
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
                 return;
             }
 
@@ -418,6 +576,8 @@ namespace Amiss.Shell.Voice
                 State = VoiceState.Closed;
                 LastCode = "no_speech";
                 LastReadable = "The reply was admitted with no speech unit.";
+                Debug.Log("[Amiss] tutor reply admitted with no speech unit");
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
                 return;
             }
 
@@ -426,14 +586,18 @@ namespace Amiss.Shell.Voice
                     speech[index], VoiceUnitKind.Answer, captured.TurnId);
 
             if (active == null && pending == null)
+            {
                 State = VoiceState.Closed;
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
+            }
         }
 
         void OnDictationFailed(VoiceTurn captured, int capturedEpoch, string code)
         {
             if (!Matches(captured, capturedEpoch))
                 return;
-            if (State != VoiceState.Transcribing && State != VoiceState.Listening)
+            if (State != VoiceState.Transcribing && State != VoiceState.Listening &&
+                !activationPending)
                 return;
             FailTranscription(string.IsNullOrEmpty(code) ? "voice_transcription" : code,
                 "Dictation failed; no text is fabricated. The panel path continues.");
@@ -446,13 +610,18 @@ namespace Amiss.Shell.Voice
             {
                 active = null;
                 unit.Completion = VoiceUnitCompletion.Suppressed;
-                State = VoiceState.Closed;
+                State = session != null && !activationPending
+                    ? VoiceState.Listening
+                    : VoiceState.Closed;
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
                 LastCode = "voice_tts_unconfigured";
                 LastReadable = "Synthesis is not configured; the accepted subtitle is kept and no audio plays.";
                 return false;
             }
 
-            State = VoiceState.PlayingInterruptible;
+            State = session != null && !activationPending
+                ? VoiceState.Listening
+                : VoiceState.PlayingInterruptible;
             try
             {
                 speech.Speak(unit.UnitId, unit.Text,
@@ -464,6 +633,7 @@ namespace Amiss.Shell.Voice
                 OnSpeechFailed(unit, unit.UnitId);
             }
 
+            EnsureAutomaticCapture();
             return true;
         }
 
@@ -485,6 +655,7 @@ namespace Amiss.Shell.Voice
             unit.Completion = VoiceUnitCompletion.Expired;
             active = null;
             LastCode = "voice_tts";
+            Debug.Log("[Amiss] speech synthesis failed unit=" + unit.UnitId);
             LastReadable = "Synthesis failed; the accepted subtitle is kept and no audio plays.";
             PromotePending();
         }
@@ -493,7 +664,10 @@ namespace Amiss.Shell.Voice
         {
             if (pending == null)
             {
-                State = VoiceState.Closed;
+                State = session != null && !activationPending
+                    ? VoiceState.Listening
+                    : VoiceState.Closed;
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
                 return;
             }
 
@@ -534,7 +708,9 @@ namespace Amiss.Shell.Voice
             active = null;
             pending = null;
             queueEpoch++;
-            State = VoiceState.Closed;
+            State = session != null && !activationPending
+                ? VoiceState.Listening
+                : VoiceState.Closed;
             LastCode = code;
             LastReadable = "Playback stopped.";
         }
@@ -662,6 +838,7 @@ namespace Amiss.Shell.Voice
 
         VoiceOutcome FailTranscription(string code, string readable)
         {
+            Debug.Log("[Amiss] voice transcription failed code=" + code);
             var open = session;
             session = null;
             activationPending = false;
@@ -669,6 +846,7 @@ namespace Amiss.Shell.Voice
             State = VoiceState.Closed;
             LastCode = code;
             LastReadable = readable;
+            rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
             AdvanceEpoch();
             return VoiceOutcome.Refuse(code, readable);
         }

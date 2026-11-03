@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Amiss.Shell.Evaluation;
+using UnityEngine;
 
 namespace Amiss.Shell.Tutor
 {
@@ -62,6 +63,7 @@ namespace Amiss.Shell.Tutor
             }
             catch (Exception error)
             {
+                Debug.Log("[Amiss] tutor context unavailable: " + error.GetType().Name);
                 return Reject("context_unavailable", requestId,
                     "No live Trial state is readable, so no model request was built: " +
                     error.GetType().Name + ".");
@@ -78,9 +80,12 @@ namespace Amiss.Shell.Tutor
             }
             catch (EvaluationContractException error)
             {
+                Debug.Log("[Amiss] tutor payload build failed code=" + error.ReasonCode);
                 return Reject(error.ReasonCode, requestId, error.Message);
             }
 
+            Debug.Log("[Amiss] tutor ask " + requestId + " origin=" + origin +
+                " turn=" + turnId);
             var admission = await transport.Request(payload, requestId, turnId, origin,
                 cancellation);
             LastAdmission = admission;
@@ -91,6 +96,9 @@ namespace Amiss.Shell.Tutor
                     admission.Failure.Readable)
                     ? admission.Failure.Readable
                     : transport.TraceLine;
+                Debug.Log("[Amiss] tutor ask " + requestId + " refused code=" +
+                    (admission.Failure != null ? admission.Failure.ReasonCode : "unknown") +
+                    " status=" + LastStatus);
                 return admission;
             }
 
@@ -98,6 +106,8 @@ namespace Amiss.Shell.Tutor
                 ? admission.AcceptedSpeech[0]
                 : "";
             LastStatus = LastSubtitle.Length > 0 ? transport.TraceLine : NoSpeechStatus;
+            Debug.Log("[Amiss] tutor ask " + requestId + " admitted speech=" +
+                admission.AcceptedSpeech.Count);
             return admission;
         }
 

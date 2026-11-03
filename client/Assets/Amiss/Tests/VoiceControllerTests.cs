@@ -25,6 +25,7 @@ namespace Amiss.Tests
             public bool FailStart;
             public int Begins;
             public int Requests;
+            public bool ActivateInsideBegin;
             public MicrophonePermissionRequest RequestOutcome =
                 MicrophonePermissionRequest.PromptRaised;
             public Window Last;
@@ -43,13 +44,17 @@ namespace Amiss.Tests
 
             public bool CaptureActive => Last != null && Last.Open && !Last.Cancelled;
 
-            public IDictationSession Begin(string turnId, DictationCallbacks callbacks)
+            public IDictationSession Begin(string turnId, DictationCallbacks callbacks,
+                DictationActivationMode mode = DictationActivationMode.Immediate)
             {
                 Begins++;
                 Log.Add("dictation.begin");
                 if (FailStart)
                     return null;
                 Last = new Window(this, turnId, callbacks);
+                Last.Mode = mode;
+                if (ActivateInsideBegin)
+                    Last.Activate();
                 return Last;
             }
 
@@ -71,6 +76,7 @@ namespace Amiss.Tests
                 public bool Cancelled { get; private set; }
                 public int Closes { get; private set; }
                 public int Cancels { get; private set; }
+                public DictationActivationMode Mode { get; set; }
 
                 public void Close()
                 {
@@ -88,6 +94,14 @@ namespace Amiss.Tests
                 }
 
                 public void Activate() => callbacks.Activated();
+
+                public void Partial(string text) => callbacks.PartialText(text);
+
+                public void Endpoint()
+                {
+                    Open = false;
+                    callbacks.CaptureEnded();
+                }
 
                 public void Deliver(string text) => callbacks.FinalText(text);
 
@@ -164,6 +178,12 @@ namespace Amiss.Tests
                 Controller = new VoiceController(Dictation, Speech, Tutor, consent, () => Now);
             }
 
+            public void StartTrial(string goal = "Explore temperature.")
+            {
+                Controller.StartTrialEpisode(goal);
+                Dictation.Last.Activate();
+            }
+
             public void Listen()
             {
                 Controller.ToggleExplicitCapture();
@@ -176,6 +196,142 @@ namespace Amiss.Tests
                 Controller.CloseCapture();
                 Dictation.Last.Deliver(utterance);
             }
+        }
+
+        [Test]
+        public void TrialStartSpeaksLocalGoalAndOpensAutomaticCaptureWithoutModel()
+        {
+            var harness = new Harness();
+
+            harness.Controller.StartTrialEpisode("Explore temperature.");
+            harness.Dictation.Last.Activate();
+
+            CollectionAssert.AreEqual(new[] { "Explore temperature." }, harness.Speech.Spoken);
+            Assert.AreEqual(VoiceUnitKind.OpeningGoal, harness.Controller.ActiveUnit.Kind);
+            Assert.IsEmpty(harness.Controller.ActiveUnit.TurnId);
+            Assert.AreEqual(0, harness.Tutor.Calls, "the opening goal is not a model request");
+            Assert.AreEqual(1, harness.Dictation.Begins);
+            Assert.AreEqual(DictationActivationMode.Automatic, harness.Dictation.Last.Mode);
+            Assert.IsTrue(harness.Controller.CaptureActive);
+            Assert.IsTrue(harness.Controller.PlaybackActive);
+            Assert.AreEqual(VoiceState.Listening, harness.Controller.State,
+                "capture and opening playback coexist");
+        }
+
+        [Test]
+        public void PlaybackAloneDoesNotInterruptOrCreateAModelRequest()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+
+            harness.Controller.Tick();
+
+            Assert.AreEqual(VoiceUnitKind.OpeningGoal, harness.Controller.ActiveUnit.Kind);
+            Assert.AreEqual(0, harness.Tutor.Calls);
+            Assert.AreEqual(1, harness.Dictation.Begins);
+            Assert.IsTrue(harness.Controller.CaptureActive);
+        }
+
+        [Test]
+        public void SpeechDuringPlaybackStopsTTSAndKeepsTheSameCaptureTurn()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            var turn = harness.Controller.CurrentTurn;
+            var window = harness.Dictation.Last;
+            var stops = harness.Speech.Stops;
+
+            window.Partial("Wait, why?");
+
+            Assert.AreEqual(stops + 1, harness.Speech.Stops);
+            Assert.IsNull(harness.Controller.ActiveUnit);
+            Assert.AreSame(turn, harness.Controller.CurrentTurn);
+            Assert.AreSame(window, harness.Dictation.Last);
+            Assert.AreEqual(1, harness.Dictation.Begins);
+            Assert.IsTrue(harness.Controller.CaptureActive);
+            Assert.AreEqual(VoiceState.Listening, harness.Controller.State);
+        }
+
+        [Test]
+        public void AutomaticEndpointReachesModelAndReplyOpensOneFreshCapture()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Dictation.Last.Partial("How warm is the room?");
+            harness.Dictation.Last.Endpoint();
+
+            Assert.AreEqual(VoiceState.Transcribing, harness.Controller.State);
+            harness.Dictation.Last.Deliver("How warm is the room?");
+
+            Assert.AreEqual(1, harness.Tutor.Calls);
+            Assert.AreEqual("How warm is the room?", harness.Tutor.Utterance);
+            Assert.AreEqual(2, harness.Dictation.Begins);
+            Assert.AreEqual(DictationActivationMode.Automatic, harness.Dictation.Last.Mode);
+            Assert.AreEqual(2, harness.Speech.Spoken.Count);
+            Assert.AreEqual(OneLine[0], harness.Speech.Spoken[1]);
+        }
+
+        [Test]
+        public void SynchronousActivationInsideBeginKeepsTheReArmedTurnLive()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.ActivateInsideBegin = true;
+            harness.Dictation.Last.Deliver("How warm is the room?");
+
+            Assert.AreEqual(1, harness.Tutor.Calls);
+            // The re-armed capture activated synchronously inside Begin, the
+            // way a reused Wit service does; reply playback completing must
+            // leave that capture Listening instead of closing the turn.
+            harness.Speech.CompleteLast();
+            Assert.AreEqual(VoiceState.Listening, harness.Controller.State,
+                "TTS completion must not close a capture that activated inside Begin");
+
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver("And the humidity?");
+            Assert.AreEqual(2, harness.Tutor.Calls,
+                "the second question must reach the model, not be dropped");
+            Assert.AreEqual("And the humidity?", harness.Tutor.Utterance);
+        }
+
+        [Test]
+        public void GlobalVoiceOffCancelsCaptureAndPreventsAutomaticRearm()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            var window = harness.Dictation.Last;
+
+            harness.Controller.ToggleVoice();
+            Assert.IsTrue(harness.Controller.VoiceEnabled,
+                "the first MIC press during playback is the explicit interrupt");
+            var outcome = harness.Controller.ToggleVoice();
+            harness.Controller.Tick();
+
+            Assert.IsTrue(outcome.Accepted, outcome.Readable);
+            Assert.IsFalse(harness.Controller.VoiceEnabled);
+            Assert.IsFalse(harness.Controller.CaptureActive);
+            Assert.IsTrue(window.Cancelled);
+            Assert.AreEqual(1, harness.Dictation.Begins);
+            Assert.AreEqual(VoiceState.Closed, harness.Controller.State);
+        }
+
+        [Test]
+        public void TrialStopClosesCaptureAndPlaybackWithoutRearm()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            var window = harness.Dictation.Last;
+
+            harness.Controller.EndTrialEpisode();
+            harness.Controller.Tick();
+
+            Assert.IsFalse(harness.Controller.TrialActive);
+            Assert.IsFalse(harness.Controller.CaptureActive);
+            Assert.IsFalse(harness.Controller.PlaybackActive);
+            Assert.IsTrue(window.Cancelled);
+            Assert.AreEqual(1, harness.Dictation.Begins);
+            Assert.AreEqual(VoiceState.Closed, harness.Controller.State);
         }
 
         [Test]

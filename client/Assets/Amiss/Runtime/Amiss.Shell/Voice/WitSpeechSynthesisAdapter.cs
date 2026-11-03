@@ -105,7 +105,10 @@ namespace Amiss.Shell.Voice
         {
             var root = speakerRoot?.Invoke();
             if (root == null)
+            {
+                Debug.LogWarning("[Amiss] voice TTS speaker root unavailable");
                 return null;
+            }
             if (speaker != null && service != null)
             {
                 service.Configuration = setup.Configuration;
@@ -129,12 +132,16 @@ namespace Amiss.Shell.Voice
                 if (speaker == null)
                     speaker = root.gameObject.AddComponent<TTSSpeaker>();
                 speaker.customWitVoiceSettings = new TTSWitVoiceSettings();
-                speaker.Events.OnFinishedSpeaking.AddListener(OnFinishedSpeaking);
-                speaker.Events.OnClipLoadFailed.AddListener(OnLoadFailed);
+                speaker.Events.OnPlaybackComplete.AddListener(OnPlaybackComplete);
+                speaker.Events.OnPlaybackStart.AddListener(OnPlaybackStart);
+                speaker.Events.OnLoadFailed.AddListener(OnLoadFailed);
+                Debug.Log("[Amiss] voice TTS speaker ready at " + root.name);
                 return speaker;
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                Debug.LogWarning("[Amiss] voice TTS setup failed: " +
+                                 error.GetType().Name + ": " + error.Message);
                 if (service != null)
                 {
                     UnityEngine.Object.Destroy(service.gameObject);
@@ -146,15 +153,21 @@ namespace Amiss.Shell.Voice
             }
         }
 
-        void OnFinishedSpeaking(TTSSpeaker source, string text)
+        void OnPlaybackComplete(TTSSpeaker source, Meta.WitAi.TTS.Data.TTSClipData clip)
         {
             if (unitId == null)
                 return;
             Finish(unitId, true);
         }
 
-        void OnLoadFailed(TTSSpeaker source, string text)
+        void OnPlaybackStart(TTSSpeaker source, Meta.WitAi.TTS.Data.TTSClipData clip)
         {
+            Debug.Log("[Amiss] voice TTS playback started");
+        }
+
+        void OnLoadFailed(TTSSpeaker source, Meta.WitAi.TTS.Data.TTSClipData clip, string error)
+        {
+            Debug.LogWarning("[Amiss] voice TTS load failed");
             if (unitId == null)
                 return;
             Finish(unitId, false);

@@ -666,6 +666,7 @@ namespace Amiss.Tests
                 Encoding.UTF8.GetString(MetaChatCompletionCodec.RequestBytes(request))));
 
             Assert.AreEqual(EvaluationContract.ModelId, Text(wire["model"]));
+            Assert.AreEqual(EvaluationContract.ReasoningEffort, Text(wire["reasoning_effort"]));
             var messages = List(wire["messages"]);
             Assert.AreEqual(2, messages.Count);
             Assert.AreEqual("system", Text(Map(messages[0])["role"]));

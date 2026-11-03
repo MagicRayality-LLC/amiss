@@ -303,6 +303,8 @@ namespace Amiss.Shell.Room
             }
             StartBlock = "";
             services.Session.MarkSetupAccepted();
+            services.Panel?.ShowSubtitle(WhatIsTemperatureEpisode.OpeningGoal);
+            services.VoiceControl?.StartTrialEpisode(WhatIsTemperatureEpisode.OpeningGoal);
             Record("setup_accept", "accepted");
         }
 
@@ -331,6 +333,7 @@ namespace Amiss.Shell.Room
 
             WriteSimulationEvidence();
             runtime.StopTrial(reason ?? "trial_stop");
+            services.VoiceControl?.EndTrialEpisode();
             simulationEvidence = null;
             StartBlock = "";
             Recovery.TrialStopped();
@@ -364,6 +367,7 @@ namespace Amiss.Shell.Room
         public void ExitToLibrary()
         {
             services.SimulationRuntime.StopTrial("exit_to_library");
+            services.VoiceControl?.EndTrialEpisode();
             simulationEvidence = null;
             Preparation.Cancel();
             services.Session.ReturnToLibrary();

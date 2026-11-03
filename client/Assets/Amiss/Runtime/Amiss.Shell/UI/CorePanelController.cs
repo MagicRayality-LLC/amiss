@@ -76,6 +76,8 @@ namespace Amiss.Shell.UI
 
         public bool MicrophoneConsentAccepted => voice != null && voice.ConsentAccepted;
 
+        public bool VoiceEnabled => voice != null && voice.VoiceEnabled;
+
         public bool MicrophonePermissionGranted =>
             voice != null && voice.MicrophonePermissionGranted;
 
@@ -140,7 +142,7 @@ namespace Amiss.Shell.UI
                         return false;
                     }
 
-                    var outcome = voice.ToggleExplicitCapture();
+                    var outcome = voice.ToggleVoice();
                     LastCommandOutcome = outcome.Readable;
                     return outcome.Accepted;
                 case PanelCommandKind.Pause:

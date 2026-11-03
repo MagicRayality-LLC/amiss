@@ -17,6 +17,13 @@ namespace Amiss.Shell.Evaluation
         public const string EndpointAddress = "https://api.meta.ai/v1/chat/completions";
         public const string EndpointHost = "api.meta.ai";
         public const string ModelId = "muse-spark-1.3";
+
+        /// <summary>
+        /// The model is a reasoning model; the lowest effort level keeps its
+        /// pre-answer thinking short so a spoken reply stays within the
+        /// conversation budget.
+        /// </summary>
+        public const string ReasoningEffort = "low";
         public const string RequestContractVersion = "1.0.0";
         public const string ResponseContractVersion = "1.0.0";
 

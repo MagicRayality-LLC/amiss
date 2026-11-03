@@ -150,6 +150,8 @@ namespace Amiss.Shell.Voice
 
         void OnFocusChanged(bool focused)
         {
+            Debug.Log("[Amiss] voice focus " + (focused ? "gained" : "lost") +
+                " busy=" + (voice != null && voice.IsBusy));
             if (!focused && voice != null && voice.IsBusy)
                 voice.CloseForLifecycle("focus_lost");
         }

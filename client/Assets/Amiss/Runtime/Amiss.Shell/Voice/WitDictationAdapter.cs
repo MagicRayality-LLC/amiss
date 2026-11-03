@@ -9,12 +9,11 @@ namespace Amiss.Shell.Voice
 {
     /// <summary>
     /// Wit dictation behind the <see cref="IDictationPort"/> contract
-    /// (06 section 1). One consented window uses
-    /// <c>AppDictationExperience.ActivateImmediately()</c>; every close path
-    /// calls <c>Deactivate()</c> before any transcript is accepted. Raw audio
-    /// stays inside the SDK request and is never returned here. The SDK's own
-    /// 20-second <c>Activate()</c> keepalive timers are not used: the local
-    /// controller owns the window length.
+    /// (06 section 1). Automatic full-duplex turns use
+    /// <c>AppDictationExperience.Activate()</c>; explicit fallback uses
+    /// <c>ActivateImmediately()</c>. Partial text supplies barge-in evidence,
+    /// stop events close capture before transcription, and every local close
+    /// path calls <c>Deactivate()</c>. Raw audio stays inside the SDK request.
     /// </summary>
     public sealed class WitDictationAdapter : IDictationPort
     {
@@ -81,7 +80,8 @@ namespace Amiss.Shell.Voice
             unavailable = false;
         }
 
-        public IDictationSession Begin(string turnId, DictationCallbacks callbacks)
+        public IDictationSession Begin(string turnId, DictationCallbacks callbacks,
+            DictationActivationMode mode = DictationActivationMode.Immediate)
         {
             if (!setup.Configured || unavailable)
                 return null;
@@ -92,6 +92,7 @@ namespace Amiss.Shell.Voice
 
             if (window != null)
             {
+                Debug.Log("[Amiss] dictation begin replaces open window " + window.TurnId);
                 window.Cancel();
                 window = null;
             }
@@ -100,7 +101,10 @@ namespace Amiss.Shell.Voice
             window = started;
             try
             {
-                platform.ActivateImmediately();
+                if (mode == DictationActivationMode.Automatic)
+                    platform.Activate();
+                else
+                    platform.ActivateImmediately();
             }
             catch (Exception)
             {
@@ -124,8 +128,7 @@ namespace Amiss.Shell.Voice
                 var runtime = new WitDictationRuntimeConfiguration
                 {
                     witConfiguration = setup.Configuration,
-                    // No chained reactivation: one window per explicit turn
-                    // (06 section 3.1).
+                    // No SDK multi-phrase chain: the controller owns each turn.
                     dictationConfiguration = new DictationConfiguration
                     {
                         multiPhrase = false,
@@ -142,6 +145,8 @@ namespace Amiss.Shell.Voice
                 // object is only created after the local consent and
                 // permission gates have already passed.
                 service.DictationEvents.OnStartListening.AddListener(OnPlatformListening);
+                service.DictationEvents.OnPartialTranscription.AddListener(OnPlatformPartialTranscription);
+                service.DictationEvents.OnStoppedListening.AddListener(OnPlatformCaptureEnded);
                 service.DictationEvents.OnFullTranscription.AddListener(OnPlatformTranscription);
                 service.DictationEvents.OnError.AddListener(OnPlatformError);
                 host.SetActive(true);
@@ -162,10 +167,28 @@ namespace Amiss.Shell.Voice
 
         void OnPlatformListening() => window?.Activated();
 
-        void OnPlatformTranscription(string text) => window?.Deliver(text);
+        void OnPlatformPartialTranscription(string text) => window?.Partial(text);
 
-        void OnPlatformError(string error, string message) =>
+        void OnPlatformCaptureEnded()
+        {
+            if (window == null)
+                Debug.Log("[Amiss] dictation capture ended with no open window");
+            window?.CaptureEnded();
+        }
+
+        void OnPlatformTranscription(string text)
+        {
+            if (window == null)
+                Debug.Log("[Amiss] dictation transcript dropped: no open window \"" +
+                    (text ?? "") + "\"");
+            window?.Deliver(text);
+        }
+
+        void OnPlatformError(string error, string message)
+        {
+            Debug.Log("[Amiss] dictation error code=" + error + " message=" + message);
             window?.Fail(string.IsNullOrEmpty(message) ? error : message);
+        }
 
         sealed class Window : IDictationSession
         {
@@ -223,6 +246,18 @@ namespace Amiss.Shell.Voice
             {
                 if (!cancelled)
                     callbacks.Activated?.Invoke();
+            }
+
+            internal void Partial(string text)
+            {
+                if (!cancelled)
+                    callbacks.PartialText?.Invoke(text ?? "");
+            }
+
+            internal void CaptureEnded()
+            {
+                if (!cancelled)
+                    callbacks.CaptureEnded?.Invoke();
             }
 
             internal void Deliver(string text)
