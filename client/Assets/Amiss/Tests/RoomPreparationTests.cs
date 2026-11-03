@@ -561,4 +561,86 @@ namespace Amiss.Tests
             StringAssert.DoesNotContain("uuid", json.ToLowerInvariant());
         }
     }
+
+    public class RoomHighlightTests
+    {
+        [Test]
+        public void HighlightsShowWhileTheScanWaitsForConfirmation()
+        {
+            var host = new GameObject("RoomHighlightTest");
+            var highlights = host.AddComponent<RoomHighlights>();
+            try
+            {
+                highlights.Sync(RoomTestFixtures.Prepared(), new ShellRecovery(),
+                    worldLockActive: true);
+                Assert.Greater(highlights.ShownSurfaceCount, 0);
+            }
+            finally
+            {
+                highlights.Sync(null, null, true);
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void ConfirmingTheRoomClearsTheHighlights()
+        {
+            var host = new GameObject("RoomHighlightConfirmTest");
+            var highlights = host.AddComponent<RoomHighlights>();
+            try
+            {
+                var recovery = new ShellRecovery();
+                highlights.Sync(RoomTestFixtures.Prepared(), recovery, worldLockActive: true);
+                Assert.Greater(highlights.ShownSurfaceCount, 0);
+
+                highlights.Sync(RoomTestFixtures.Confirmed(), recovery, worldLockActive: true);
+                Assert.AreEqual(0, highlights.ShownSurfaceCount,
+                    "the confirmation view ends when the room is confirmed");
+            }
+            finally
+            {
+                highlights.Sync(null, null, true);
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void WithoutWorldLockNoHighlightCanEncloseTheWearer()
+        {
+            var host = new GameObject("RoomHighlightLockTest");
+            var highlights = host.AddComponent<RoomHighlights>();
+            try
+            {
+                highlights.Sync(RoomTestFixtures.Prepared(), new ShellRecovery(),
+                    worldLockActive: false);
+                Assert.AreEqual(0, highlights.ShownSurfaceCount,
+                    "a frozen highlight pose is not trusted without world lock");
+            }
+            finally
+            {
+                highlights.Sync(null, null, true);
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void ASafetyHoldKeepsTheHighlightVisibleAfterConfirmation()
+        {
+            var host = new GameObject("RoomHighlightSafetyTest");
+            var highlights = host.AddComponent<RoomHighlights>();
+            try
+            {
+                var recovery = new ShellRecovery();
+                recovery.InvalidateSafety();
+                highlights.Sync(RoomTestFixtures.Confirmed(), recovery, worldLockActive: true);
+                Assert.Greater(highlights.ShownSurfaceCount, 0,
+                    "a safety hold still points at the surfaces");
+            }
+            finally
+            {
+                highlights.Sync(null, null, true);
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+    }
 }

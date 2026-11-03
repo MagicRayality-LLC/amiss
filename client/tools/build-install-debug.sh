@@ -14,22 +14,27 @@
 #   tools/build-install-debug.sh                  # build + install + launch
 #   tools/build-install-debug.sh --no-build       # reuse Builds/Amiss-debug.apk
 #   tools/build-install-debug.sh --no-launch      # build + install only
+#   tools/build-install-debug.sh --no-keys        # skip the key-entry offer
 #   tools/build-install-debug.sh --device SERIAL  # target one of several headsets
 #   tools/build-install-debug.sh --list           # show attached headsets, exit
 #
-# Environment overrides: ADB (adb path), UNITY (editor path), and
-# ANDROID_SERIAL (same as --device).
+# Environment overrides: ADB (adb path), UNITY (editor path),
+# ANDROID_SERIAL (same as --device), and AMISS_META_MODEL_API_KEY /
+# AMISS_WIT_CLIENT_TOKEN (sent to the headset without a prompt; see
+# tools/set-keys.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BUILD=1
 LAUNCH=1
+KEYS=1
 LIST=0
 DEVICE="${ANDROID_SERIAL:-}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-build) BUILD=0 ;;
         --no-launch) LAUNCH=0 ;;
+        --no-keys) KEYS=0 ;;
         --list|-l) LIST=1 ;;
         --device|-s)
             [ $# -lt 2 ] && { echo "Option $1 needs a device serial" >&2; exit 2; }
@@ -41,6 +46,7 @@ Usage:
   tools/build-install-debug.sh                  # build + install + launch
   tools/build-install-debug.sh --no-build       # reuse Builds/Amiss-debug.apk
   tools/build-install-debug.sh --no-launch      # build + install only
+  tools/build-install-debug.sh --no-keys        # skip the key-entry offer
   tools/build-install-debug.sh --device SERIAL  # target one of several headsets
   tools/build-install-debug.sh --list           # show attached headsets, exit
 
@@ -116,5 +122,29 @@ if [ "$LAUNCH" = 1 ]; then
         exit 1
     fi
     echo "    Process up: pid $pid"
+fi
+
+# The PC is already attached, so offer PC key entry once: judges paste a
+# long key here instead of typing it on the VR keyboard. Keys supplied in
+# the environment are sent without a prompt, so scripted installs work;
+# otherwise interactive shells are asked once. --no-keys skips both, and
+# tools/set-keys.sh redoes it later.
+KEYS_DONE=0
+if [ "$KEYS" = 1 ] && { [ -n "${AMISS_META_MODEL_API_KEY-}" ] ||
+        [ -n "${AMISS_WIT_CLIENT_TOKEN-}" ]; }; then
+    tools/set-keys.sh --device "$DEVICE" && KEYS_DONE=1 \
+        || echo "Key entry did not complete; run tools/set-keys.sh when ready." >&2
+elif [ "$KEYS" = 1 ] && [ -t 0 ]; then
+    printf 'Set the Meta/Wit keys from this PC now? [y/N] '
+    read -r ANSWER || ANSWER=""
+    case "$ANSWER" in
+        y|Y|yes|YES)
+            tools/set-keys.sh --device "$DEVICE" && KEYS_DONE=1 \
+                || echo "Key entry did not complete; run tools/set-keys.sh when ready." >&2
+            ;;
+    esac
+fi
+if [ "$KEYS_DONE" = 0 ]; then
+    echo "Tip: tools/set-keys.sh sends the Meta/Wit keys from this PC — no headset typing."
 fi
 echo "Done."

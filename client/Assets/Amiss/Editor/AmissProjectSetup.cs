@@ -35,6 +35,8 @@ namespace Amiss.EditorTools
         const string XrSettingsPath = "Assets/XR/Settings/XRGeneralSettingsPerBuildTarget.asset";
         const string UrpPath = "Assets/Amiss/Settings/AmissURP.asset";
         const string RendererPath = "Assets/Amiss/Settings/AmissRenderer.asset";
+        const string HighlightMaterialFolder =
+            "Assets/Amiss/Art/RoomHighlight/Resources/RoomHighlight";
 
         [MenuItem("Amiss/Project Setup")]
         public static void Setup()
@@ -44,6 +46,7 @@ namespace Amiss.EditorTools
             ConfigureOvr();
             ConfigureXr();
             ConfigureUrp();
+            EnsureRoomHighlightMaterial();
             ConfigureTextureCompression();
             ScrubBuildMachineAddress();
             StagePolicyPack();
@@ -288,6 +291,35 @@ namespace Amiss.EditorTools
             }
 
             Debug.Log("[Amiss] URP pipeline asset created and assigned (MSAA x4, HDR off)");
+        }
+
+        /// <summary>
+        /// Creates the transparent URP/Lit material that room highlights
+        /// clone. The asset is what makes the transparent fragment variant a
+        /// build input; a material created only at runtime is not one. The
+        /// configuration comes from the same setup the runtime uses, so a
+        /// template and the runtime fallback cannot drift.
+        /// </summary>
+        public static void EnsureRoomHighlightMaterial()
+        {
+            var path = HighlightMaterialFolder + "/RoomHighlightTransparent.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null)
+                return;
+
+            var template = RoomHighlights.CreateTransparentTemplate();
+            if (template == null)
+                throw new System.Exception(
+                    "the URP Lit shader is absent; the highlight template cannot be built");
+
+            Directory.CreateDirectory(HighlightMaterialFolder);
+            template.name = "RoomHighlightTransparent";
+            // The colour is a placeholder: every highlight sets its own
+            // provenance colour when it clones the template. The alpha is
+            // the one presentation value the template does carry.
+            template.SetColor("_BaseColor", new Color(1f, 1f, 1f, RoomHighlights.PresentationAlpha));
+            AssetDatabase.CreateAsset(template, path);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Amiss] Created the transparent room highlight material: " + path);
         }
 
         static void ConfigureTextureCompression()

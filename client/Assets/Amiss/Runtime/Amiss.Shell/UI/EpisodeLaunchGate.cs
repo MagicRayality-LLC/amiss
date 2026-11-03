@@ -169,11 +169,11 @@ namespace Amiss.Shell
             switch (failure)
             {
                 case Room.RoomFailureReason.None:
-                    return new EpisodeLaunchGate(true, true, true, "LAUNCH", LaunchStatus(boundaryLabel),
+                    return new EpisodeLaunchGate(true, true, true, "CONFIRM ROOM", LaunchStatus(boundaryLabel),
                         EpisodeHubAction.Launch, "", VirtualBoundary(boundaryLabel));
                 case Room.RoomFailureReason.DisconnectedRegion:
                     return Guide("ADD MISSING WALLS",
-                        "This scan is missing a floor, or it has fewer than three walls. Press ADD MISSING WALLS. Those added edges are virtual walls on this scan, not a new room. Then press LAUNCH to confirm the room.",
+                        "This scan is missing a floor, or it has fewer than three walls. Press ADD MISSING WALLS. Those added edges are virtual walls on this scan, not a new room. Then press CONFIRM ROOM to confirm the room.",
                         EpisodeHubAction.AddMissingWalls);
                 case Room.RoomFailureReason.BelowMinimum:
                     return Guide("REDRAW THE ROOM",
@@ -181,11 +181,11 @@ namespace Amiss.Shell
                         EpisodeHubAction.RedrawRoom);
                 case Room.RoomFailureReason.UnsafeRegion:
                     if (!safetyCheck)
-                        return new EpisodeLaunchGate(true, true, true, "LAUNCH",
-                            "Safety check is off. LAUNCH confirms this room even though the open space around you is under 1.8 m.",
+                        return new EpisodeLaunchGate(true, true, true, "CONFIRM ROOM",
+                            "Safety check is off. CONFIRM ROOM confirms this room even though the open space around you is under 1.8 m.",
                             EpisodeHubAction.Launch, "", false);
-                    return new EpisodeLaunchGate(true, true, true, "LAUNCH",
-                        "Safety hold: the open space around you is under 1.8 m. A wall or a piece of furniture is inside that space. Step into a clearer spot, then press LAUNCH to confirm this room. Or turn SAFETY off.",
+                    return new EpisodeLaunchGate(true, true, true, "CONFIRM ROOM",
+                        "Safety hold: the open space around you is under 1.8 m. A wall or a piece of furniture is inside that space. Step into a clearer spot, then press CONFIRM ROOM to confirm this room. Or turn SAFETY off.",
                         EpisodeHubAction.Launch, "", true);
                 default:
                     return Guide("SCAN AGAIN",
@@ -253,16 +253,13 @@ namespace Amiss.Shell
 
         static string LaunchStatus(string boundaryLabel)
         {
-            const string start = " Then close the knife switch, or press START TRIAL, to start episode one.";
             if (string.IsNullOrEmpty(boundaryLabel))
-                return "Room scan is done. Press LAUNCH to confirm this room." + start;
+                return "Room scan is done. Press CONFIRM ROOM to confirm this room.";
             if (boundaryLabel.IndexOf("not the scanned room", System.StringComparison.Ordinal) >= 0)
-                return "These are virtual boundaries, not the scanned room. Press LAUNCH to confirm this room inside this box." +
-                       start;
+                return "These are virtual boundaries, not the scanned room. Press CONFIRM ROOM to confirm this room inside this box.";
             if (boundaryLabel.IndexOf("virtual supplements", System.StringComparison.Ordinal) >= 0)
-                return "Missing edges were added as virtual boundaries, not scanned walls. Press LAUNCH to confirm this room." +
-                       start;
-            return "Room scan is done. Press LAUNCH to confirm this room." + start;
+                return "Missing edges were added as virtual boundaries, not scanned walls. Press CONFIRM ROOM to confirm this room.";
+            return "Room scan is done. Press CONFIRM ROOM to confirm this room.";
         }
 
         static bool VirtualBoundary(string boundaryLabel) =>

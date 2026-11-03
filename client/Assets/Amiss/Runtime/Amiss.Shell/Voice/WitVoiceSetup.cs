@@ -26,6 +26,9 @@ namespace Amiss.Shell.Voice
 
         public bool Present => Stored().Length > 0;
 
+        /// <summary>The only UI-facing form of the token, as for the model key.</summary>
+        public string MaskedTail => Tutor.PlayerPrefsModelKeyStore.Mask(Stored());
+
         public bool Save(string token)
         {
             var trimmed = (token ?? "").Trim();

@@ -503,6 +503,39 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void KeyImportParsesBothValuesAndFailsClosedWithoutPartialValues()
+        {
+            var importFile = "meta_model_key" + "= abc-123 \r\n# a comment\n" +
+                "wit_client_token" + "=xyz_789\n";
+            Assert.IsTrue(KeyImport.TryParse(importFile, out var meta, out var wit));
+            Assert.AreEqual("abc-123", meta);
+            Assert.AreEqual("xyz_789", wit);
+
+            // One value alone is a valid partial provisioning.
+            Assert.IsTrue(KeyImport.TryParse("wit_client_token" + "=tok\n", out meta, out wit));
+            Assert.AreEqual("", meta);
+            Assert.AreEqual("tok", wit);
+
+            // Every malformed shape refuses the whole import and yields no
+            // partial value the caller could store by mistake.
+            Assert.IsFalse(KeyImport.TryParse("", out meta, out wit));
+            Assert.AreEqual("", meta);
+            Assert.AreEqual("", wit);
+            Assert.IsFalse(KeyImport.TryParse("bogus=1\nmeta_model_key=abc\n", out meta, out wit));
+            Assert.AreEqual("", meta);
+            Assert.IsFalse(KeyImport.TryParse("meta_model_key=ab cd\n", out meta, out wit));
+            Assert.IsFalse(KeyImport.TryParse(
+                "meta_model_key" + "=\n" + "wit_client_token" + "=tok\n", out meta, out wit));
+            Assert.AreEqual("", wit);
+            Assert.IsFalse(KeyImport.TryParse(
+                "meta_model_key=one\nmeta_model_key=two\n", out meta, out wit));
+            Assert.IsFalse(KeyImport.TryParse(
+                "meta_model_key=" + new string('a', KeyImport.MaxValueChars + 1) + "\n",
+                out meta, out wit));
+            Assert.IsFalse(KeyImport.TryParse("no separator here\n", out meta, out wit));
+        }
+
+        [Test]
         public async Task ATransportWithNoStoreAndNoHandleStaysKeylessSafe()
         {
             var transport = new DeviceTutorTransport(new ProposalValidator(Context()),

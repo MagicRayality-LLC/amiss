@@ -17,9 +17,9 @@ namespace Amiss.Tests
             Assert.IsTrue(waiting.CanLaunchEpisodeOne);
             Assert.IsTrue(waiting.ButtonEnabled);
             Assert.IsTrue(waiting.ScanReady);
-            Assert.AreEqual("LAUNCH", waiting.Label);
+            Assert.AreEqual("CONFIRM ROOM", waiting.Label);
             Assert.AreEqual(EpisodeHubAction.Launch, waiting.Action);
-            StringAssert.Contains("episode one", waiting.Status);
+            StringAssert.Contains("CONFIRM ROOM", waiting.Status);
 
             Assert.IsTrue(confirmed.CanLaunchEpisodeOne);
             Assert.IsTrue(confirmed.ButtonEnabled);
@@ -102,9 +102,12 @@ namespace Amiss.Tests
             var clear = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
                 RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.None,
                 "confirmed scanned room");
-            StringAssert.Contains("Press LAUNCH to confirm this room", clear.Status);
-            StringAssert.Contains("knife switch", clear.Status);
-            StringAssert.Contains("START TRIAL", clear.Status);
+            Assert.AreEqual("CONFIRM ROOM", clear.Label);
+            StringAssert.Contains("Press CONFIRM ROOM to confirm this room", clear.Status);
+            // The wall set, switch included, appears only after confirmation,
+            // so the confirmation press must not describe the switch.
+            StringAssert.DoesNotContain("knife switch", clear.Status);
+            StringAssert.DoesNotContain("START TRIAL", clear.Status);
         }
 
         [Test]
@@ -144,6 +147,48 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void EveryGateStateNamesTheSingleNextPressBeforeTheTrial()
+        {
+            var library = EpisodeLaunchGate.Evaluate(true, ShellSessionState.Library,
+                RoomPreparationStatus.Idle);
+            var permission = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.Explanation);
+            var waiting = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.PermissionRequested);
+            var loading = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.SceneLoading);
+            var setup = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.SpaceSetupReady);
+            var confirming = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.None,
+                "confirmed scanned room");
+            var unsafeConfirm = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
+                RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.UnsafeRegion);
+            var confirmed = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomConfirmed,
+                RoomPreparationStatus.Confirmed);
+            var running = EpisodeLaunchGate.Evaluate(true, ShellSessionState.SetupAccepted,
+                RoomPreparationStatus.Confirmed);
+
+            Assert.AreEqual("LAUNCH", library.Label);
+            Assert.AreEqual("ALLOW SCENE ACCESS", permission.Label);
+            Assert.AreEqual("WAITING FOR PERMISSION", waiting.Label);
+            Assert.AreEqual("LOADING ROOM", loading.Label);
+            Assert.AreEqual("START SPACE SETUP", setup.Label);
+            Assert.AreEqual("CONFIRM ROOM", confirming.Label);
+            Assert.AreEqual("CONFIRM ROOM", unsafeConfirm.Label);
+            Assert.AreEqual("START TRIAL", confirmed.Label);
+            Assert.AreEqual("EPISODE ONE", running.Label);
+
+            // The confirmation press has no wall set to act on yet, so its
+            // guidance names only that press.
+            StringAssert.Contains("CONFIRM ROOM", confirming.Status);
+            StringAssert.Contains("CONFIRM ROOM", unsafeConfirm.Status);
+            StringAssert.DoesNotContain("knife switch", confirming.Status);
+            StringAssert.DoesNotContain("START TRIAL", confirming.Status);
+            StringAssert.DoesNotContain("knife switch", unsafeConfirm.Status);
+        }
+
+        [Test]
         public void AFailedRoomCheckNamesTheActionThatResolvesIt()
         {
             var missing = EpisodeLaunchGate.Evaluate(true, ShellSessionState.RoomPreparation,
@@ -159,6 +204,7 @@ namespace Amiss.Tests
             Assert.AreEqual("ADD MISSING WALLS", missing.Label);
             Assert.AreEqual(EpisodeHubAction.AddMissingWalls, missing.Action);
             StringAssert.Contains("virtual", missing.Status);
+            StringAssert.Contains("CONFIRM ROOM", missing.Status);
             Assert.AreEqual("", missing.SecondaryLabel);
 
             Assert.AreEqual("REDRAW THE ROOM", small.Label);
@@ -166,7 +212,7 @@ namespace Amiss.Tests
             StringAssert.Contains("3", small.Status);
 
             Assert.IsTrue(blocked.CanLaunchEpisodeOne);
-            Assert.AreEqual("LAUNCH", blocked.Label);
+            Assert.AreEqual("CONFIRM ROOM", blocked.Label);
             Assert.AreEqual(EpisodeHubAction.Launch, blocked.Action);
             StringAssert.Contains("Safety hold", blocked.Status);
             Assert.IsTrue(blocked.EmphasizeStatus);
@@ -176,7 +222,7 @@ namespace Amiss.Tests
                 RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.UnsafeRegion,
                 "", "", false);
             Assert.IsTrue(waived.CanLaunchEpisodeOne);
-            Assert.AreEqual("LAUNCH", waived.Label);
+            Assert.AreEqual("CONFIRM ROOM", waived.Label);
             StringAssert.Contains("Safety check is off", waived.Status);
             Assert.IsFalse(waived.EmphasizeStatus);
 
@@ -192,9 +238,9 @@ namespace Amiss.Tests
                 RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.None,
                 "confirmed scanned room");
 
-            Assert.AreEqual("LAUNCH", ready.Label);
+            Assert.AreEqual("CONFIRM ROOM", ready.Label);
             Assert.AreEqual("", ready.SecondaryLabel);
-            StringAssert.Contains("episode one", ready.Status);
+            StringAssert.Contains("CONFIRM ROOM", ready.Status);
         }
 
         [Test]
@@ -204,7 +250,7 @@ namespace Amiss.Tests
                 RoomPreparationStatus.AwaitingConfirmation, RoomFailureReason.None,
                 "virtual boundaries — not the scanned room");
 
-            Assert.AreEqual("LAUNCH", ready.Label);
+            Assert.AreEqual("CONFIRM ROOM", ready.Label);
             StringAssert.Contains("not the scanned room", ready.Status);
         }
 

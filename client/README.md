@@ -79,6 +79,7 @@ the path prefix `client/`):
 ```bash
 tools/build-debug.sh            # debug only: Builds/Amiss-debug.apk
 tools/build-install-debug.sh    # debug only: build + install + launch on a headset
+tools/set-keys.sh               # debug only: send Meta/Wit keys from this PC (no VR typing)
 tools/setup-project.sh          # idempotent: configure the Unity project once
 tools/run-tests.sh               # edit-mode test suite, headless
 tools/build-apk.sh              # Builds/Amiss.apk for Quest Pro

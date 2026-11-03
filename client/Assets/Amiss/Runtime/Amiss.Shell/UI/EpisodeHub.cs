@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Amiss.Shell.UI;
 using Oculus.Interaction;
 using Oculus.Interaction.Surfaces;
@@ -64,6 +65,9 @@ namespace Amiss.Shell
         TMP_InputField witTokenField;
         TMP_Text modelKeyText;
         string tutorStatus = "";
+#if DEVELOPMENT_BUILD
+        float nextKeyImportPoll;
+#endif
         Image launchOutline;
         Button launchButton;
         bool placed;
@@ -90,6 +94,7 @@ namespace Amiss.Shell
         {
             if (services == null)
                 services = FindFirstObjectByType<ShellServices>();
+            PollKeyImport();
             RefreshLabels();
             EnsureRecenterHook();
             if (!placed)
@@ -651,14 +656,14 @@ namespace Amiss.Shell
                 typeof(RectMask2D), typeof(TMP_InputField));
             fieldGo.transform.SetParent(panel, false);
             var fieldRect = fieldGo.GetComponent<RectTransform>();
-            fieldRect.sizeDelta = new Vector2(480f, 52f);
-            fieldRect.anchoredPosition = new Vector2(-590f, -400f);
+            fieldRect.sizeDelta = new Vector2(360f, 52f);
+            fieldRect.anchoredPosition = new Vector2(-650f, -400f);
             var outline = fieldGo.GetComponent<Image>();
             outline.sprite = EpisodeSelectBoard.Rounded;
             outline.type = Image.Type.Sliced;
             outline.color = EpisodeSelectBoard.Hairline;
             var fill = MakeImage(fieldGo.transform, "Fill", setting, true);
-            fill.rectTransform.sizeDelta = new Vector2(474f, 46f);
+            fill.rectTransform.sizeDelta = new Vector2(354f, 46f);
             fill.raycastTarget = false;
 
             var text = FieldText(fieldGo.transform, "Text", EpisodeSelectBoard.Text, "");
@@ -673,21 +678,25 @@ namespace Amiss.Shell
             modelKeyField.characterLimit = 512;
             modelKeyField.onSubmit.AddListener(_ => SaveModelKey());
 
-            var save = SettingButton(panel, "SaveKey", new Vector2(-220f, -400f),
-                new Vector2(130f, 52f), setting, SaveModelKey);
+            var paste = SettingButton(panel, "PasteKey", new Vector2(-410f, -400f),
+                new Vector2(100f, 52f), setting, PasteModelKey);
+            paste.text = "PASTE";
+            paste.fontSize = 17f;
+            var save = SettingButton(panel, "SaveKey", new Vector2(-290f, -400f),
+                new Vector2(120f, 52f), setting, SaveModelKey);
             save.text = "SAVE KEY";
             save.fontSize = 17f;
-            var clear = SettingButton(panel, "ClearKey", new Vector2(-78f, -400f),
-                new Vector2(130f, 52f), setting, ClearModelKey);
+            var clear = SettingButton(panel, "ClearKey", new Vector2(-165f, -400f),
+                new Vector2(110f, 52f), setting, ClearModelKey);
             clear.text = "CLEAR";
             clear.fontSize = 17f;
-            var ask = SettingButton(panel, "AskTutor", new Vector2(78f, -400f),
-                new Vector2(170f, 52f), setting, AskTutor);
+            var ask = SettingButton(panel, "AskTutor", new Vector2(-25f, -400f),
+                new Vector2(150f, 52f), setting, AskTutor);
             ask.text = "ASK TUTOR";
             ask.fontSize = 17f;
 
-            modelKeyText = Text(panel, "ModelKeyStatus", new Vector2(380f, -400f),
-                new Vector2(360f, 52f), 14f, EpisodeSelectBoard.Muted, TextAlignmentOptions.Left);
+            modelKeyText = Text(panel, "ModelKeyStatus", new Vector2(215f, -400f),
+                new Vector2(300f, 52f), 14f, EpisodeSelectBoard.Muted, TextAlignmentOptions.Left);
             modelKeyText.textWrappingMode = TextWrappingModes.Normal;
             BuildWitTokenField(panel, setting);
             RefreshModelKeyLabel();
@@ -695,8 +704,10 @@ namespace Amiss.Shell
 
         /// <summary>
         /// The voice configuration seam. The Wit client token is device
-        /// configuration: it is typed once on the headset, saved locally, and
-        /// never committed, logged, or shown back (design 06 section 1).
+        /// configuration: it is typed or pasted on the headset, imported
+        /// from the PC in development builds, saved locally, and never
+        /// committed, logged, or shown back beyond its masked tail
+        /// (design 06 section 1).
         /// </summary>
         void BuildWitTokenField(Transform panel, Color setting)
         {
@@ -704,14 +715,14 @@ namespace Amiss.Shell
                 typeof(RectMask2D), typeof(TMP_InputField));
             fieldGo.transform.SetParent(panel, false);
             var fieldRect = fieldGo.GetComponent<RectTransform>();
-            fieldRect.sizeDelta = new Vector2(300f, 52f);
-            fieldRect.anchoredPosition = new Vector2(730f, -400f);
+            fieldRect.sizeDelta = new Vector2(220f, 52f);
+            fieldRect.anchoredPosition = new Vector2(485f, -400f);
             var outline = fieldGo.GetComponent<Image>();
             outline.sprite = EpisodeSelectBoard.Rounded;
             outline.type = Image.Type.Sliced;
             outline.color = EpisodeSelectBoard.Hairline;
             var fill = MakeImage(fieldGo.transform, "Fill", setting, true);
-            fill.rectTransform.sizeDelta = new Vector2(294f, 46f);
+            fill.rectTransform.sizeDelta = new Vector2(214f, 46f);
             fill.raycastTarget = false;
 
             var text = FieldText(fieldGo.transform, "Text", EpisodeSelectBoard.Text, "");
@@ -725,6 +736,15 @@ namespace Amiss.Shell
             witTokenField.contentType = TMP_InputField.ContentType.Password;
             witTokenField.characterLimit = 512;
             witTokenField.onSubmit.AddListener(SaveWitToken);
+
+            var paste = SettingButton(panel, "PasteWitToken", new Vector2(650f, -400f),
+                new Vector2(90f, 52f), setting, PasteWitToken);
+            paste.text = "PASTE";
+            paste.fontSize = 17f;
+            var save = SettingButton(panel, "SaveWitToken", new Vector2(785f, -400f),
+                new Vector2(160f, 52f), setting, () => SaveWitToken(witTokenField.text));
+            save.text = "SAVE TOKEN";
+            save.fontSize = 17f;
         }
 
         void SaveWitToken(string value)
@@ -734,9 +754,85 @@ namespace Amiss.Shell
             var saved = services.VoiceRig.SaveToken(value);
             if (witTokenField != null)
                 witTokenField.text = "";
-            tutorStatus = saved ? "voice token saved" : "voice token empty";
+            tutorStatus = saved
+                ? "voice token saved " + services.VoiceRig.Tokens.MaskedTail
+                : "voice token empty";
             RefreshModelKeyLabel();
             Debug.Log("[Amiss] wit token save present=" + saved);
+        }
+
+        void PasteModelKey()
+        {
+            if (services == null || services.EvaluationKeys == null)
+                return;
+            var stored = services.EvaluationKeys.Save(ClipboardText());
+            Debug.Log("[Amiss] model key paste present=" + stored);
+            tutorStatus = stored ? "key pasted" : "clipboard empty";
+            RefreshModelKeyLabel();
+        }
+
+        void PasteWitToken() => SaveWitToken(ClipboardText());
+
+        static string ClipboardText()
+        {
+            var clip = GUIUtility.systemCopyBuffer;
+            return string.IsNullOrEmpty(clip) ? "" : clip.Trim();
+        }
+
+        /// <summary>
+        /// PC provisioning for the evaluation/debug build: when
+        /// <c>tools/set-keys.sh</c> has pushed a one-time import file, save
+        /// its values through the same stores as typed entry. The file is
+        /// deleted on the first attempt, success or failure, and only
+        /// presence booleans are logged. Release builds have no import.
+        /// </summary>
+        void PollKeyImport()
+        {
+#if DEVELOPMENT_BUILD
+            if (services == null || Time.unscaledTime < nextKeyImportPoll)
+                return;
+            nextKeyImportPoll = Time.unscaledTime + 1f;
+            var path = Path.Combine(Application.persistentDataPath, Tutor.KeyImport.FileName);
+            string raw = null;
+            try
+            {
+                if (!File.Exists(path))
+                    return;
+                if (new FileInfo(path).Length <= Tutor.KeyImport.MaxFileBytes)
+                    raw = File.ReadAllText(path);
+            }
+            catch (System.Exception)
+            {
+                raw = null;
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(path))
+                        File.Delete(path);
+                }
+                catch (System.Exception)
+                {
+                    // A failed delete is retried by the next poll.
+                }
+            }
+
+            var metaStored = false;
+            var witStored = false;
+            if (Tutor.KeyImport.TryParse(raw, out var meta, out var wit))
+            {
+                if (meta.Length > 0 && services.EvaluationKeys != null)
+                    metaStored = services.EvaluationKeys.Save(meta);
+                if (wit.Length > 0 && services.VoiceRig != null)
+                    witStored = services.VoiceRig.SaveToken(wit);
+            }
+
+            tutorStatus = metaStored || witStored ? "keys imported from PC" : "key import rejected";
+            RefreshModelKeyLabel();
+            RefreshLabels();
+            Debug.Log("[Amiss] key import meta=" + metaStored + " wit=" + witStored);
+#endif
         }
 
         void ToggleMicrophone()

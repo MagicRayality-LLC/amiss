@@ -90,4 +90,75 @@ namespace Amiss.Shell.Tutor
         public override string ToString() =>
             "PlayerPrefsModelKeyStore(" + (Present ? "present" : "absent") + ")";
     }
+
+    /// <summary>
+    /// The PC-provisioning import format for evaluation/debug builds. The
+    /// judge flow already installs over USB, so <c>tools/set-keys.sh</c>
+    /// pushes one small <c>key=value</c> file and the hub saves the values
+    /// through the same device stores as typed entry, then deletes the
+    /// file. Parsing is fail-closed: any unknown key, duplicate, missing
+    /// separator, empty value, whitespace inside a value, or oversized
+    /// value refuses the whole import and yields no partial value. Nothing here logs or
+    /// renders a value.
+    /// </summary>
+    public static class KeyImport
+    {
+        public const string FileName = "key-import.txt";
+        public const int MaxFileBytes = 4096;
+        public const int MaxValueChars = 512;
+
+        public static bool TryParse(string raw, out string metaModelKey, out string witValue)
+        {
+            metaModelKey = "";
+            witValue = "";
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            string meta = null;
+            string wit = null;
+            foreach (var line in raw.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith("#"))
+                    continue;
+                var separator = trimmed.IndexOf('=');
+                if (separator <= 0)
+                    return false;
+                var name = trimmed.Substring(0, separator).Trim();
+                var value = trimmed.Substring(separator + 1).Trim();
+                if (value.Length == 0 || value.Length > MaxValueChars || !IsBareValue(value))
+                    return false;
+                switch (name)
+                {
+                    case "meta_model_key":
+                        if (meta != null)
+                            return false;
+                        meta = value;
+                        break;
+                    case "wit_client_token":
+                        if (wit != null)
+                            return false;
+                        wit = value;
+                        break;
+                    default:
+                        return false;
+                }
+            }
+
+            metaModelKey = meta ?? "";
+            witValue = wit ?? "";
+            return metaModelKey.Length > 0 || witValue.Length > 0;
+        }
+
+        static bool IsBareValue(string value)
+        {
+            foreach (var c in value)
+            {
+                if (char.IsWhiteSpace(c) || char.IsControl(c))
+                    return false;
+            }
+
+            return true;
+        }
+    }
 }

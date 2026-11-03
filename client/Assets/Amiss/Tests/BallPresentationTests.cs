@@ -158,6 +158,44 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void RoomHighlightMaterialIsTransparentSoPassthroughStaysVisible()
+        {
+            var material = RoomHighlights.CreateHighlightMaterial(Color.red);
+            try
+            {
+                Assert.IsNotNull(material);
+                Assert.AreEqual(RoomHighlights.HighlightShaderName, material.shader.name);
+
+                // The design requires passthrough to stay visible and a
+                // highlight never to become a virtual wall, so every
+                // highlight is a transparent URP Lit surface. The material,
+                // not the cube, carries the blend state.
+                Assert.AreEqual(1f, material.GetFloat("_Surface"), 0.0001f,
+                    "surface type must be Transparent");
+                Assert.IsTrue(material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"));
+                Assert.AreEqual(0f, material.GetFloat("_ZWrite"), 0.0001f,
+                    "a highlight must not write depth");
+                Assert.AreEqual((float)UnityEngine.Rendering.BlendMode.SrcAlpha,
+                    material.GetFloat("_SrcBlend"), 0.0001f);
+                Assert.AreEqual((float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha,
+                    material.GetFloat("_DstBlend"), 0.0001f);
+                Assert.GreaterOrEqual(material.renderQueue,
+                    (int)UnityEngine.Rendering.RenderQueue.Transparent,
+                    "a highlight draws after every opaque surface");
+                Assert.AreEqual("Transparent", material.GetTag("RenderType", false));
+                Assert.IsFalse(material.GetShaderPassEnabled("DepthOnly"),
+                    "the depth pass must not write the highlight into the scene");
+                Assert.AreEqual(RoomHighlights.PresentationAlpha,
+                    material.GetColor("_BaseColor").a, 0.0001f,
+                    "one presentation alpha covers every provenance colour");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
         public void RoomHighlightMaterialUsesAShaderThePlayerBuildShips()
         {
             var material = RoomHighlights.CreateHighlightMaterial(Color.red);
@@ -169,6 +207,79 @@ namespace Amiss.Tests
                 "no shipped asset keeps " + material.shader.name +
                 "; a player build would strip it");
             UnityEngine.Object.DestroyImmediate(material);
+        }
+
+        [Test]
+        public void RoomHighlightTemplateIsTheShippedTransparentMaterial()
+        {
+            var template = Resources.Load<Material>(RoomHighlights.HighlightMaterialResource);
+            Assert.IsNotNull(template,
+                "no shipped material at Resources/" + RoomHighlights.HighlightMaterialResource);
+            Assert.AreEqual(
+                "Assets/Amiss/Art/RoomHighlight/Resources/RoomHighlight/" +
+                "RoomHighlightTransparent.mat",
+                AssetDatabase.GetAssetPath(template),
+                "the template is the committed asset, not a runtime substitute");
+            Assert.AreEqual(RoomHighlights.HighlightShaderName, template.shader.name);
+
+            // The template is the build input for the transparent variant, so
+            // it must carry the same T15 surface the runtime used to build.
+            Assert.AreEqual(1f, template.GetFloat("_Surface"), 0.0001f,
+                "template surface type must be Transparent");
+            Assert.IsTrue(template.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"),
+                "the template must select the transparent fragment variant");
+            Assert.IsFalse(template.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON"),
+                "straight alpha, not URP's premultiplied preserve-specular blend");
+            Assert.AreEqual(0f, template.GetFloat("_ZWrite"), 0.0001f);
+            Assert.AreEqual((float)UnityEngine.Rendering.BlendMode.SrcAlpha,
+                template.GetFloat("_SrcBlend"), 0.0001f);
+            Assert.AreEqual((float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha,
+                template.GetFloat("_DstBlend"), 0.0001f);
+            Assert.GreaterOrEqual(template.renderQueue,
+                (int)UnityEngine.Rendering.RenderQueue.Transparent);
+            Assert.AreEqual("Transparent", template.GetTag("RenderType", false));
+            Assert.IsFalse(template.GetShaderPassEnabled("DepthOnly"),
+                "the depth pass must stay off in the shipped template");
+            Assert.AreEqual(RoomHighlights.PresentationAlpha,
+                template.GetColor("_BaseColor").a, 0.0001f);
+        }
+
+        [Test]
+        public void RoomHighlightMaterialClonesTheShippedTemplate()
+        {
+            var template = Resources.Load<Material>(RoomHighlights.HighlightMaterialResource);
+            Assert.IsNotNull(template);
+            var templateColor = template.GetColor("_BaseColor");
+
+            var material = RoomHighlights.CreateHighlightMaterial(
+                new Color(0.2f, 0.4f, 0.6f));
+            try
+            {
+                Assert.IsNotNull(material);
+                Assert.AreNotSame(template, material,
+                    "each highlight gets its own material, not the shared asset");
+                Assert.AreEqual(template.shader, material.shader,
+                    "the clone keeps the template's shader");
+                var applied = material.GetColor("_BaseColor");
+                Assert.AreEqual(0.2f, applied.r, 0.001f,
+                    "the provenance colour is applied to the clone");
+                Assert.AreEqual(0.4f, applied.g, 0.001f);
+                Assert.AreEqual(0.6f, applied.b, 0.001f);
+                Assert.AreEqual(RoomHighlights.PresentationAlpha, applied.a, 0.001f,
+                    "the clone keeps the presentation alpha");
+                var templateAfter = template.GetColor("_BaseColor");
+                Assert.AreEqual(templateColor.r, templateAfter.r, 0.001f,
+                    "cloning must not recolour the shipped template");
+                Assert.AreEqual(templateColor.g, templateAfter.g, 0.001f);
+                Assert.AreEqual(templateColor.b, templateAfter.b, 0.001f);
+                Assert.AreEqual(templateColor.a, templateAfter.a, 0.001f);
+                Assert.IsTrue(material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"));
+                Assert.IsFalse(material.GetShaderPassEnabled("DepthOnly"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(material);
+            }
         }
 
         [Test]
