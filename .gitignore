@@ -3,3 +3,19 @@
 *.swp
 .idea/
 .vscode/
+
+# Unity build scratch and generated output. The policy pack is staged from
+# policy/ at setup/build time; the staged copy is never committed, so policy/
+# stays the one source of truth.
+client/Library/
+client/Temp/
+client/obj/
+client/Logs/
+client/UserSettings/
+client/Builds/
+client/build/
+client/Assets/Resources/PolicyPack/
+client/Assets/Resources/PolicyPack.meta
+pycache/
+__pycache__/
+*.pyc

@@ -5,7 +5,8 @@ open it with Unity Hub or build it from the command line with the scripts in
 `tools/`. The shell owns the session, the episode library and load gate, the
 world-anchored panel, input normalization, and the platform adapters; pure
 contract logic lives in `../simulation/` and `../schema/`, and this tree
-never duplicates it.
+never duplicates it. The repository `README.md` says how the evaluation build
+plays.
 
 ## What this build contains
 
@@ -20,9 +21,24 @@ never duplicates it.
   content and mount nothing in this build.
 - Build identity logging: every app start logs one `[Amiss] build-identity`
   line naming the app build and all framework contract versions.
-- The remaining runtime responsibilities (room preparation, the on-device
-  simulation writer, guide, tutor transport, persistence) are exposed as
-  silent ports and arrive with their owning build steps.
+- Room preparation loads the device Scene Model before offering Space Setup.
+  It loads the on-device Scene Model that contains the current location.
+  World lock aligns that scene after the load; a lock that is not yet active
+  in the load frame is not a failed scan. Otherwise the user explicitly scans
+  on device, then the shell reloads and rechecks.
+  Room confirmation and focus/safety recovery stay separate from Trial
+  acceptance until the scan is clear. One LAUNCH press then confirms that
+  scan; the trial starts when the wearer closes the red knife switch on the
+  wall, or presses START TRIAL in the hub. Missing edges on the scan are
+  virtual walls. The hub does not offer a virtual room. A blocked swing
+  rechecks where the wearer is standing on the next launch press. The hub
+  SAFETY switch defaults on. Turning it off lets that launch press confirm
+  the room even when the swing is blocked. The knife switch is mounted on
+  the wall to the right of the display. A pinch closes it and starts the
+  run when the room is confirmed and the run is not already going.
+- The remaining runtime responsibilities (on-device simulation writer, guide,
+  tutor transport, persistence) are exposed as silent ports and arrive with
+  their owning build steps.
 
 ## Frozen build identity
 
@@ -67,7 +83,22 @@ tools/setup-project.sh          # idempotent: configure the Unity project once
 tools/run-tests.sh               # edit-mode test suite, headless
 tools/build-apk.sh              # Builds/Amiss.apk for Quest Pro
 tools/build-install-launch.sh   # build + adb install + launch on a headset
+tools/quest-room-command.sh DEVICE setup  # send one debug room command
+tools/quest-room-setup.sh DEVICE          # run and await the debug setup driver
 ```
+
+The instrument is one wall-mounted LED TV with a powder-coat PA speaker above it. It is
+hidden until room confirmation, then mounts automatically on the nearest usable
+scanned wall; a room with no usable wall gets a labelled `wall_unavailable`
+forward pose. After that the wearer grabs the bezel or bracket by hand or
+controller to re-mount it on another usable wall; an invalid release returns it
+to its last wall pose without a revision. The Continue button and the controller
+A/trigger action select the episode and advance room preparation. Debug builds
+also accept file-based room commands without changing activity focus.
+`quest-room-setup.sh` drives selection, permission, existing-room loading, Space
+Setup, return/reload, confirmation, and setup acceptance through the production
+state owners. If the OS requires a new physical scan, Space Setup still requires
+the wearer; the debug driver does not bypass tracking or safety.
 
 All Unity invocations are batchmode `-nographics`. The scripts refuse to run
 while the Editor holds the project open. `ADB`/`UNITY` environment variables
@@ -113,8 +144,8 @@ its screen for a system dialog.
   declarations, the shell capability manifest, the load gate, library card
   projections, contract versions. No engine references.
 - `Assets/Amiss/Runtime/Amiss.Shell/` — the shell session, episode module
-  host, library panel, input scaffold, the six-responsibility ports, and
-  build identity.
+  host, wall-mounted LED-TV instrument, input scaffold, the six-responsibility
+  ports, and build identity.
 - `Assets/Amiss/Editor/` — deterministic project setup and the build method.
 - `Assets/Amiss/Tests/` — edit-mode tests; they read `../schema/versions.json`
   so the C# contract constants cannot drift from the schema tree.
@@ -127,4 +158,7 @@ its screen for a system dialog.
 `build/edit-mode-tests.xml`. The suite covers the load-gate order and every
 rejection category, the capability manifest, the no-conclusion card
 projection by construction, version identity against `../schema/versions.json`,
-the library session state machine, and the contract fixtures.
+the library session state machine, the contract fixtures, and wall placement
+(nearest usable wall, too-small/obstructed/absent walls, virtual supplements,
+bezel/bracket grab surfaces, invalid-release reversion, wall-to-wall remount,
+and reset) with unchanged collision pins.

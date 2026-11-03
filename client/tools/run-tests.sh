@@ -18,6 +18,16 @@ set +e
     -testResults build/edit-mode-tests.xml -logFile build/unity-tests.log
 TEST_RC=$?
 set -e
+set +e
+"$UNITY" -batchmode -nographics -quit -buildTarget Android \
+    -projectPath "$(pwd)" -executeMethod Amiss.EditorTools.AmissProjectSetup.ScrubBuildMachineAddress \
+    -logFile build/unity-test-scrub.log
+SCRUB_RC=$?
+set -e
+if [ "$SCRUB_RC" -ne 0 ]; then
+    echo "Post-test settings scrub failed (exit $SCRUB_RC)" >&2
+    exit 1
+fi
 if [ "$TEST_RC" -ne 0 ]; then
     echo "Tests failed (exit $TEST_RC) — tail of build/unity-tests.log:" >&2
     tail -30 build/unity-tests.log >&2 || true

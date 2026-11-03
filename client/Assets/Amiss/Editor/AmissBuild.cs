@@ -41,6 +41,11 @@ namespace Amiss.EditorTools
             if (!File.Exists(ScenePath))
                 throw new System.Exception($"{ScenePath} missing — run AmissProjectSetup.Setup first");
 
+            // Stage the public instructor policy pack from policy/ before the
+            // build, so a clean checkout builds the same bundle as a setup run.
+            AmissProjectSetup.StagePolicyPack();
+            WallDashboardImport.EnsureImported();
+
             var android = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(android, "com.magicrayality.amiss");
             PlayerSettings.SetScriptingBackend(android, ScriptingImplementation.IL2CPP);
@@ -53,6 +58,7 @@ namespace Amiss.EditorTools
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
+            AmissProjectSetup.ScrubBuildMachineAddress();
         }
 
         static void Build(string apkPath, BuildOptions options)

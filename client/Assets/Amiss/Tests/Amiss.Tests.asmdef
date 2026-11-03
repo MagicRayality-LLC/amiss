@@ -5,8 +5,12 @@
         "Amiss.Contracts",
         "Amiss.Shell",
         "meta.xr.mrutilitykit",
+        "Meta.WitAi",
         "Oculus.VR",
         "Oculus.VR.Editor",
+        "Oculus.Interaction",
+        "Oculus.Interaction.OVR",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

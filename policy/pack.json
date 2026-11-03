@@ -1,0 +1,24 @@
+{
+  "pack_format_version": "1.0.0",
+  "pack_id": "amiss-hackathon-vertical-slice",
+  "policy_version": "amiss-hackathon-policy-v1",
+  "episode_id": "what_is_temperature",
+  "stage_data_format_version": "1.0.0",
+  "stage_data_file": "stage-data.json",
+  "instructor_policy_file": "instructor-policy.json",
+  "files": [
+    {
+      "path": "stage-data.json",
+      "sha256": "b9bc70b29ba777a2572e69eb240623e46b21b84794cf86bec9976e388f06ff19"
+    },
+    {
+      "path": "instructor-policy.json",
+      "sha256": "ab295d9f5378bdf4d0fc16911e358e697c99f8e44a2ea915c091c6383e9d38ac"
+    }
+  ],
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "14a725223cd564116b39e98adfc5dd7f68f3d34411e6347b3dadb7b1d5619b3d",
+    "status": "verified"
+  }
+}

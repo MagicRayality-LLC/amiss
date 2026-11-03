@@ -7,6 +7,7 @@ namespace Amiss.Shell.Room
     {
         int sequence;
         double minimumVolumeM3;
+        bool sceneLoadFollowsSpaceSetup;
 
         public event Action Changed;
         public RoomPreparationStatus Status { get; private set; } = RoomPreparationStatus.Idle;
@@ -29,6 +30,7 @@ namespace Amiss.Shell.Room
             Confirmation = null;
             Collision = null;
             Failure = RoomFailureReason.None;
+            sceneLoadFollowsSpaceSetup = false;
             Status = RoomPreparationStatus.Explanation;
             if (!double.IsFinite(episodeMinimumVolumeM3) || episodeMinimumVolumeM3 <= 0d)
                 Restrict(RoomFailureReason.InvalidGeometry);
@@ -55,7 +57,8 @@ namespace Amiss.Shell.Room
                 return true;
             }
             Failure = RoomFailureReason.None;
-            Status = RoomPreparationStatus.SpaceSetupReady;
+            sceneLoadFollowsSpaceSetup = false;
+            Status = RoomPreparationStatus.SceneLoading;
             Changed?.Invoke();
             return true;
         }
@@ -79,6 +82,7 @@ namespace Amiss.Shell.Room
                 return true;
             }
             Failure = RoomFailureReason.None;
+            sceneLoadFollowsSpaceSetup = true;
             Status = RoomPreparationStatus.SceneLoading;
             Changed?.Invoke();
             return true;
@@ -89,9 +93,20 @@ namespace Amiss.Shell.Room
         {
             if (!Owns(preparationId, RoomPreparationStatus.SceneLoading))
                 return false;
-            if (loadFailure != RoomFailureReason.None || draft == null)
+            var failure = loadFailure == RoomFailureReason.None && draft == null
+                ? RoomFailureReason.NoScene
+                : loadFailure;
+            if (failure != RoomFailureReason.None || draft == null)
             {
-                Restrict(loadFailure == RoomFailureReason.None ? RoomFailureReason.NoScene : loadFailure);
+                if (!sceneLoadFollowsSpaceSetup &&
+                    (failure == RoomFailureReason.NoScene || failure == RoomFailureReason.NoCurrentRoom))
+                {
+                    Failure = failure;
+                    Status = RoomPreparationStatus.SpaceSetupReady;
+                    Changed?.Invoke();
+                    return true;
+                }
+                Restrict(failure);
                 return true;
             }
 
@@ -120,6 +135,7 @@ namespace Amiss.Shell.Room
         public bool ChooseManualBoundary(string preparationId, Vector3 userPosition, Vector3 userForward)
         {
             if (!Owns(preparationId, RoomPreparationStatus.Restricted) &&
+                !Owns(preparationId, RoomPreparationStatus.SpaceSetupReady) &&
                 !Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation))
                 return false;
             var floorY = Draft != null ? Draft.Region.min.y : userPosition.y;
@@ -132,12 +148,44 @@ namespace Amiss.Shell.Room
             return true;
         }
 
-        public bool Confirm(string preparationId)
+        /// <summary>
+        /// Re-reads where the wearer is standing before the clear-swing check.
+        /// Stepping into an open spot can pass without a new scan.
+        /// </summary>
+        public bool RetargetUser(Vector3 position, Vector3 forward)
+        {
+            if (!Owns(PreparationId, RoomPreparationStatus.AwaitingConfirmation) || Draft == null)
+                return false;
+            Draft = new RoomDraft(Draft.Region, Draft.Surfaces, position, forward, Draft.ClearSwingRadiusMeters);
+            Failure = Draft.Validate(minimumVolumeM3);
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>
+        /// A loaded room that cannot be used may be replaced by a new
+        /// on-device Space Setup. This does not invent a room.
+        /// </summary>
+        public bool OfferReplacementScan(string preparationId)
+        {
+            if (!Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation) &&
+                !Owns(preparationId, RoomPreparationStatus.Restricted))
+                return false;
+            Failure = RoomFailureReason.None;
+            sceneLoadFollowsSpaceSetup = false;
+            Status = RoomPreparationStatus.SpaceSetupReady;
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool Confirm(string preparationId) => Confirm(preparationId, false);
+
+        public bool Confirm(string preparationId, bool allowUnsafeRegion)
         {
             if (!Owns(preparationId, RoomPreparationStatus.AwaitingConfirmation) || Draft == null)
                 return false;
             if (!CollisionRepresentation.TryCreate(PreparationId, Draft, minimumVolumeM3,
-                    out var collision, out var failure))
+                    allowUnsafeRegion, out var collision, out var failure))
             {
                 Failure = failure;
                 Changed?.Invoke();

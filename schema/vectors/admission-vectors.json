@@ -1,0 +1,3907 @@
+{
+  "admission": [
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-read",
+            "diff_kind": "none",
+            "fingerprint": "f2328be075506f045af4d7beaa568acbdf77b8fb83fd22b75686541360d1d101",
+            "outcome": "executed",
+            "reason_code": null,
+            "rejection_stage": null,
+            "replay": false,
+            "trial_revision_delta": 0
+          }
+        ]
+      },
+      "name": "read snapshot is executed with no revision change",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-read",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-unknown-field",
+            "fingerprint": "f2328be075506f045af4d7beaa568acbdf77b8fb83fd22b75686541360d1d101",
+            "outcome": "rejected",
+            "reason_code": "malformed_parameters",
+            "rejection_stage": "step_1",
+            "replay": false
+          }
+        ]
+      },
+      "name": "unknown field is a step-1 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-unknown-field",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "script": "synthetic-nonexecutable-text",
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-unknown-op",
+            "fingerprint": "a1d81dae64b6f2f15c505472b204bf278b9f4e9f66c25a1f32db9aa14eb3d828",
+            "outcome": "rejected",
+            "reason_code": "malformed_parameters",
+            "rejection_stage": "step_1",
+            "replay": false
+          }
+        ]
+      },
+      "name": "unknown operation is a step-1 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-unknown-op",
+            "origin": "model",
+            "parameters": {
+              "operation": "delete",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-version",
+            "fingerprint": "97b1cef9bd84380824647134f3c5fea43666845bc7dd1679f9ea769a9616c117",
+            "outcome": "rejected",
+            "reason_code": "unsupported_contract_version",
+            "rejection_stage": "step_1",
+            "replay": false
+          }
+        ]
+      },
+      "name": "unsupported tool schema major is refused at step 1",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-version",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "2.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-stale-zero",
+            "fingerprint": "35ab392f2a88037c37e693d6a09df0c583f38949f559922f7ca573d414c30378",
+            "outcome": "rejected",
+            "reason_code": "malformed_parameters",
+            "rejection_stage": "step_1",
+            "replay": false
+          }
+        ]
+      },
+      "name": "non-positive trial revision is malformed at step 1",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 0
+            },
+            "call_id": "call-stale-zero",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 0
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 0
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 0
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "d169c706c2410a3acbe5d280d0a5d34fdb85ec970a7ffe8113e685f39588f40c",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "paused",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 2
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-stale-low",
+            "fingerprint": "f2328be075506f045af4d7beaa568acbdf77b8fb83fd22b75686541360d1d101",
+            "outcome": "rejected",
+            "reason_code": "stale_trial_ref",
+            "rejection_stage": "step_3",
+            "replay": false
+          }
+        ]
+      },
+      "name": "low stale ref is a step-3 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 2
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-stale-low",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-stale-high",
+            "fingerprint": "d785f58a5913e6de5a5bd54aa5bc2f8784d5eb225a47ca9126f3b734a86b3ca4",
+            "outcome": "rejected",
+            "reason_code": "stale_trial_ref",
+            "rejection_stage": "step_3",
+            "replay": false
+          }
+        ]
+      },
+      "name": "high stale ref is a step-3 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 9
+            },
+            "call_id": "call-stale-high",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 9
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 9
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 9
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-unknown-trial",
+            "fingerprint": "816ba0ff621fcfd42c788ab510947f0095a67f3dc9d319618e6ac6f703f12b3d",
+            "outcome": "rejected",
+            "reason_code": "unknown_trial",
+            "rejection_stage": "step_3",
+            "replay": false
+          }
+        ]
+      },
+      "name": "unknown trial is a step-3 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-absent",
+              "trial_revision": 1
+            },
+            "call_id": "call-unknown-trial",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-absent",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-absent",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-absent",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            },
+            "trial-e3efdc08996d986585adb335": {
+              "acceptance": "proposed",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-propose",
+            "diff_kind": "trial_state",
+            "fingerprint": "902a555241e19a476f2c09c0ec06ddc595a46ce693ad71b7106c15f0b57c26ff",
+            "outcome": "executed",
+            "reason_code": null,
+            "rejection_stage": null,
+            "replay": false,
+            "trial_revision_delta": 0
+          }
+        ]
+      },
+      "name": "accepted proposal creates only a Tick-0 candidate",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": null,
+            "call_id": "call-propose",
+            "origin": "model",
+            "parameters": {
+              "expected_invariant_ids": [
+                "finite-state",
+                "positive-count"
+              ],
+              "input_delta": {
+                "downstream_effect_ids": [
+                  "discrete-state"
+                ],
+                "parameter_id": "count",
+                "to_value": 4
+              },
+              "operation": "create",
+              "setup_family_token_id": "guide-token-1-21",
+              "target_parameters": {
+                "count": 4
+              }
+            },
+            "refs": [],
+            "target": {
+              "episode_id": "fake-discrete",
+              "kind": "new_trial",
+              "source_trial_ref": null
+            },
+            "tool": "trial.propose",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "745f3b8635924f7b1cbaec5811e147e356fee9a14e568d0f38e57cfb6f8fc6e4",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            },
+            "trial-e3efdc08996d986585adb335": {
+              "acceptance": "proposed",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-propose",
+            "diff_kind": "trial_state",
+            "fingerprint": "902a555241e19a476f2c09c0ec06ddc595a46ce693ad71b7106c15f0b57c26ff",
+            "outcome": "executed",
+            "reason_code": null,
+            "rejection_stage": null,
+            "replay": true,
+            "trial_revision_delta": 0
+          }
+        ]
+      },
+      "name": "exact replay returns the first result without a second candidate",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          {
+            "trial_id": "trial-e3efdc08996d986585adb335",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": null,
+            "call_id": "call-propose",
+            "origin": "model",
+            "parameters": {
+              "expected_invariant_ids": [
+                "finite-state",
+                "positive-count"
+              ],
+              "input_delta": {
+                "downstream_effect_ids": [
+                  "discrete-state"
+                ],
+                "parameter_id": "count",
+                "to_value": 4
+              },
+              "operation": "create",
+              "setup_family_token_id": "guide-token-1-21",
+              "target_parameters": {
+                "count": 4
+              }
+            },
+            "refs": [],
+            "target": {
+              "episode_id": "fake-discrete",
+              "kind": "new_trial",
+              "source_trial_ref": null
+            },
+            "tool": "trial.propose",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "745f3b8635924f7b1cbaec5811e147e356fee9a14e568d0f38e57cfb6f8fc6e4",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            },
+            "trial-e3efdc08996d986585adb335": {
+              "acceptance": "proposed",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-propose",
+            "fingerprint": "d3e1dff0eb98d2e453fafd38fde20b750cf150d7dc6aa1bf929c06f93923a27c",
+            "outcome": "rejected",
+            "reason_code": "idempotency_conflict",
+            "rejection_stage": "step_2",
+            "replay": false
+          }
+        ]
+      },
+      "name": "changed semantics under one call id is an idempotency conflict",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          {
+            "trial_id": "trial-e3efdc08996d986585adb335",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": null,
+            "call_id": "call-propose",
+            "origin": "model",
+            "parameters": {
+              "expected_invariant_ids": [
+                "finite-state",
+                "positive-count"
+              ],
+              "input_delta": {
+                "downstream_effect_ids": [
+                  "discrete-state"
+                ],
+                "parameter_id": "count",
+                "to_value": 5
+              },
+              "operation": "create",
+              "setup_family_token_id": "guide-token-2-21",
+              "target_parameters": {
+                "count": 5
+              }
+            },
+            "refs": [],
+            "target": {
+              "episode_id": "fake-discrete",
+              "kind": "new_trial",
+              "source_trial_ref": null
+            },
+            "tool": "trial.propose",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "1f9e595c910085ce4fec6d40d36ca14c50886e7ba6ca35d08da83b8628d69bef",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            },
+            "trial-proposed": {
+              "acceptance": "proposed",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-start",
+            "fingerprint": "06f7475ff6f94863b58ff71e5f24a8f12e1ca2c40487df01a6d81be182be99fc",
+            "outcome": "rejected",
+            "reason_code": "proposal_not_accepted",
+            "rejection_stage": "step_5",
+            "replay": false
+          }
+        ]
+      },
+      "name": "start of a proposed setup is refused at step 5",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          {
+            "trial_id": "trial-proposed",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-proposed",
+              "trial_revision": 1
+            },
+            "call_id": "call-start",
+            "origin": "model",
+            "parameters": {
+              "operation": "start",
+              "target_trial_ref": {
+                "trial_id": "trial-proposed",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-proposed",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-proposed",
+                "trial_revision": 1
+              }
+            },
+            "tool": "trial.orchestrate",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-safety",
+            "fingerprint": "659932b25b7275f55c0503546131c9c1b14e1b70e5cea34b1575100a1d46ecb9",
+            "outcome": "rejected",
+            "reason_code": "safety_boundary_failed",
+            "rejection_stage": "step_4",
+            "replay": false
+          }
+        ]
+      },
+      "name": "safety speech from model origin is a step-4 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-safety",
+            "origin": "model",
+            "parameters": {
+              "citations": [],
+              "operation": "safety",
+              "safety_candidate_id": "safety-a",
+              "source_global_revision": 1,
+              "text": "Synthetic safety text."
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "speech.emit",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-gone",
+            "fingerprint": "12f3b6f02945c56c2f3a1280677db3d8a10f4a829f3f5f18ac7484ecda15d8a3",
+            "outcome": "rejected",
+            "reason_code": "token_invalid",
+            "rejection_stage": "step_4",
+            "replay": false
+          }
+        ]
+      },
+      "name": "an unissued guide token is a step-4 rejection",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": null,
+            "call_id": "call-gone",
+            "origin": "model",
+            "parameters": {
+              "expected_invariant_ids": [
+                "finite-state",
+                "positive-count"
+              ],
+              "input_delta": {
+                "downstream_effect_ids": [
+                  "discrete-state"
+                ],
+                "parameter_id": "count",
+                "to_value": 4
+              },
+              "operation": "create",
+              "setup_family_token_id": "guide-token-absent",
+              "target_parameters": {
+                "count": 4
+              }
+            },
+            "refs": [],
+            "target": {
+              "episode_id": "fake-discrete",
+              "kind": "new_trial",
+              "source_trial_ref": null
+            },
+            "tool": "trial.propose",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "context_sha256": "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb",
+      "expect": {
+        "after": {
+          "current_trial_id": "trial-a",
+          "trials": {
+            "trial-a": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "tick": 0,
+              "trial_revision": 1
+            }
+          }
+        },
+        "results": [
+          {
+            "call_id": "call-first",
+            "diff_kind": "none",
+            "fingerprint": "f2328be075506f045af4d7beaa568acbdf77b8fb83fd22b75686541360d1d101",
+            "outcome": "executed",
+            "reason_code": null,
+            "rejection_stage": null,
+            "replay": false,
+            "trial_revision_delta": 0
+          },
+          {
+            "call_id": "call-second",
+            "diff_kind": "none",
+            "fingerprint": "f2328be075506f045af4d7beaa568acbdf77b8fb83fd22b75686541360d1d101",
+            "outcome": "executed",
+            "reason_code": null,
+            "rejection_stage": null,
+            "replay": false,
+            "trial_revision_delta": 0
+          }
+        ]
+      },
+      "name": "two proposals in one reply are validated in order",
+      "response": {
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "request_id": "request-a",
+        "response_contract_version": "1.0.0",
+        "speech_units": [],
+        "tool_proposals": [
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-first",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          },
+          {
+            "basis_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "call_id": "call-second",
+            "origin": "model",
+            "parameters": {
+              "operation": "snapshot",
+              "target_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "target": {
+              "kind": "existing",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "tool": "state.read",
+            "tool_schema_version": "1.0.0"
+          }
+        ]
+      }
+    }
+  ],
+  "canonicalisation": [
+    {
+      "canonical_json": "{\"C\":3,\"a\":2,\"b\":1}",
+      "name": "object keys are sorted",
+      "sha256": "27e01c26743085bff8e4a98d76dca93ebdb6c805f8136fae1216ee257d33f5c5",
+      "value": {
+        "C": 3,
+        "a": 2,
+        "b": 1
+      }
+    },
+    {
+      "canonical_json": "{\"refs\":[{\"trial_id\":\"trial-b\",\"trial_revision\":2},{\"trial_id\":\"trial-a\",\"trial_revision\":1}]}",
+      "name": "arrays keep semantic order",
+      "sha256": "bb663d53b65984e58c7df1ec3c00e528dc7402772a6a1c83dc640f8d5c3faf6d",
+      "value": {
+        "refs": [
+          {
+            "trial_id": "trial-b",
+            "trial_revision": 2
+          },
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ]
+      }
+    },
+    {
+      "canonical_json": "{\"text\":\"café µK →\"}",
+      "name": "non-ascii text is not escaped",
+      "sha256": "a30e46a0e3881a88b26d9ad9b0b26526f752ad64d8f7b89bd866c7df2598ef1d",
+      "value": {
+        "text": "café µK →"
+      }
+    },
+    {
+      "canonical_json": "{\"a\":0.1,\"b\":1.0,\"d\":1e-07,\"e\":1234567890123}",
+      "name": "shortest round-trip decimals",
+      "sha256": "aaaf69fed8b0f9c665d0326333f08af530732b54d02cdc433165d77c7a4ee15f",
+      "value": {
+        "a": 0.1,
+        "b": 1.0,
+        "d": 1e-07,
+        "e": 1234567890123
+      }
+    },
+    {
+      "canonical_json": "{\"a\":{},\"b\":[],\"c\":{\"d\":[[],{}]}}",
+      "name": "nested empty containers",
+      "sha256": "9f1a381666d6f36b1b7dc87bc088e74a5ecc270aa87fa914111442ead89dbe01",
+      "value": {
+        "a": {},
+        "b": [],
+        "c": {
+          "d": [
+            [],
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "canonical_json": "{\"a\":true,\"b\":false,\"c\":null}",
+      "name": "booleans and nulls",
+      "sha256": "58ea9f23c715c4f8fee078efd41139485403f053775482d58b6f4f454b34ecf0",
+      "value": {
+        "a": true,
+        "b": false,
+        "c": null
+      }
+    },
+    {
+      "canonical_json": "{\"text\":\"line\\nbreak\\ttab \\\"quote\\\" back\\\\slash\"}",
+      "name": "escaped control characters",
+      "sha256": "c27b2ca35b605aeb97f5d43ba05ca0fac82b7a6893c74766533460d03cb9e5c1",
+      "value": {
+        "text": "line\nbreak\ttab \"quote\" back\\slash"
+      }
+    }
+  ],
+  "contexts": {
+    "1f9e595c910085ce4fec6d40d36ca14c50886e7ba6ca35d08da83b8628d69bef": {
+      "comparison_trial_ids": [
+        "trial-a",
+        "trial-proposed"
+      ],
+      "current_trial_id": "trial-a",
+      "declarations": [
+        {
+          "action_id": "action-state.read-snapshot",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "snapshot",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-ledger",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "ledger",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-measurements",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "measurements",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-trial.propose-create",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "create",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.propose-derive",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "derive",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.orchestrate-start",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "start",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-pause",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "pause",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-resume",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "resume",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-begin_measurement",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "begin_measurement",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-archive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "archive",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-present",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "present",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-presentation.request-highlight_surface",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "highlight_surface",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-replay_slow",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "replay_slow",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-open_chart",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "open_chart",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-show_subtitle",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "show_subtitle",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-speech.emit-answer",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "answer",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-proactive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "proactive",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-safety",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "safety",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        }
+      ],
+      "episode_id": "fake-discrete",
+      "gates": {
+        "backoff_active": false,
+        "chart_ids": [],
+        "chart_slot_ids": [],
+        "cooldown_active": false,
+        "generation_committed": true,
+        "hard_safety_hold": false,
+        "highlight_ids": [],
+        "numerical_state_ok": true,
+        "playback_completed_solicitation_ids": [],
+        "replay_event_ids": [],
+        "replay_speed_ids": [],
+        "safety_candidate_ids": [],
+        "scene_valid": true,
+        "storage_available": true,
+        "surface_ids": [],
+        "tts_available": true,
+        "user_speaking": false,
+        "user_swinging": false
+      },
+      "global_revision": 0,
+      "idempotency_records": [],
+      "policy_tokens": {
+        "episode_id": "fake-discrete",
+        "policy_version": "fake-contract-v1",
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          {
+            "trial_id": "trial-proposed",
+            "trial_revision": 1
+          }
+        ],
+        "stage_id": "observe",
+        "tokens": [
+          {
+            "kind": "stage",
+            "token_id": "guide-token-1-1",
+            "value_id": "observe"
+          },
+          {
+            "kind": "policy_version",
+            "token_id": "guide-token-1-2",
+            "value_id": "fake-contract-v1"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-3",
+            "value_id": "action-state.read-snapshot"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-4",
+            "value_id": "action-state.read-ledger"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-5",
+            "value_id": "action-state.read-measurements"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-6",
+            "value_id": "action-trial.propose-create"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-7",
+            "value_id": "action-trial.propose-derive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-8",
+            "value_id": "action-trial.orchestrate-start"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-9",
+            "value_id": "action-trial.orchestrate-pause"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-10",
+            "value_id": "action-trial.orchestrate-resume"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-11",
+            "value_id": "action-trial.orchestrate-begin_measurement"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-12",
+            "value_id": "action-trial.orchestrate-archive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-13",
+            "value_id": "action-trial.orchestrate-present"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-14",
+            "value_id": "action-presentation.request-highlight_surface"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-15",
+            "value_id": "action-presentation.request-replay_slow"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-16",
+            "value_id": "action-presentation.request-open_chart"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-17",
+            "value_id": "action-presentation.request-show_subtitle"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-18",
+            "value_id": "action-speech.emit-answer"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-19",
+            "value_id": "action-speech.emit-proactive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-20",
+            "value_id": "action-speech.emit-safety"
+          },
+          {
+            "kind": "setup_family",
+            "token_id": "guide-token-1-21",
+            "value_id": "discrete-count"
+          }
+        ]
+      },
+      "preferences": {
+        "guidance_preference_id": "default",
+        "mute": false,
+        "tips_enabled": true
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        },
+        {
+          "trial_id": "trial-proposed",
+          "trial_revision": 1
+        }
+      ],
+      "trials": {
+        "trial-a": {
+          "acceptance": "accepted",
+          "activity": "running",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 3
+          },
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        },
+        "trial-proposed": {
+          "acceptance": "proposed",
+          "activity": "running",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 4
+          },
+          "trial_id": "trial-proposed",
+          "trial_revision": 1
+        }
+      }
+    },
+    "745f3b8635924f7b1cbaec5811e147e356fee9a14e568d0f38e57cfb6f8fc6e4": {
+      "comparison_trial_ids": [
+        "trial-a",
+        "trial-e3efdc08996d986585adb335"
+      ],
+      "current_trial_id": "trial-a",
+      "declarations": [
+        {
+          "action_id": "action-state.read-snapshot",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "snapshot",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-ledger",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "ledger",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-measurements",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "measurements",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-trial.propose-create",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "create",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.propose-derive",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "derive",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.orchestrate-start",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "start",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-pause",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "pause",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-resume",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "resume",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-begin_measurement",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "begin_measurement",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-archive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "archive",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-present",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "present",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-presentation.request-highlight_surface",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "highlight_surface",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-replay_slow",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "replay_slow",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-open_chart",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "open_chart",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-show_subtitle",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "show_subtitle",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-speech.emit-answer",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "answer",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-proactive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "proactive",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-safety",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "safety",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        }
+      ],
+      "episode_id": "fake-discrete",
+      "gates": {
+        "backoff_active": false,
+        "chart_ids": [],
+        "chart_slot_ids": [],
+        "cooldown_active": false,
+        "generation_committed": true,
+        "hard_safety_hold": false,
+        "highlight_ids": [],
+        "numerical_state_ok": true,
+        "playback_completed_solicitation_ids": [],
+        "replay_event_ids": [],
+        "replay_speed_ids": [],
+        "safety_candidate_ids": [],
+        "scene_valid": true,
+        "storage_available": true,
+        "surface_ids": [],
+        "tts_available": true,
+        "user_speaking": false,
+        "user_swinging": false
+      },
+      "global_revision": 0,
+      "idempotency_records": [
+        {
+          "call_id": "call-propose",
+          "fingerprint": "902a555241e19a476f2c09c0ec06ddc595a46ce693ad71b7106c15f0b57c26ff",
+          "first_result": {
+            "accepted_command_id": "command-46a5ddbf1cc1c17ed1665789",
+            "basis_trial_ref": null,
+            "call_id": "call-propose",
+            "execution_receipt": {
+              "after_trial_ref": {
+                "trial_id": "trial-e3efdc08996d986585adb335",
+                "trial_revision": 1
+              },
+              "before_trial_ref": null,
+              "diff": {
+                "changed_field_ids": [
+                  "trial_created"
+                ],
+                "kind": "trial_state"
+              },
+              "global_revision": null,
+              "postcondition_evidence_ids": [
+                "finite-state",
+                "positive-count"
+              ],
+              "trial_revision_delta": 0
+            },
+            "fingerprint": "902a555241e19a476f2c09c0ec06ddc595a46ce693ad71b7106c15f0b57c26ff",
+            "idempotency_scope": {
+              "episode_id": "fake-discrete",
+              "target_trial_id": null
+            },
+            "outcome": "executed",
+            "reason_code": null,
+            "refs": [],
+            "rejection_stage": null,
+            "replay": false,
+            "target": {
+              "episode_id": "fake-discrete",
+              "kind": "new_trial",
+              "source_trial_ref": null
+            },
+            "tool_schema_version": "1.0.0"
+          },
+          "idempotency_scope": {
+            "episode_id": "fake-discrete",
+            "target_trial_id": null
+          }
+        }
+      ],
+      "policy_tokens": {
+        "episode_id": "fake-discrete",
+        "policy_version": "fake-contract-v1",
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          {
+            "trial_id": "trial-e3efdc08996d986585adb335",
+            "trial_revision": 1
+          }
+        ],
+        "stage_id": "observe",
+        "tokens": [
+          {
+            "kind": "stage",
+            "token_id": "guide-token-2-1",
+            "value_id": "observe"
+          },
+          {
+            "kind": "policy_version",
+            "token_id": "guide-token-2-2",
+            "value_id": "fake-contract-v1"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-3",
+            "value_id": "action-state.read-snapshot"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-4",
+            "value_id": "action-state.read-ledger"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-5",
+            "value_id": "action-state.read-measurements"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-6",
+            "value_id": "action-trial.propose-create"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-7",
+            "value_id": "action-trial.propose-derive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-8",
+            "value_id": "action-trial.orchestrate-start"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-9",
+            "value_id": "action-trial.orchestrate-pause"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-10",
+            "value_id": "action-trial.orchestrate-resume"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-11",
+            "value_id": "action-trial.orchestrate-begin_measurement"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-12",
+            "value_id": "action-trial.orchestrate-archive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-13",
+            "value_id": "action-trial.orchestrate-present"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-14",
+            "value_id": "action-presentation.request-highlight_surface"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-15",
+            "value_id": "action-presentation.request-replay_slow"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-16",
+            "value_id": "action-presentation.request-open_chart"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-17",
+            "value_id": "action-presentation.request-show_subtitle"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-18",
+            "value_id": "action-speech.emit-answer"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-19",
+            "value_id": "action-speech.emit-proactive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-2-20",
+            "value_id": "action-speech.emit-safety"
+          },
+          {
+            "kind": "setup_family",
+            "token_id": "guide-token-2-21",
+            "value_id": "discrete-count"
+          }
+        ]
+      },
+      "preferences": {
+        "guidance_preference_id": "default",
+        "mute": false,
+        "tips_enabled": true
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        },
+        {
+          "trial_id": "trial-e3efdc08996d986585adb335",
+          "trial_revision": 1
+        }
+      ],
+      "trials": {
+        "trial-a": {
+          "acceptance": "accepted",
+          "activity": "running",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 3
+          },
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        },
+        "trial-e3efdc08996d986585adb335": {
+          "acceptance": "proposed",
+          "activity": "running",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 4
+          },
+          "trial_id": "trial-e3efdc08996d986585adb335",
+          "trial_revision": 1
+        }
+      }
+    },
+    "d169c706c2410a3acbe5d280d0a5d34fdb85ec970a7ffe8113e685f39588f40c": {
+      "comparison_trial_ids": [
+        "trial-a"
+      ],
+      "current_trial_id": "trial-a",
+      "declarations": [
+        {
+          "action_id": "action-state.read-snapshot",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "snapshot",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-ledger",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "ledger",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-measurements",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "measurements",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-trial.propose-create",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "create",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.propose-derive",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "derive",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.orchestrate-start",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "start",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-pause",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "pause",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-resume",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "resume",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-begin_measurement",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "begin_measurement",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-archive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "archive",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-present",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "present",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-presentation.request-highlight_surface",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "highlight_surface",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-replay_slow",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "replay_slow",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-open_chart",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "open_chart",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-show_subtitle",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "show_subtitle",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-speech.emit-answer",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "answer",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-proactive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "proactive",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-safety",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "safety",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        }
+      ],
+      "episode_id": "fake-discrete",
+      "gates": {
+        "backoff_active": false,
+        "chart_ids": [],
+        "chart_slot_ids": [],
+        "cooldown_active": false,
+        "generation_committed": true,
+        "hard_safety_hold": false,
+        "highlight_ids": [],
+        "numerical_state_ok": true,
+        "playback_completed_solicitation_ids": [],
+        "replay_event_ids": [],
+        "replay_speed_ids": [],
+        "safety_candidate_ids": [],
+        "scene_valid": true,
+        "storage_available": true,
+        "surface_ids": [],
+        "tts_available": true,
+        "user_speaking": false,
+        "user_swinging": false
+      },
+      "global_revision": 0,
+      "idempotency_records": [],
+      "policy_tokens": {
+        "episode_id": "fake-discrete",
+        "policy_version": "fake-contract-v1",
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 2
+          }
+        ],
+        "stage_id": "observe",
+        "tokens": [
+          {
+            "kind": "stage",
+            "token_id": "guide-token-1-1",
+            "value_id": "observe"
+          },
+          {
+            "kind": "policy_version",
+            "token_id": "guide-token-1-2",
+            "value_id": "fake-contract-v1"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-3",
+            "value_id": "action-state.read-snapshot"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-4",
+            "value_id": "action-state.read-ledger"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-5",
+            "value_id": "action-state.read-measurements"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-6",
+            "value_id": "action-trial.propose-create"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-7",
+            "value_id": "action-trial.propose-derive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-8",
+            "value_id": "action-trial.orchestrate-start"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-9",
+            "value_id": "action-trial.orchestrate-pause"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-10",
+            "value_id": "action-trial.orchestrate-resume"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-11",
+            "value_id": "action-trial.orchestrate-begin_measurement"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-12",
+            "value_id": "action-trial.orchestrate-archive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-13",
+            "value_id": "action-trial.orchestrate-present"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-14",
+            "value_id": "action-presentation.request-highlight_surface"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-15",
+            "value_id": "action-presentation.request-replay_slow"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-16",
+            "value_id": "action-presentation.request-open_chart"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-17",
+            "value_id": "action-presentation.request-show_subtitle"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-18",
+            "value_id": "action-speech.emit-answer"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-19",
+            "value_id": "action-speech.emit-proactive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-20",
+            "value_id": "action-speech.emit-safety"
+          },
+          {
+            "kind": "setup_family",
+            "token_id": "guide-token-1-21",
+            "value_id": "discrete-count"
+          }
+        ]
+      },
+      "preferences": {
+        "guidance_preference_id": "default",
+        "mute": false,
+        "tips_enabled": true
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 2
+        }
+      ],
+      "trials": {
+        "trial-a": {
+          "acceptance": "accepted",
+          "activity": "paused",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 3
+          },
+          "trial_id": "trial-a",
+          "trial_revision": 2
+        }
+      }
+    },
+    "ec8d4aa7b6a8b2834b93f5ced2da9e5482358af8c1efbb9bfff9a4d0e08adceb": {
+      "comparison_trial_ids": [
+        "trial-a"
+      ],
+      "current_trial_id": "trial-a",
+      "declarations": [
+        {
+          "action_id": "action-state.read-snapshot",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "snapshot",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-ledger",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "ledger",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-state.read-measurements",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "measurements",
+          "setup_family_id": null,
+          "tool": "state.read"
+        },
+        {
+          "action_id": "action-trial.propose-create",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "create",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.propose-derive",
+          "confirmation_required": false,
+          "controllable_inputs": {
+            "count": {
+              "maximum": 10,
+              "minimum": 0
+            }
+          },
+          "default_parameters": {
+            "count": 3
+          },
+          "downstream_effect_ids": [
+            "discrete-state"
+          ],
+          "invariant_ids": [
+            "finite-state",
+            "positive-count"
+          ],
+          "operation": "derive",
+          "setup_family_id": "discrete-count",
+          "tool": "trial.propose"
+        },
+        {
+          "action_id": "action-trial.orchestrate-start",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "start",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-pause",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "pause",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-resume",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "resume",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-begin_measurement",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "begin_measurement",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-archive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "archive",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-trial.orchestrate-present",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "present",
+          "setup_family_id": null,
+          "tool": "trial.orchestrate"
+        },
+        {
+          "action_id": "action-presentation.request-highlight_surface",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "highlight_surface",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-replay_slow",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "replay_slow",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-open_chart",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "open_chart",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-presentation.request-show_subtitle",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "show_subtitle",
+          "setup_family_id": null,
+          "tool": "presentation.request"
+        },
+        {
+          "action_id": "action-speech.emit-answer",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "answer",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-proactive",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "proactive",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        },
+        {
+          "action_id": "action-speech.emit-safety",
+          "confirmation_required": false,
+          "controllable_inputs": {},
+          "default_parameters": {},
+          "downstream_effect_ids": [],
+          "invariant_ids": [
+            "finite-state"
+          ],
+          "operation": "safety",
+          "setup_family_id": null,
+          "tool": "speech.emit"
+        }
+      ],
+      "episode_id": "fake-discrete",
+      "gates": {
+        "backoff_active": false,
+        "chart_ids": [],
+        "chart_slot_ids": [],
+        "cooldown_active": false,
+        "generation_committed": true,
+        "hard_safety_hold": false,
+        "highlight_ids": [],
+        "numerical_state_ok": true,
+        "playback_completed_solicitation_ids": [],
+        "replay_event_ids": [],
+        "replay_speed_ids": [],
+        "safety_candidate_ids": [],
+        "scene_valid": true,
+        "storage_available": true,
+        "surface_ids": [],
+        "tts_available": true,
+        "user_speaking": false,
+        "user_swinging": false
+      },
+      "global_revision": 0,
+      "idempotency_records": [],
+      "policy_tokens": {
+        "episode_id": "fake-discrete",
+        "policy_version": "fake-contract-v1",
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "stage_id": "observe",
+        "tokens": [
+          {
+            "kind": "stage",
+            "token_id": "guide-token-1-1",
+            "value_id": "observe"
+          },
+          {
+            "kind": "policy_version",
+            "token_id": "guide-token-1-2",
+            "value_id": "fake-contract-v1"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-3",
+            "value_id": "action-state.read-snapshot"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-4",
+            "value_id": "action-state.read-ledger"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-5",
+            "value_id": "action-state.read-measurements"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-6",
+            "value_id": "action-trial.propose-create"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-7",
+            "value_id": "action-trial.propose-derive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-8",
+            "value_id": "action-trial.orchestrate-start"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-9",
+            "value_id": "action-trial.orchestrate-pause"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-10",
+            "value_id": "action-trial.orchestrate-resume"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-11",
+            "value_id": "action-trial.orchestrate-begin_measurement"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-12",
+            "value_id": "action-trial.orchestrate-archive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-13",
+            "value_id": "action-trial.orchestrate-present"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-14",
+            "value_id": "action-presentation.request-highlight_surface"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-15",
+            "value_id": "action-presentation.request-replay_slow"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-16",
+            "value_id": "action-presentation.request-open_chart"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-17",
+            "value_id": "action-presentation.request-show_subtitle"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-18",
+            "value_id": "action-speech.emit-answer"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-19",
+            "value_id": "action-speech.emit-proactive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-20",
+            "value_id": "action-speech.emit-safety"
+          },
+          {
+            "kind": "setup_family",
+            "token_id": "guide-token-1-21",
+            "value_id": "discrete-count"
+          }
+        ]
+      },
+      "preferences": {
+        "guidance_preference_id": "default",
+        "mute": false,
+        "tips_enabled": true
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        }
+      ],
+      "trials": {
+        "trial-a": {
+          "acceptance": "accepted",
+          "activity": "running",
+          "measurement_ids": [],
+          "pending_prediction_ids": [],
+          "phase": "setup",
+          "setup_family_id": "discrete-count",
+          "target_parameters": {
+            "count": 3
+          },
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        }
+      }
+    }
+  },
+  "request": {
+    "context_payload": {
+      "comparison_package": [
+        {
+          "behaviour_summary": {
+            "attempt_count": 0,
+            "effective_action_count": 0,
+            "head_orientation_category": "unknown",
+            "panel_interaction_count": 0,
+            "ticks_since_last_effective_action": 0
+          },
+          "configuration": {
+            "actual_initial_invariant_ids": [
+              "finite-state"
+            ],
+            "collision_representation_id": "synthetic-collision",
+            "collision_representation_version": 1,
+            "declared_downstream_effect_ids": [],
+            "rng_expansion_id": "deterministic-v1",
+            "seed": 0,
+            "setup_family_id": "discrete-count",
+            "source_input_delta": null,
+            "target_parameters": {
+              "count": 3
+            }
+          },
+          "diagnostics": {
+            "network_state": "not_used",
+            "numerical_state": "ok",
+            "rejected_proposal_id": null,
+            "rejected_reason_code": null,
+            "scene_state": "valid",
+            "tracking_state": "unknown",
+            "voice_state": "unavailable"
+          },
+          "episode_extension": {
+            "facts": {},
+            "namespace": "fake_discrete",
+            "schema_version": "1.0.0"
+          },
+          "identity": {
+            "app_build_version": "headless-build",
+            "current_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            },
+            "diagnostic_wall_timestamp": "2000-01-01T00:00:00Z",
+            "episode_id": "fake-discrete",
+            "episode_module_version": "1.0.0",
+            "global_revision": 1,
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "session_id": "headless-session",
+            "snapshot_envelope_version": "1.0.0",
+            "tick": 0,
+            "trial_identity": {
+              "app_build_version": "headless-build",
+              "contract_versions": {
+                "framework_api_version": "1.0.0",
+                "save_format_version": "1.0.0",
+                "snapshot_envelope_version": "1.0.0",
+                "tool_schema_version": "1.0.0"
+              },
+              "episode_id": "fake-discrete",
+              "episode_model_version": "1.0.0",
+              "episode_module_version": "1.0.0",
+              "source_trial_ref": null,
+              "trial_id": "trial-a"
+            }
+          },
+          "measurements": [],
+          "policy_tokens": {
+            "episode_id": "fake-discrete",
+            "policy_version": "fake-contract-v1",
+            "refs": [
+              {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            ],
+            "stage_id": "observe",
+            "tokens": [
+              {
+                "kind": "stage",
+                "token_id": "guide-token-1-1",
+                "value_id": "observe"
+              },
+              {
+                "kind": "policy_version",
+                "token_id": "guide-token-1-2",
+                "value_id": "fake-contract-v1"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-3",
+                "value_id": "action-state.read-snapshot"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-4",
+                "value_id": "action-state.read-ledger"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-5",
+                "value_id": "action-state.read-measurements"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-6",
+                "value_id": "action-trial.propose-create"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-7",
+                "value_id": "action-trial.propose-derive"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-8",
+                "value_id": "action-trial.orchestrate-start"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-9",
+                "value_id": "action-trial.orchestrate-pause"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-10",
+                "value_id": "action-trial.orchestrate-resume"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-11",
+                "value_id": "action-trial.orchestrate-begin_measurement"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-12",
+                "value_id": "action-trial.orchestrate-archive"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-13",
+                "value_id": "action-trial.orchestrate-present"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-14",
+                "value_id": "action-presentation.request-highlight_surface"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-15",
+                "value_id": "action-presentation.request-replay_slow"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-16",
+                "value_id": "action-presentation.request-open_chart"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-17",
+                "value_id": "action-presentation.request-show_subtitle"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-18",
+                "value_id": "action-speech.emit-answer"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-19",
+                "value_id": "action-speech.emit-proactive"
+              },
+              {
+                "kind": "allowed_action",
+                "token_id": "guide-token-1-20",
+                "value_id": "action-speech.emit-safety"
+              },
+              {
+                "kind": "setup_family",
+                "token_id": "guide-token-1-21",
+                "value_id": "discrete-count"
+              }
+            ]
+          },
+          "predictions": [],
+          "progress": {
+            "guide": {
+              "policy_version": "fake-contract-v1",
+              "satisfied_evidence_fact_ids": [],
+              "stage_id": "observe",
+              "trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              }
+            },
+            "last_proactive_speech_trial_ref": null,
+            "preferences": {
+              "guidance_preference_id": "default",
+              "mute": false,
+              "tips_enabled": true
+            },
+            "trial_state": {
+              "acceptance": "accepted",
+              "activity": "running",
+              "phase": "setup",
+              "terminal_reason": null,
+              "tick": 0,
+              "trial_revision": 1
+            }
+          },
+          "session_comfort": {
+            "paused": false,
+            "safety_warning_count": 0,
+            "seated": true,
+            "session_duration_seconds": 0.0,
+            "tracking_quality": "unknown"
+          },
+          "space": {
+            "collision_representation_id": "synthetic-collision",
+            "collision_representation_version": 1,
+            "dimensions_m": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "effective_volume_m3": 1.0,
+            "scene_valid": true,
+            "virtual_boundary": true
+          }
+        }
+      ],
+      "compressed_session_context": {
+        "minimal_profile": null,
+        "preferences": {
+          "guidance_preference_id": "default",
+          "mute": false,
+          "tips_enabled": true
+        },
+        "session_duration_seconds": 0.0
+      },
+      "context_payload_version": "1.0.0",
+      "current_user_utterance": {
+        "text": "Synthetic utterance.",
+        "utterance_id": "utterance-a"
+      },
+      "policy_tokens": {
+        "episode_id": "fake-discrete",
+        "policy_version": "fake-contract-v1",
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ],
+        "stage_id": "observe",
+        "tokens": [
+          {
+            "kind": "stage",
+            "token_id": "guide-token-1-1",
+            "value_id": "observe"
+          },
+          {
+            "kind": "policy_version",
+            "token_id": "guide-token-1-2",
+            "value_id": "fake-contract-v1"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-3",
+            "value_id": "action-state.read-snapshot"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-4",
+            "value_id": "action-state.read-ledger"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-5",
+            "value_id": "action-state.read-measurements"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-6",
+            "value_id": "action-trial.propose-create"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-7",
+            "value_id": "action-trial.propose-derive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-8",
+            "value_id": "action-trial.orchestrate-start"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-9",
+            "value_id": "action-trial.orchestrate-pause"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-10",
+            "value_id": "action-trial.orchestrate-resume"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-11",
+            "value_id": "action-trial.orchestrate-begin_measurement"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-12",
+            "value_id": "action-trial.orchestrate-archive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-13",
+            "value_id": "action-trial.orchestrate-present"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-14",
+            "value_id": "action-presentation.request-highlight_surface"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-15",
+            "value_id": "action-presentation.request-replay_slow"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-16",
+            "value_id": "action-presentation.request-open_chart"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-17",
+            "value_id": "action-presentation.request-show_subtitle"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-18",
+            "value_id": "action-speech.emit-answer"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-19",
+            "value_id": "action-speech.emit-proactive"
+          },
+          {
+            "kind": "allowed_action",
+            "token_id": "guide-token-1-20",
+            "value_id": "action-speech.emit-safety"
+          },
+          {
+            "kind": "setup_family",
+            "token_id": "guide-token-1-21",
+            "value_id": "discrete-count"
+          }
+        ]
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        }
+      ]
+    },
+    "context_payload_sha256": "63802994354d176fade2365c7747da5ef28b3ef3e5b4707702cb4a32a39b3a50",
+    "provenance": {
+      "endpoint_host": "api.meta.ai",
+      "input_tokens": 120,
+      "mode": "live",
+      "model": "muse-spark-1.3",
+      "output_tokens": 40,
+      "prompt_hash": "2918dfab64b8afe10f7f909971234447254522e63fa311f834854a549ef9574d",
+      "request_id": "request-a",
+      "response_hash": "5e230b2673475799594d2f6b5b39bc3cd10c6a0fe52114cc6a489c6ced34e217",
+      "ts_end": "2026-11-01T12:00:01Z",
+      "ts_start": "2026-11-01T12:00:00Z"
+    },
+    "request": {
+      "context_payload": {
+        "comparison_package": [
+          {
+            "behaviour_summary": {
+              "attempt_count": 0,
+              "effective_action_count": 0,
+              "head_orientation_category": "unknown",
+              "panel_interaction_count": 0,
+              "ticks_since_last_effective_action": 0
+            },
+            "configuration": {
+              "actual_initial_invariant_ids": [
+                "finite-state"
+              ],
+              "collision_representation_id": "synthetic-collision",
+              "collision_representation_version": 1,
+              "declared_downstream_effect_ids": [],
+              "rng_expansion_id": "deterministic-v1",
+              "seed": 0,
+              "setup_family_id": "discrete-count",
+              "source_input_delta": null,
+              "target_parameters": {
+                "count": 3
+              }
+            },
+            "diagnostics": {
+              "network_state": "not_used",
+              "numerical_state": "ok",
+              "rejected_proposal_id": null,
+              "rejected_reason_code": null,
+              "scene_state": "valid",
+              "tracking_state": "unknown",
+              "voice_state": "unavailable"
+            },
+            "episode_extension": {
+              "facts": {},
+              "namespace": "fake_discrete",
+              "schema_version": "1.0.0"
+            },
+            "identity": {
+              "app_build_version": "headless-build",
+              "current_trial_ref": {
+                "trial_id": "trial-a",
+                "trial_revision": 1
+              },
+              "diagnostic_wall_timestamp": "2000-01-01T00:00:00Z",
+              "episode_id": "fake-discrete",
+              "episode_module_version": "1.0.0",
+              "global_revision": 1,
+              "refs": [
+                {
+                  "trial_id": "trial-a",
+                  "trial_revision": 1
+                }
+              ],
+              "session_id": "headless-session",
+              "snapshot_envelope_version": "1.0.0",
+              "tick": 0,
+              "trial_identity": {
+                "app_build_version": "headless-build",
+                "contract_versions": {
+                  "framework_api_version": "1.0.0",
+                  "save_format_version": "1.0.0",
+                  "snapshot_envelope_version": "1.0.0",
+                  "tool_schema_version": "1.0.0"
+                },
+                "episode_id": "fake-discrete",
+                "episode_model_version": "1.0.0",
+                "episode_module_version": "1.0.0",
+                "source_trial_ref": null,
+                "trial_id": "trial-a"
+              }
+            },
+            "measurements": [],
+            "policy_tokens": {
+              "episode_id": "fake-discrete",
+              "policy_version": "fake-contract-v1",
+              "refs": [
+                {
+                  "trial_id": "trial-a",
+                  "trial_revision": 1
+                }
+              ],
+              "stage_id": "observe",
+              "tokens": [
+                {
+                  "kind": "stage",
+                  "token_id": "guide-token-1-1",
+                  "value_id": "observe"
+                },
+                {
+                  "kind": "policy_version",
+                  "token_id": "guide-token-1-2",
+                  "value_id": "fake-contract-v1"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-3",
+                  "value_id": "action-state.read-snapshot"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-4",
+                  "value_id": "action-state.read-ledger"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-5",
+                  "value_id": "action-state.read-measurements"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-6",
+                  "value_id": "action-trial.propose-create"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-7",
+                  "value_id": "action-trial.propose-derive"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-8",
+                  "value_id": "action-trial.orchestrate-start"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-9",
+                  "value_id": "action-trial.orchestrate-pause"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-10",
+                  "value_id": "action-trial.orchestrate-resume"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-11",
+                  "value_id": "action-trial.orchestrate-begin_measurement"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-12",
+                  "value_id": "action-trial.orchestrate-archive"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-13",
+                  "value_id": "action-trial.orchestrate-present"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-14",
+                  "value_id": "action-presentation.request-highlight_surface"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-15",
+                  "value_id": "action-presentation.request-replay_slow"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-16",
+                  "value_id": "action-presentation.request-open_chart"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-17",
+                  "value_id": "action-presentation.request-show_subtitle"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-18",
+                  "value_id": "action-speech.emit-answer"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-19",
+                  "value_id": "action-speech.emit-proactive"
+                },
+                {
+                  "kind": "allowed_action",
+                  "token_id": "guide-token-1-20",
+                  "value_id": "action-speech.emit-safety"
+                },
+                {
+                  "kind": "setup_family",
+                  "token_id": "guide-token-1-21",
+                  "value_id": "discrete-count"
+                }
+              ]
+            },
+            "predictions": [],
+            "progress": {
+              "guide": {
+                "policy_version": "fake-contract-v1",
+                "satisfied_evidence_fact_ids": [],
+                "stage_id": "observe",
+                "trial_ref": {
+                  "trial_id": "trial-a",
+                  "trial_revision": 1
+                }
+              },
+              "last_proactive_speech_trial_ref": null,
+              "preferences": {
+                "guidance_preference_id": "default",
+                "mute": false,
+                "tips_enabled": true
+              },
+              "trial_state": {
+                "acceptance": "accepted",
+                "activity": "running",
+                "phase": "setup",
+                "terminal_reason": null,
+                "tick": 0,
+                "trial_revision": 1
+              }
+            },
+            "session_comfort": {
+              "paused": false,
+              "safety_warning_count": 0,
+              "seated": true,
+              "session_duration_seconds": 0.0,
+              "tracking_quality": "unknown"
+            },
+            "space": {
+              "collision_representation_id": "synthetic-collision",
+              "collision_representation_version": 1,
+              "dimensions_m": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "effective_volume_m3": 1.0,
+              "scene_valid": true,
+              "virtual_boundary": true
+            }
+          }
+        ],
+        "compressed_session_context": {
+          "minimal_profile": null,
+          "preferences": {
+            "guidance_preference_id": "default",
+            "mute": false,
+            "tips_enabled": true
+          },
+          "session_duration_seconds": 0.0
+        },
+        "context_payload_version": "1.0.0",
+        "current_user_utterance": {
+          "text": "Synthetic utterance.",
+          "utterance_id": "utterance-a"
+        },
+        "policy_tokens": {
+          "episode_id": "fake-discrete",
+          "policy_version": "fake-contract-v1",
+          "refs": [
+            {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            }
+          ],
+          "stage_id": "observe",
+          "tokens": [
+            {
+              "kind": "stage",
+              "token_id": "guide-token-1-1",
+              "value_id": "observe"
+            },
+            {
+              "kind": "policy_version",
+              "token_id": "guide-token-1-2",
+              "value_id": "fake-contract-v1"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-3",
+              "value_id": "action-state.read-snapshot"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-4",
+              "value_id": "action-state.read-ledger"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-5",
+              "value_id": "action-state.read-measurements"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-6",
+              "value_id": "action-trial.propose-create"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-7",
+              "value_id": "action-trial.propose-derive"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-8",
+              "value_id": "action-trial.orchestrate-start"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-9",
+              "value_id": "action-trial.orchestrate-pause"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-10",
+              "value_id": "action-trial.orchestrate-resume"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-11",
+              "value_id": "action-trial.orchestrate-begin_measurement"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-12",
+              "value_id": "action-trial.orchestrate-archive"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-13",
+              "value_id": "action-trial.orchestrate-present"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-14",
+              "value_id": "action-presentation.request-highlight_surface"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-15",
+              "value_id": "action-presentation.request-replay_slow"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-16",
+              "value_id": "action-presentation.request-open_chart"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-17",
+              "value_id": "action-presentation.request-show_subtitle"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-18",
+              "value_id": "action-speech.emit-answer"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-19",
+              "value_id": "action-speech.emit-proactive"
+            },
+            {
+              "kind": "allowed_action",
+              "token_id": "guide-token-1-20",
+              "value_id": "action-speech.emit-safety"
+            },
+            {
+              "kind": "setup_family",
+              "token_id": "guide-token-1-21",
+              "value_id": "discrete-count"
+            }
+          ]
+        },
+        "refs": [
+          {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          }
+        ]
+      },
+      "model": "muse-spark-1.3",
+      "origin": "answer",
+      "policy_envelope": {
+        "policy_version": "synthetic-policy-v1",
+        "system": "Synthetic instructor policy fixture; no teaching content."
+      },
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        }
+      ],
+      "request_contract_version": "1.0.0",
+      "request_id": "request-a",
+      "turn_id": "turn-a"
+    },
+    "request_bytes_sha256": "2918dfab64b8afe10f7f909971234447254522e63fa311f834854a549ef9574d",
+    "request_sha256": "2918dfab64b8afe10f7f909971234447254522e63fa311f834854a549ef9574d",
+    "response": {
+      "refs": [
+        {
+          "trial_id": "trial-a",
+          "trial_revision": 1
+        }
+      ],
+      "request_id": "request-a",
+      "response_contract_version": "1.0.0",
+      "speech_units": [],
+      "tool_proposals": [
+        {
+          "basis_trial_ref": {
+            "trial_id": "trial-a",
+            "trial_revision": 1
+          },
+          "call_id": "call-read",
+          "origin": "model",
+          "parameters": {
+            "operation": "snapshot",
+            "target_trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            }
+          },
+          "refs": [
+            {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            }
+          ],
+          "target": {
+            "kind": "existing",
+            "trial_ref": {
+              "trial_id": "trial-a",
+              "trial_revision": 1
+            }
+          },
+          "tool": "state.read",
+          "tool_schema_version": "1.0.0"
+        }
+      ]
+    },
+    "response_sha256": "5e230b2673475799594d2f6b5b39bc3cd10c6a0fe52114cc6a489c6ced34e217"
+  },
+  "transport": {
+    "accepted_at_deadline_seconds": 30.0,
+    "connect_deadline_seconds": 5.0,
+    "endpoint_host": "api.meta.ai",
+    "fail_closed_reason_codes": [
+      "no_credential",
+      "no_policy"
+    ],
+    "failure_kinds": [
+      "offline",
+      "timeout",
+      "remote_refusal",
+      "malformed_response"
+    ],
+    "model": "muse-spark-1.3",
+    "model_deadline_seconds": 30.0,
+    "rejected_after_deadline_seconds": 30.5
+  },
+  "vector_format_version": "1.0.0"
+}

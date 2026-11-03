@@ -14,6 +14,10 @@ using UnityEngine.XR.OpenXR.Features;
 using Amiss.Shell;
 using Amiss.Shell.Room;
 using Meta.XR.MRUtilityKit;
+using Oculus.Interaction.Editor.QuickActions;
+using Oculus.Interaction.OVR.Editor.QuickActions;
+using TMPro;
+using UnityEngine.UI;
 
 namespace Amiss.EditorTools
 {
@@ -35,16 +39,61 @@ namespace Amiss.EditorTools
         [MenuItem("Amiss/Project Setup")]
         public static void Setup()
         {
+            ValidateTmpResources();
             ConfigurePlayerSettings();
             ConfigureOvr();
             ConfigureXr();
             ConfigureUrp();
             ConfigureTextureCompression();
             ScrubBuildMachineAddress();
+            StagePolicyPack();
             CreateShellScene();
             ReportResolvedPackageVersions();
             AssetDatabase.SaveAssets();
+            ScrubBuildMachineAddress();
             Debug.Log("[Amiss] Project setup complete");
+        }
+
+        /// <summary>
+        /// Copies the public instructor policy pack from the repository's
+        /// <c>policy/</c> directory into <c>Assets/Resources/PolicyPack</c> as
+        /// three plain text assets.
+        ///
+        /// The bytes are copied unchanged, so the SHA-256 digests the pack
+        /// carries still verify on the device. There is no editing, merging, or
+        /// fallback here: an absent source directory is an error, because the
+        /// build must not ship a silently substituted supply.
+        /// </summary>
+        public static void StagePolicyPack()
+        {
+            // The Unity project root is client/, so the repository root is one
+            // level above Assets/.
+            var repositoryRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
+            var source = Path.Combine(repositoryRoot, "policy");
+            if (!Directory.Exists(source))
+                throw new System.Exception(
+                    "policy/ is absent beside the client tree; the build needs the public " +
+                    "instructor policy pack and will not substitute another supply");
+
+            var target = Path.Combine("Assets", "Resources", "PolicyPack");
+            Directory.CreateDirectory(target);
+            var names = new[] { "pack.json", "stage-data.json", "instructor-policy.json" };
+            foreach (var name in names)
+            {
+                var from = Path.Combine(source, name);
+                if (!File.Exists(from))
+                    throw new System.Exception($"policy/{name} is absent");
+                File.Copy(from, Path.Combine(target, name), true);
+                AssetDatabase.ImportAsset(Path.Combine(target, name));
+            }
+            Debug.Log("[Amiss] Staged the public instructor policy pack: " + string.Join(", ", names));
+        }
+
+        static void ValidateTmpResources()
+        {
+            const string settingsPath = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
+            if (AssetDatabase.LoadAssetAtPath<TMP_Settings>(settingsPath) == null)
+                throw new System.Exception("TMP Essential Resources are missing from the project");
         }
 
         static void ConfigurePlayerSettings()
@@ -61,11 +110,12 @@ namespace Amiss.EditorTools
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel34;
 
+            PlayerSettings.SplashScreen.show = false;
             PlayerSettings.graphicsJobs = true;
             PlayerSettings.stereoRenderingPath = StereoRenderingPath.Instancing;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
-                new[] { GraphicsDeviceType.Vulkan });
+                new[] { GraphicsDeviceType.OpenGLES3 });
 
             var openxr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
             if (openxr != null)
@@ -81,6 +131,8 @@ namespace Amiss.EditorTools
         {
             var config = OVRProjectConfig.CachedProjectConfig;
             config.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
+            config.anchorSupport = OVRProjectConfig.AnchorSupport.Enabled;
+            config.experimentalFeaturesEnabled = true;
             config.sceneSupport = OVRProjectConfig.FeatureSupport.Required;
             config.insightPassthroughSupport = OVRProjectConfig.FeatureSupport.Supported;
             config.systemLoadingScreenBackground =
@@ -93,6 +145,8 @@ namespace Amiss.EditorTools
             var manifestText = File.ReadAllText(manifestPath);
             if (!manifestText.Contains("oculus.software.handtracking"))
                 throw new System.Exception("handtracking entry missing from generated manifest");
+            if (!manifestText.Contains("com.oculus.experimental.enabled"))
+                throw new System.Exception("experimental features entry missing from generated manifest");
             if (!manifestText.Contains("com.oculus.feature.PASSTHROUGH"))
                 throw new System.Exception("passthrough feature missing from generated manifest");
             if (!manifestText.Contains(OVRPermissionsRequester.ScenePermission))
@@ -315,6 +369,8 @@ namespace Amiss.EditorTools
                 eye.backgroundColor = Color.clear;
             }
 
+            OVRQuickActionsAPI.AddOVRInteractionRig();
+
             var systems = new GameObject("Systems");
             systems.AddComponent<ShellServices>();
             var mrukGo = new GameObject("MRUK");
@@ -323,7 +379,7 @@ namespace Amiss.EditorTools
             mruk.SceneSettings = new MRUK.MRUKSettings();
             mruk.SceneSettings.DataSource = MRUK.SceneDataSource.Device;
             mruk.SceneSettings.LoadSceneOnStartup = false;
-            mruk.EnableWorldLock = true;
+            mruk.EnableWorldLock = false;
             systems.AddComponent<MetaRoomAdapter>();
             systems.AddComponent<RoomPreparationController>();
             systems.AddComponent<RoomHighlights>();
@@ -332,16 +388,39 @@ namespace Amiss.EditorTools
             panelGo.transform.SetParent(systems.transform, false);
             panelGo.transform.localPosition = new Vector3(0f, 1.35f, 1.5f);
             panelGo.transform.localRotation = Quaternion.identity;
+            var canvas = panelGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var canvasRect = panelGo.GetComponent<RectTransform>();
+            canvasRect.sizeDelta = new Vector2(1450f, 820f);
+            canvasRect.localScale = Vector3.one * 0.001f;
+            canvasRect.localPosition = new Vector3(0f, 1.35f, 1.5f);
+            canvasRect.localRotation = Quaternion.identity;
+            panelGo.AddComponent<Image>().color = new Color(0.05f, 0.06f, 0.08f, 1f);
+            QuickActionsAPI.AddRayCanvasInteraction(panelGo);
+            QuickActionsAPI.AddPokeCanvasInteraction(panelGo);
+            var overlay = panelGo.AddComponent<OVROverlayCanvas>();
+            overlay.compositionMode = OVROverlayCanvas.CompositionMode.PunchAHole;
+            overlay.overlayEnabled = true;
             panelGo.AddComponent<ShellLibraryUI>();
             panelGo.AddComponent<InstrumentRoot>();
+            var panelGrab = panelGo.AddComponent<Amiss.Shell.UI.PanelGrabController>();
+            panelGrab.Target = panelGo.GetComponent<InstrumentRoot>();
+            panelGrab.Room = systems.GetComponent<RoomPreparationController>();
+            var keyLight = WallKeyLight.Create(panelGo.transform);
+            keyLight.lightmapBakeType = LightmapBakeType.Realtime;
 
             var inputGo = new GameObject("InputScaffold");
             inputGo.transform.SetParent(systems.transform, false);
             inputGo.AddComponent<ShellInputScaffold>();
+            inputGo.AddComponent<Amiss.Shell.Input.OvrToolInputAdapter>();
 
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
+            var sceneText = File.ReadAllText(ScenePath);
+            var cleanSceneText = Regex.Replace(sceneText, @"[ \t]+(?=\r?$)", "", RegexOptions.Multiline);
+            if (cleanSceneText != sceneText)
+                File.WriteAllText(ScenePath, cleanSceneText);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
             Debug.Log($"[Amiss] Shell scene written to {ScenePath}");

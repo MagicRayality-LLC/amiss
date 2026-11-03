@@ -4,8 +4,17 @@
     "references": [
         "Amiss.Contracts",
         "Oculus.VR",
+        "Oculus.Interaction",
+        "Oculus.Interaction.OVR",
         "meta.xr.mrutilitykit",
+        "Meta.WitAi",
+        "Meta.WitAi.Lib",
+        "Meta.WitAi.TTS",
+        "Meta.Wit.Dictation",
+        "VoiceSDK.Runtime",
+        "VoiceSDK.Dictation.Runtime",
         "Unity.InputSystem",
+        "Unity.TextMeshPro",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],

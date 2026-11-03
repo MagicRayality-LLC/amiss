@@ -107,6 +107,16 @@ namespace Amiss.Shell
         }
 
         /// <summary>
+        /// A finished trial returns to the confirmed room, not to the library:
+        /// the same room can start another trial without re-confirming it.
+        /// </summary>
+        public void MarkTrialStopped()
+        {
+            if (State == ShellSessionState.SetupAccepted)
+                State = ShellSessionState.RoomConfirmed;
+        }
+
+        /// <summary>
         /// Returns to the library. Any mounted episode must unload with an
         /// empty residue checklist before the library state is restored.
         /// </summary>

@@ -5,6 +5,15 @@ namespace Amiss.Shell.Room
 {
     public sealed class RoomHighlights : MonoBehaviour
     {
+        /// <summary>
+        /// The shader the highlight material is built from. A player build
+        /// keeps a shader only when an asset references it; the imported
+        /// instrument models carry the lit pipeline shader, while the unlit
+        /// pipeline shader is referenced by nothing and is stripped, which is
+        /// why the scan highlights drew nothing on device.
+        /// </summary>
+        public const string HighlightShaderName = "Universal Render Pipeline/Lit";
+
         readonly List<GameObject> visuals = new();
         ShellServices services;
         RoomDraft shownDraft;
@@ -55,8 +64,7 @@ namespace Amiss.Shell.Room
                 visual.transform.SetParent(transform, false);
                 visual.transform.SetPositionAndRotation(surface.Center, surface.Rotation);
                 visual.transform.localScale = surface.Size;
-                var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-                material.color = safety
+                var color = safety
                     ? new Color(0.95f, 0.12f, 0.08f, 1f)
                     : surface.Provenance switch
                     {
@@ -64,9 +72,34 @@ namespace Amiss.Shell.Room
                         BoundaryProvenance.VirtualSupplement => new Color(0.95f, 0.62f, 0.08f, 1f),
                         _ => new Color(0.58f, 0.22f, 0.82f, 1f)
                     };
-                visual.GetComponent<Renderer>().sharedMaterial = material;
+                var renderer = visual.GetComponent<Renderer>();
+                renderer.sharedMaterial = CreateHighlightMaterial(color, renderer.sharedMaterial);
                 visuals.Add(visual);
             }
+        }
+
+        /// <summary>
+        /// Builds one highlight material from the lit shader the player ships.
+        /// A missing shader is a build defect, not a silent fallback: it is
+        /// logged as an error and the primitive's own material is used so the
+        /// scan stays visible rather than vanishing.
+        /// </summary>
+        public static Material CreateHighlightMaterial(Color color, Material fallback = null)
+        {
+            var shader = Shader.Find(HighlightShaderName);
+            if (shader == null)
+            {
+                Debug.LogError("[Amiss] room highlight shader missing from this build: " +
+                               HighlightShaderName);
+                return fallback != null ? new Material(fallback) : null;
+            }
+
+            var material = new Material(shader);
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
+            return material;
         }
 
         void Clear()

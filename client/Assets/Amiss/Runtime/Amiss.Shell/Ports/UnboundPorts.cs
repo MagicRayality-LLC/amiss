@@ -17,6 +17,18 @@ namespace Amiss.Shell
             PauseRequested = false;
             PauseReason = "";
         }
+
+        public TrialStartOutcome TryStartTrial(TrialStartRequest request) =>
+            TrialStartOutcome.Refused(request?.TrialId, TrialStartRefusal.RuntimeNotBound,
+                UnavailablePort.Reason);
+
+        public SimulationTrialSummary TrialSummary => null;
+
+        public Simulation.TemperatureReadoutSnapshot Readout => null;
+
+        public void StopTrial(string reason)
+        {
+        }
     }
 
     public sealed class UnboundGuideRunner : GuideRunnerPort
@@ -27,6 +39,8 @@ namespace Amiss.Shell
     public sealed class UnboundTutorTransport : TutorTransportPort
     {
         public bool Available => false;
+        public string TraceLine =>
+            "Model: closed — no tutor transport binding is built into this shell.";
     }
 
     public sealed class UnboundPersistenceAdapter : PersistenceAdapterPort

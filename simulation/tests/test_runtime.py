@@ -9,6 +9,7 @@ from simulation.runtime import (
     CollisionRepresentation,
     HeadlessBallWriter,
     ModelDeterminismDeclaration,
+    NamedRandomStreams,
     RuntimeContractError,
     ScientificWriterSlot,
     SimulationRuntime,
@@ -614,7 +615,8 @@ class UnitsHighDriftTestCase(unittest.TestCase):
             )
             for ball in balls.values()
         )
-        expected = 2.0 * expected_thermal / (20 * 3 * 1.0)
+        k_b = DEFAULT_UNIT_CONVENTION["scale_constants"]["effective_kB"]
+        expected = 2.0 * expected_thermal / (20 * 3 * k_b)
         self.assertAlmostEqual(temperature["value"], expected, delta=1e-9 * max(1.0, expected))
 
     def test_small_samples_are_not_applicable(self):
@@ -1193,5 +1195,450 @@ class RecordsTestCase(unittest.TestCase):
         )
 
 
+class PairContactElasticityTestCase(unittest.TestCase):
+    """Perfectly-elastic pair-contact invariants of the headless oracle.
+
+    Approved design 07 section 3.1 and 02 section 3.1 make ball-ball and
+    ball-boundary contacts perfectly elastic: total momentum and kinetic
+    energy are conserved and the normal restitution is 1. These tests hold
+    the pair-impulse code to that contract directly, one contact per case,
+    far from every boundary so only the pair impulse can act.
+    """
+
+    RADIUS = 0.05
+    DT = 0.05
+
+    def collision(self):
+        return box_representation(
+            "elasticity", {"x": 4.0, "y": 4.0, "z": 4.0}
+        )
+
+    def run_one_tick(self, balls):
+        state = {
+            "balls": {
+                f"ball-{index + 1:04d}": {
+                    "entity_id": f"ball-{index + 1:04d}",
+                    "position_m": list(position),
+                    "velocity_m_per_s": list(velocity),
+                    "mass_kg": mass,
+                    "radius_m": self.RADIUS,
+                    "membership": "free",
+                }
+                for index, (position, velocity, mass) in enumerate(balls)
+            }
+        }
+        facts = HeadlessBallWriter().advance(
+            state, self.DT, self.collision(), NamedRandomStreams(0), [], 4096
+        )
+        return facts, state["balls"]
+
+    @staticmethod
+    def total_momentum(balls):
+        return [
+            math.fsum(
+                ball["mass_kg"] * ball["velocity_m_per_s"][axis]
+                for ball in balls.values()
+            )
+            for axis in range(3)
+        ]
+
+    @staticmethod
+    def total_kinetic_energy(balls):
+        return math.fsum(
+            0.5
+            * ball["mass_kg"]
+            * math.fsum(
+                component * component
+                for component in ball["velocity_m_per_s"]
+            )
+            for ball in balls.values()
+        )
+
+    def test_equal_mass_head_on_exchanges_velocities(self):
+        facts, balls = self.run_one_tick(
+            [
+                ((1.94, 2.0, 2.0), (1.0, 0.0, 0.0), 1.0),
+                ((2.06, 2.0, 2.0), (-1.0, 0.0, 0.0), 1.0),
+            ]
+        )
+        self.assertEqual(facts["pair_contacts"], 1)
+        self.assertEqual(facts["wall_contacts"], 0)
+        self.assertEqual(balls["ball-0001"]["velocity_m_per_s"], [-1.0, 0.0, 0.0])
+        self.assertEqual(balls["ball-0002"]["velocity_m_per_s"], [1.0, 0.0, 0.0])
+
+    def test_oblique_contact_conserves_momentum_and_energy(self):
+        before = {
+            "ball-0001": {"mass_kg": 1.0, "velocity_m_per_s": [1.0, 0.25, 0.0]},
+            "ball-0002": {"mass_kg": 1.0, "velocity_m_per_s": [-1.0, -0.25, 0.0]},
+        }
+        facts, balls = self.run_one_tick(
+            [
+                ((1.94, 2.0, 1.96), (1.0, 0.25, 0.0), 1.0),
+                ((2.06, 2.0, 2.04), (-1.0, -0.25, 0.0), 1.0),
+            ]
+        )
+        self.assertEqual(facts["pair_contacts"], 1)
+        self.assertEqual(facts["wall_contacts"], 0)
+        for axis in range(3):
+            self.assertAlmostEqual(
+                self.total_momentum(balls)[axis],
+                self.total_momentum(before)[axis],
+                places=12,
+            )
+        self.assertAlmostEqual(
+            self.total_kinetic_energy(balls),
+            self.total_kinetic_energy(before),
+            places=12,
+        )
+        separation = [
+            balls["ball-0002"]["position_m"][axis]
+            - balls["ball-0001"]["position_m"][axis]
+            for axis in range(3)
+        ]
+        distance = math.sqrt(math.fsum(c * c for c in separation))
+        normal = [c / distance for c in separation]
+        relative = [
+            before["ball-0001"]["velocity_m_per_s"][axis]
+            - before["ball-0002"]["velocity_m_per_s"][axis]
+            for axis in range(3)
+        ]
+        pre_normal = math.fsum(
+            relative[axis] * normal[axis] for axis in range(3)
+        )
+        relative_after = [
+            balls["ball-0001"]["velocity_m_per_s"][axis]
+            - balls["ball-0002"]["velocity_m_per_s"][axis]
+            for axis in range(3)
+        ]
+        post_normal = math.fsum(
+            relative_after[axis] * normal[axis] for axis in range(3)
+        )
+        self.assertAlmostEqual(-post_normal / pre_normal, 1.0, places=12)
+
+    def test_unequal_mass_head_on_matches_elastic_algebra(self):
+        facts, balls = self.run_one_tick(
+            [
+                ((1.94, 2.0, 2.0), (1.0, 0.0, 0.0), 2.0),
+                ((2.06, 2.0, 2.0), (-1.0, 0.0, 0.0), 1.0),
+            ]
+        )
+        self.assertEqual(facts["pair_contacts"], 1)
+        self.assertEqual(facts["wall_contacts"], 0)
+        # v1' = ((m1 - m2) v1 + 2 m2 v2) / M, v2' = ((m2 - m1) v2 + 2 m1 v1) / M
+        self.assertAlmostEqual(
+            balls["ball-0001"]["velocity_m_per_s"][0], -1.0 / 3.0, places=12
+        )
+        self.assertAlmostEqual(
+            balls["ball-0002"]["velocity_m_per_s"][0], 5.0 / 3.0, places=12
+        )
+        before = {
+            "ball-0001": {"mass_kg": 2.0, "velocity_m_per_s": [1.0, 0.0, 0.0]},
+            "ball-0002": {"mass_kg": 1.0, "velocity_m_per_s": [-1.0, 0.0, 0.0]},
+        }
+        for axis in range(3):
+            self.assertAlmostEqual(
+                self.total_momentum(balls)[axis],
+                self.total_momentum(before)[axis],
+                places=12,
+            )
+        self.assertAlmostEqual(
+            self.total_kinetic_energy(balls),
+            self.total_kinetic_energy(before),
+            places=12,
+        )
+
+
+class HardSphereOracleParityTestCase(unittest.TestCase):
+    """Freezes the oracle outcomes the device custom hard-sphere writer
+    mirrors (``CustomHardSphereWriterTests`` on the client side).
+
+    The fixtures are the client test's fixtures: a 2 x 2 x 2 m region whose
+    lower corner is (-1, 0, -1), radius 0.05 m, mass 1 kg, fixed Tick 0.05 s,
+    contact bound 4096. Expected contact ticks and final states are asserted
+    here, so any oracle change that would break the device parity test fails
+    this suite first.
+    """
+
+    MIN = (-1.0, 0.0, -1.0)
+    SIZE = {"x": 2.0, "y": 2.0, "z": 2.0}
+    RADIUS = 0.05
+    MASS = 1.0
+    DT = 0.05
+
+    def collision(self):
+        base = box_representation("parity", self.SIZE)
+        surfaces = []
+        for surface in base.surfaces:
+            axis = "xyz".index(surface["surface_id"].split("-")[1])
+            offset = surface["plane"]["offset"] + self.MIN[axis]
+            surfaces.append(
+                {
+                    **surface,
+                    "plane": {"normal": surface["plane"]["normal"], "offset": offset},
+                }
+            )
+        return CollisionRepresentation("parity", "1", "room-frame-v1", surfaces)
+
+    def run_case(self, balls, ticks):
+        state = {
+            "balls": {
+                f"ball-{index + 1:04d}": {
+                    "entity_id": f"ball-{index + 1:04d}",
+                    "position_m": list(position),
+                    "velocity_m_per_s": list(velocity),
+                    "mass_kg": self.MASS,
+                    "radius_m": self.RADIUS,
+                    "membership": "free",
+                }
+                for index, (position, velocity) in enumerate(balls)
+            }
+        }
+        writer = HeadlessBallWriter()
+        collision = self.collision()
+        streams = NamedRandomStreams(0)
+        contacts = []
+        for tick in range(1, ticks + 1):
+            facts = writer.advance(
+                state, self.DT, collision, streams, [], 4096
+            )
+            if facts["pair_contacts"] or facts["wall_contacts"]:
+                contacts.append(
+                    (tick, facts["pair_contacts"], facts["wall_contacts"])
+                )
+        return contacts, state["balls"]
+
+    def test_head_on_two_ball_collision(self):
+        contacts, state = self.run_case(
+            [
+                ((-0.28, 1.0, 0.0), (1.0, 0.0, 0.0)),
+                ((0.28, 1.0, 0.0), (-1.0, 0.0, 0.0)),
+            ],
+            60,
+        )
+        self.assertEqual(contacts, [(5, 1, 0), (24, 0, 2), (42, 1, 0)])
+        # The Tick-5 contact applies the full elastic exchange: the balls
+        # swap velocities exactly, keep |v| = 1, rebound off both walls at
+        # Tick 24, and exchange again when the symmetric paths meet at
+        # Tick 42. This is the perfectly elastic pair contact 07 section 3.1
+        # and 02 section 3.1 require.
+        self.assertEqual(
+            state["ball-0001"]["velocity_m_per_s"], [-1.0, 0.0, 0.0]
+        )
+        self.assertEqual(
+            state["ball-0002"]["velocity_m_per_s"], [1.0, 0.0, 0.0]
+        )
+        self.assertAlmostEqual(
+            state["ball-0001"]["position_m"][0], -0.92, places=7
+        )
+        self.assertAlmostEqual(
+            state["ball-0002"]["position_m"][0], 0.92, places=7
+        )
+
+    def test_oblique_two_ball_contact(self):
+        contacts, state = self.run_case(
+            [
+                ((-0.28, 1.0, -0.03), (1.0, 0.0, 0.0)),
+                ((0.28, 1.0, 0.03), (-1.0, 0.0, 0.0)),
+            ],
+            60,
+        )
+        self.assertEqual(contacts, [(5, 1, 0), (24, 0, 2), (42, 1, 0)])
+        # A genuine off-axis pair contact at Tick 5: momentum stays zero on
+        # every axis, each speed stays 1, and the deflection is symmetric.
+        self.assertAlmostEqual(
+            state["ball-0001"]["velocity_m_per_s"][0], -0.9230769230768532,
+            places=7,
+        )
+        self.assertAlmostEqual(
+            state["ball-0001"]["velocity_m_per_s"][2], 0.3846153846155532,
+            places=7,
+        )
+        self.assertAlmostEqual(
+            state["ball-0002"]["velocity_m_per_s"][0], 0.9230769230768532,
+            places=7,
+        )
+        self.assertAlmostEqual(
+            state["ball-0002"]["velocity_m_per_s"][2], -0.3846153846155532,
+            places=7,
+        )
+        self.assertAlmostEqual(
+            state["ball-0001"]["position_m"][0], -0.8607692307691717, places=7
+        )
+        self.assertAlmostEqual(
+            state["ball-0001"]["position_m"][2], 0.3261538461539992, places=7
+        )
+        self.assertAlmostEqual(
+            state["ball-0002"]["position_m"][0], 0.8607692307691717, places=7
+        )
+        self.assertAlmostEqual(
+            state["ball-0002"]["position_m"][2], -0.3261538461539992, places=7
+        )
+
+    def test_stationary_boundary_rebound(self):
+        contacts, state = self.run_case(
+            [((-0.28, 1.0, 0.0), (-1.0, 0.0, 0.0))], 30
+        )
+        self.assertEqual(contacts, [(14, 0, 1)])
+        self.assertEqual(state["ball-0001"]["velocity_m_per_s"], [1.0, 0.0, 0.0])
+        self.assertAlmostEqual(state["ball-0001"]["position_m"][0], -0.12)
+
+    def test_short_multi_ball_run(self):
+        contacts, state = self.run_case(
+            [
+                ((-0.28, 1.00, 0.00), (1.0, 0.0, 0.0)),
+                ((0.28, 1.00, 0.00), (-1.0, 0.0, 0.0)),
+                ((-0.60, 0.40, -0.92), (0.5, 0.5, -1.0)),
+                ((0.60, 0.40, 0.60), (-0.5, 0.5, 0.0)),
+                ((0.00, 1.50, 0.30), (0.0, 0.0, 0.0)),
+                ((-0.10, 0.70, 0.35), (0.4, 0.0, -0.4)),
+            ],
+            8,
+        )
+        self.assertEqual(contacts, [(1, 0, 1), (5, 1, 0)])
+        self.assertEqual(
+            state["ball-0001"]["velocity_m_per_s"], [-1.0, 0.0, 0.0]
+        )
+        self.assertAlmostEqual(state["ball-0001"]["position_m"][0], -0.18)
+        self.assertEqual(
+            state["ball-0002"]["velocity_m_per_s"], [1.0, 0.0, 0.0]
+        )
+        self.assertAlmostEqual(state["ball-0002"]["position_m"][0], 0.18)
+        self.assertEqual(
+            state["ball-0003"]["velocity_m_per_s"], [0.5, 0.5, 1.0]
+        )
+        self.assertAlmostEqual(state["ball-0003"]["position_m"][2], -0.58)
+        self.assertAlmostEqual(state["ball-0006"]["position_m"][0], 0.06)
+        self.assertAlmostEqual(state["ball-0006"]["position_m"][2], 0.19)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class BatContactClosureTestCase(unittest.TestCase):
+    """The bat-contact contract the device slice mirrors (T5 / I4.1 S8).
+
+    One accepted contact closes with one signed work value and one semantic
+    commit; an empty swing and a tracking-loss closure produce no work and no
+    revision change.
+    """
+
+    def _started(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=4, speed=0.0)
+        physical = runtime.physical["trial-a"]
+        # Move every ball far outside any fixture sweep, then place one where
+        # the test wants it, so the fixture controls exactly what is hit.
+        for index, entity_id in enumerate(sorted(physical.mechanics.state["balls"])):
+            physical.mechanics.state["balls"][entity_id]["position_m"] = [
+                100.0 + 2.0 * index,
+                100.0,
+                100.0,
+            ]
+            physical.mechanics.state["balls"][entity_id]["velocity_m_per_s"] = [
+                0.0,
+                0.0,
+                0.0,
+            ]
+        return kernel, runtime, physical
+
+    def test_one_contact_is_one_signed_entry_and_one_commit(self):
+        kernel, runtime, physical = self._started()
+        target = sorted(physical.mechanics.state["balls"])[0]
+        physical.mechanics.state["balls"][target]["position_m"] = [0.0, 0.0, 0.0]
+        interaction = runtime.open_contact(
+            "trial-a", "swept", [target], {"impulse_magnitude": 2.0}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            interaction,
+            {
+                "origin_m": [0.0, 0.0, 0.0],
+                "velocity_m_per_s": [4.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": True,
+            },
+        )
+        revision_before = kernel.trials["trial-a"].state["trial_revision"]
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", interaction)
+
+        self.assertGreater(closure["work_j"], 0.0)
+        self.assertEqual(closure["closure_reason"], "completed")
+        self.assertEqual(
+            kernel.trials["trial-a"].state["trial_revision"], revision_before + 1
+        )
+        with self.assertRaises(RuntimeContractError) as raised:
+            runtime.close_contact("trial-a", interaction)
+        self.assertEqual(raised.exception.reason_code, "contact_already_closed")
+
+    def test_a_cooling_strike_keeps_its_negative_sign(self):
+        kernel, runtime, physical = self._started()
+        target = sorted(physical.mechanics.state["balls"])[0]
+        physical.mechanics.state["balls"][target]["position_m"] = [0.0, 0.0, 0.0]
+        physical.mechanics.state["balls"][target]["velocity_m_per_s"] = [-4.0, 0.0, 0.0]
+        interaction = runtime.open_contact(
+            "trial-a", "swept", [target], {"impulse_magnitude": 2.0}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            interaction,
+            {
+                "origin_m": [0.0, 0.0, 0.0],
+                "velocity_m_per_s": [4.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": True,
+            },
+        )
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", interaction)
+        self.assertLess(closure["work_j"], 0.0)
+
+    def test_empty_swing_and_tracking_loss_record_no_work(self):
+        kernel, runtime, _ = self._started()
+        revision_before = kernel.trials["trial-a"].state["trial_revision"]
+        samples_before = len(runtime.physical["trial-a"].command_log)
+        empty = runtime.open_contact(
+            "trial-a", "swept", ["ball-0001"], {"impulse_magnitude": 2.0}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            empty,
+            {
+                "origin_m": [40.0, 40.0, 40.0],
+                "velocity_m_per_s": [4.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": True,
+            },
+        )
+        runtime.request_slice("trial-a", 1)
+        empty_closure = runtime.close_contact("trial-a", empty)
+        self.assertEqual(empty_closure["work_j"], 0.0)
+        # The closure is the semantic event (02 section 4.1): exactly one
+        # revision per closure, never one per accepted sample.
+        self.assertEqual(
+            kernel.trials["trial-a"].state["trial_revision"], revision_before + 1
+        )
+
+        lost = runtime.open_contact(
+            "trial-a", "swept", ["ball-0001"], {"impulse_magnitude": 2.0}
+        )
+        aborted = runtime.submit_sweep_sample(
+            "trial-a",
+            lost,
+            {
+                "origin_m": [0.0, 0.0, 0.0],
+                "velocity_m_per_s": [4.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": False,
+            },
+        )
+        self.assertFalse(aborted["accepted"])
+        self.assertTrue(aborted["aborted"])
+        self.assertEqual(
+            kernel.trials["trial-a"].state["trial_revision"], revision_before + 2
+        )
+        self.assertGreater(
+            len(runtime.physical["trial-a"].command_log), samples_before,
+            "the invalid sweep sample is logged, never silently dropped",
+        )

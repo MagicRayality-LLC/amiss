@@ -6,15 +6,11 @@ PKG="com.magicrayality.amiss"
 ACTIVITY="$PKG/com.unity3d.player.UnityPlayerGameActivity"
 ADB=(adb -s "$DEVICE")
 mkdir -p build
-SEQUENCE=0
-
-quest-power prepare quest3
-trap 'quest-power cleanup quest3' EXIT
+quest-power prepare questpro
+trap 'quest-power cleanup questpro' EXIT
 
 command_room() {
-    SEQUENCE=$((SEQUENCE + 1))
-    "${ADB[@]}" shell am start -n "$ACTIVITY" \
-        --es amiss_room_command "$1#$SEQUENCE" >/dev/null
+    tools/quest-room-command.sh "$DEVICE" "$1"
     sleep 2
 }
 
@@ -44,6 +40,11 @@ command_room focus_return
 command_room resume
 command_room state
 save_evidence build/room-evidence-manual.json
+
+command_room rescan
+command_room no_current_room
+command_room state
+save_evidence build/room-evidence-no-current-room.json
 
 command_room rescan
 command_room no_scene

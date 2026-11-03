@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Amiss.Contracts;
 using Amiss.Shell;
+using Amiss.Shell.Episodes;
 using NUnit.Framework;
 
 namespace Amiss.Tests
@@ -359,6 +360,134 @@ namespace Amiss.Tests
 
             Assert.IsFalse(verdict.Runnable);
             Assert.AreEqual("framework_api_range_invalid", verdict.Rejections[0].ReasonCategory);
+        }
+    }
+
+    public class TemperatureEpisodeLoadGateTests
+    {
+        static bool ResolvesTemperatureCriticalAssets(string assetId) =>
+            WhatIsTemperatureEpisode.ResolveCriticalAsset(assetId);
+
+        static EpisodeDeclaration With(
+            EpisodeDeclaration declaration,
+            IReadOnlyList<RequiredCapability> capabilities = null,
+            EpisodeAvailability? availability = null,
+            string availabilityReason = null,
+            bool dropMinimumVolume = false) => new()
+        {
+            EpisodeId = declaration.EpisodeId,
+            EpisodeModuleVersion = declaration.EpisodeModuleVersion,
+            FrameworkApiMin = declaration.FrameworkApiMin,
+            FrameworkApiMax = declaration.FrameworkApiMax,
+            RequiredCapabilities = capabilities ?? declaration.RequiredCapabilities,
+            SceneForm = declaration.SceneForm,
+            MinimumVolumeM3 = dropMinimumVolume ? null : declaration.MinimumVolumeM3,
+            BelowMinimum = declaration.BelowMinimum,
+            NamedRestrictedSetupId = declaration.NamedRestrictedSetupId,
+            RequiredInputBaseline = declaration.RequiredInputBaseline,
+            ExpectedDurationMinutes = declaration.ExpectedDurationMinutes,
+            CardQuestion = declaration.CardQuestion,
+            CardActionType = declaration.CardActionType,
+            CompletionStageId = declaration.CompletionStageId,
+            Availability = availability ?? declaration.Availability,
+            AvailabilityReason = availabilityReason ?? declaration.AvailabilityReason,
+            Assets = declaration.Assets,
+            HistoryNotes = declaration.HistoryNotes,
+            ApparatusSimplifications = declaration.ApparatusSimplifications,
+            ScaleTransforms = declaration.ScaleTransforms,
+            ReadableSaveVersions = declaration.ReadableSaveVersions
+        };
+
+        [Test]
+        public void TheBundledTemperatureDeclarationPassesThisBuildGate()
+        {
+            var verdict = EpisodeLoadGate.Evaluate(
+                WhatIsTemperatureEpisode.Declaration(),
+                ShellCapabilityManifest.ThisBuild(),
+                ResolvesTemperatureCriticalAssets);
+
+            Assert.IsTrue(verdict.Runnable,
+                string.Join("; ", verdict.Rejections.Select(r => r.ReadableReason)));
+            Assert.IsFalse(verdict.AvailabilityBlocked);
+            Assert.That(verdict.Rejections, Is.Empty);
+        }
+
+        [Test]
+        public void TheTemperatureDeclarationCarriesTheApprovedCardBoundary()
+        {
+            var declaration = WhatIsTemperatureEpisode.Declaration();
+
+            Assert.AreEqual("what_is_temperature", declaration.EpisodeId);
+            Assert.AreEqual(EpisodeAvailability.Bundled, declaration.Availability);
+            Assert.AreEqual("full_room", declaration.SceneForm);
+            Assert.AreEqual(3.0, declaration.MinimumVolumeM3);
+            Assert.AreEqual(BelowMinimumBehavior.RefuseWithExplanation, declaration.BelowMinimum);
+            Assert.AreEqual(15, declaration.ExpectedDurationMinutes);
+            Assert.AreEqual("stage-7-transfer", declaration.CompletionStageId);
+            Assert.That(declaration.CardQuestion, Does.Not.Contain("because"));
+            Assert.That(declaration.RequiredCapabilities.Select(c => c.CapabilityId),
+                Is.EquivalentTo(new[] { ShellCapabilityIds.PanelWorldAnchored }));
+            Assert.AreEqual(7, declaration.Assets.Count);
+            Assert.AreEqual(5, WhatIsTemperatureEpisode.CriticalAssetIds.Count);
+        }
+
+        [Test]
+        public void AMissingTemperatureCriticalAssetRefusesTheDeclaration()
+        {
+            var verdict = EpisodeLoadGate.Evaluate(
+                WhatIsTemperatureEpisode.Declaration(),
+                ShellCapabilityManifest.ThisBuild(),
+                DeclarationBuilders.ResolveNothing);
+
+            Assert.IsFalse(verdict.Runnable);
+            Assert.AreEqual(LoadGateStage.Assets, verdict.Rejections[0].Stage);
+            Assert.AreEqual("critical_asset_missing", verdict.Rejections[0].ReasonCategory);
+        }
+
+        [Test]
+        public void AnUndecidableTemperatureMinimumVolumeIsNotRunnable()
+        {
+            var verdict = EpisodeLoadGate.Evaluate(
+                With(WhatIsTemperatureEpisode.Declaration(), dropMinimumVolume: true),
+                ShellCapabilityManifest.ThisBuild(),
+                ResolvesTemperatureCriticalAssets);
+
+            Assert.IsFalse(verdict.Runnable);
+            Assert.AreEqual("minimum_volume_missing", verdict.Rejections[0].ReasonCategory);
+        }
+
+        [Test]
+        public void AnUnknownTemperatureCapabilityIsNotRunnable()
+        {
+            var verdict = EpisodeLoadGate.Evaluate(
+                With(WhatIsTemperatureEpisode.Declaration(), capabilities: new[]
+                {
+                    new RequiredCapability
+                    {
+                        CapabilityId = "sim.time_travel",
+                        MinimumShellVersion = "1.0.0"
+                    }
+                }),
+                ShellCapabilityManifest.ThisBuild(),
+                ResolvesTemperatureCriticalAssets);
+
+            Assert.IsFalse(verdict.Runnable);
+            Assert.AreEqual("unknown_capability_id", verdict.Rejections[0].ReasonCategory);
+        }
+
+        [Test]
+        public void ANonBundledTemperatureDeclarationIsBlockedNotStarted()
+        {
+            var verdict = EpisodeLoadGate.Evaluate(
+                With(WhatIsTemperatureEpisode.Declaration(),
+                    availability: EpisodeAvailability.NotInstalled,
+                    availabilityReason: "Install it from the store."),
+                ShellCapabilityManifest.ThisBuild(),
+                ResolvesTemperatureCriticalAssets);
+
+            Assert.IsFalse(verdict.Runnable);
+            Assert.IsTrue(verdict.AvailabilityBlocked);
+            Assert.AreEqual("not_installed", verdict.Rejections[0].ReasonCategory);
         }
     }
 }

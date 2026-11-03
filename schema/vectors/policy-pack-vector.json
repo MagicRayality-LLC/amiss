@@ -1,0 +1,71 @@
+{
+  "vector_format_version": "1.0.0",
+  "pack_id": "amiss-hackathon-vertical-slice",
+  "pack_format_version": "1.0.0",
+  "policy_version": "amiss-hackathon-policy-v1",
+  "episode_id": "what_is_temperature",
+  "stage_data_format_version": "1.0.0",
+  "stage_data_digest": "1326ef9154199aba5445cbd5c3cf3bfd7ce099e92d82cb2aa8ac6e782fb14f21",
+  "pack_digest": "14a725223cd564116b39e98adfc5dd7f68f3d34411e6347b3dadb7b1d5619b3d",
+  "file_digests": [
+    {
+      "path": "stage-data.json",
+      "sha256": "b9bc70b29ba777a2572e69eb240623e46b21b84794cf86bec9976e388f06ff19"
+    },
+    {
+      "path": "instructor-policy.json",
+      "sha256": "ab295d9f5378bdf4d0fc16911e358e697c99f8e44a2ea915c091c6383e9d38ac"
+    }
+  ],
+  "system_bytes": 9155,
+  "system_sha256": "b3313fe197ad6aab8459ec15a340b35e126edf198e83a8617f0c746652b24b5a",
+  "stage_ids": [
+    "stage-0-entry",
+    "stage-1-track-one",
+    "stage-2-heat",
+    "stage-3-cool",
+    "stage-4-group",
+    "stage-5-drift",
+    "stage-7-transfer"
+  ],
+  "allowed_action_ids": [
+    "action-state.read-snapshot",
+    "action-state.read-ledger",
+    "action-state.read-measurements",
+    "action-trial.propose-create",
+    "action-trial.propose-derive",
+    "action-trial.orchestrate-start",
+    "action-trial.orchestrate-pause",
+    "action-trial.orchestrate-resume",
+    "action-trial.orchestrate-begin_measurement",
+    "action-trial.orchestrate-archive",
+    "action-trial.orchestrate-present",
+    "action-presentation.request-highlight_surface",
+    "action-presentation.request-replay_slow",
+    "action-presentation.request-open_chart",
+    "action-presentation.request-show_subtitle",
+    "action-speech.emit-answer",
+    "action-speech.emit-proactive",
+    "action-speech.emit-safety"
+  ],
+  "question_ids": [
+    "question-stage-0-entry",
+    "question-stage-1-track-one",
+    "question-stage-2-heat",
+    "question-stage-3-cool",
+    "question-stage-4-group",
+    "question-stage-5-drift",
+    "question-stage-7-transfer"
+  ],
+  "threshold_ids": [
+    "threshold-collision-speed-change",
+    "threshold-thermal-window",
+    "threshold-absorption-window",
+    "threshold-observation-window",
+    "threshold-drift-equality",
+    "threshold-drift-significance",
+    "threshold-proactive-cooldown",
+    "threshold-proactive-backoff"
+  ],
+  "max_system_bytes": 65536
+}

@@ -20,21 +20,53 @@ namespace Amiss.Shell.Room
         public Vector2 PanelEnvelope { get; }
         public int Revision { get; }
         public PanelPlacementStatus Status { get; }
+        public PanelMountMode MountMode { get; }
+        public PanelPlacementSource Source { get; }
+        public string Reason { get; }
+        public string WallProvenance { get; }
 
         public PanelPlacement(Vector3 position, Quaternion rotation, Vector2 panelEnvelope, int revision,
-            PanelPlacementStatus status = PanelPlacementStatus.Placed)
+            PanelPlacementStatus status = PanelPlacementStatus.Placed,
+            PanelMountMode mountMode = PanelMountMode.ForwardFallback,
+            PanelPlacementSource source = PanelPlacementSource.None,
+            string reason = "", string wallProvenance = "")
         {
             Position = position;
             Rotation = RoomGeometry.Normalize(rotation);
             PanelEnvelope = panelEnvelope;
             Revision = revision;
             Status = status;
+            MountMode = mountMode;
+            Source = source;
+            Reason = reason ?? "";
+            WallProvenance = wallProvenance ?? "";
         }
 
+        public PanelPlacement WithStatus(PanelPlacementStatus status) => new(Position, Rotation,
+            PanelEnvelope, Revision, status, MountMode, Source, Reason, WallProvenance);
+
+        public PanelPlacement WithReason(string reason) => new(Position, Rotation,
+            PanelEnvelope, Revision, Status, MountMode, Source, reason, WallProvenance);
+
         public Bounds PanelBounds => RoomGeometry.RotatedBounds(Position,
-            new Vector3(PanelEnvelope.x, PanelEnvelope.y, 0.08f), Rotation);
-        public Bounds RootBounds => RoomGeometry.RotatedBounds(Position + Vector3.up * 0.12f,
-            new Vector3(PanelEnvelope.x, PanelEnvelope.y + 0.30f, 0.16f), Rotation);
+            new Vector3(PanelEnvelope.x + 2f * PanelMount.Bezel,
+                PanelEnvelope.y + 2f * PanelMount.Bezel,
+                PanelMount.BodyDepth), Rotation);
+
+        public Bounds RootBounds
+        {
+            get
+            {
+                var bounds = PanelBounds;
+                var above = PanelEnvelope.y * 0.5f + PanelMount.Bezel + PanelMount.SpeakerGap +
+                            PanelMount.SpeakerHeight * 0.5f;
+                bounds.Encapsulate(RoomGeometry.RotatedBounds(
+                    Position + Rotation * Vector3.up * above,
+                    new Vector3(PanelMount.SpeakerWidth, PanelMount.SpeakerHeight,
+                        PanelMount.SpeakerDepth), Rotation));
+                return bounds;
+            }
+        }
     }
 
     public sealed class ShellRecovery
@@ -72,11 +104,8 @@ namespace Amiss.Shell.Room
             SafetyValid = true;
             HoldReason = "";
             PreparationInProgress = false;
-            if (panel == null)
-                panel = CreateInitialCandidate(currentConfirmation);
-            if (!ValidatePanel(panel, currentConfirmation))
-                panel = new PanelPlacement(panel.Position, panel.Rotation, panel.PanelEnvelope,
-                    panel.Revision, PanelPlacementStatus.RecoveryNeeded);
+            panel = PanelMount.Select(currentConfirmation, panel?.Revision + 1 ?? 0,
+                panel == null ? PanelPlacementSource.AutoNearestWall : PanelPlacementSource.Recovery);
             Changed?.Invoke();
             return true;
         }
@@ -99,6 +128,20 @@ namespace Amiss.Shell.Room
 
         public bool CanCreateTrial(string trialId) =>
             pins.TryGetValue(trialId, out var pin) && pin.Representation.VerifyIntegrity() && SafetyValid;
+
+        /// <summary>
+        /// A stopped trial is no longer the accepted setup, but its pinned
+        /// collision representation stays available: the same confirmed room
+        /// can start another trial without accepting the setup again.
+        /// </summary>
+        public void TrialStopped()
+        {
+            if (!SetupAccepted && AcceptedTrialId.Length == 0)
+                return;
+            SetupAccepted = false;
+            AcceptedTrialId = "";
+            Changed?.Invoke();
+        }
 
         public void BeginFutureRescan()
         {
@@ -173,41 +216,51 @@ namespace Amiss.Shell.Room
         {
             if (worldLockActive || panel == null)
                 return;
-            panel = new PanelPlacement(panel.Position, panel.Rotation, panel.PanelEnvelope, panel.Revision,
-                PanelPlacementStatus.RecoveryNeeded);
+            panel = panel.WithStatus(PanelPlacementStatus.RecoveryNeeded);
             Changed?.Invoke();
         }
 
         public PanelPlacement LocatePanel() => panel;
 
-        public bool RelocatePanel(Vector3 candidatePosition, Quaternion candidateRotation)
+        public bool TryRemountPanel(Vector3 releasePosition, Quaternion releaseRotation, out string reason)
         {
-            if (currentConfirmation == null)
-                return false;
-            var revision = panel?.Revision + 1 ?? 0;
-            var candidate = new PanelPlacement(candidatePosition, candidateRotation,
-                new Vector2(1.20f, 0.80f), revision);
-            if (!ValidatePanel(candidate, currentConfirmation))
+            if (currentConfirmation == null || panel == null)
             {
-                if (panel != null)
-                    panel = new PanelPlacement(panel.Position, panel.Rotation, panel.PanelEnvelope,
-                        panel.Revision, PanelPlacementStatus.RecoveryNeeded);
+                reason = "room_not_confirmed";
+                return false;
+            }
+            if (PanelMount.TryRemount(currentConfirmation, releasePosition, panel.Revision + 1,
+                    out var mounted, out reason))
+            {
+                panel = mounted;
+                Changed?.Invoke();
+                return true;
+            }
+            panel = panel.WithReason(string.IsNullOrEmpty(reason)
+                ? PanelMount.ReleaseNotOnWall
+                : reason);
+            Changed?.Invoke();
+            return false;
+        }
+
+        public bool RelocatePanel(Vector3 candidatePosition, Quaternion candidateRotation) =>
+            TryRemountPanel(candidatePosition, candidateRotation, out _);
+
+        public bool ResetPanelToNearestWall()
+        {
+            if (currentConfirmation == null || panel == null)
+                return false;
+            var next = PanelMount.Select(currentConfirmation, panel.Revision + 1,
+                PanelPlacementSource.ResetNearestWall);
+            if (next == null || next.MountMode != PanelMountMode.WallMounted)
+            {
+                panel = panel.WithReason(PanelMount.WallUnavailable);
                 Changed?.Invoke();
                 return false;
             }
-            panel = candidate;
+            panel = next;
             Changed?.Invoke();
             return true;
-        }
-
-        public static PanelPlacement CreateInitialCandidate(RoomConfirmation confirmation)
-        {
-            if (confirmation == null)
-                return null;
-            var position = confirmation.ConfirmedUserPosition + confirmation.ConfirmedUserForward * 1.5f +
-                           Vector3.up * 1.3f;
-            return new PanelPlacement(position, Quaternion.LookRotation(confirmation.ConfirmedUserForward, Vector3.up),
-                new Vector2(1.20f, 0.80f), 0);
         }
 
         public static bool ValidatePanel(PanelPlacement candidate, RoomConfirmation confirmation)
@@ -220,6 +273,8 @@ namespace Amiss.Shell.Room
                 Vector3.one * (confirmation.ClearSwingRadiusMeters * 2f));
             if (candidate.RootBounds.Intersects(swing) ||
                 confirmation.ExcludedObstacles.Any(obstacle => candidate.RootBounds.Intersects(obstacle)))
+                return false;
+            if (candidate.MountMode == PanelMountMode.WallMounted && candidate.WallProvenance == "")
                 return false;
             return true;
         }

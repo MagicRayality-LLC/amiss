@@ -5,9 +5,8 @@ namespace Amiss.Shell
     /// <summary>
     /// Controller-driven library and room-preparation commands. Emits only
     /// semantic local commands into the session and room owner; it never
-    /// writes physics or episode data directly. Equivalent hand/controller
-    /// physical input, validity checks, and swing classification remain with
-    /// their owning build step.
+    /// writes physics or episode data directly. ISDK owns equivalent hand and
+    /// controller panel interaction; the tool adapter owns physical samples.
     /// </summary>
     public sealed class ShellInputScaffold : MonoBehaviour
     {
@@ -44,12 +43,10 @@ namespace Amiss.Shell
             if (OVRInput.GetDown(OVRInput.RawButton.RIndexTrigger, OVRInput.Controller.RTouch) ||
                 OVRInput.GetDown(OVRInput.RawButton.A, OVRInput.Controller.RTouch))
                 Confirm();
-            if (OVRInput.GetDown(OVRInput.RawButton.X, OVRInput.Controller.LTouch))
-                services.Room?.ManualOrSupplement();
             if (OVRInput.GetDown(OVRInput.RawButton.Y, OVRInput.Controller.LTouch))
                 services.Room?.Rescan();
             if (OVRInput.GetDown(OVRInput.RawButton.RThumbstick, OVRInput.Controller.RTouch))
-                services.Room?.RelocatePanel();
+                services.Room?.ResetPanelToNearestWall();
             if (OVRInput.GetDown(OVRInput.RawButton.B, OVRInput.Controller.RTouch))
                 Back();
         }
@@ -78,6 +75,7 @@ namespace Amiss.Shell
                 case ShellSessionState.StartReady:
                     session.RequestStart();
                     services.Room?.BeginSelectedEpisode();
+                    services.Room?.ContinueIntoRoom();
                     break;
                 case ShellSessionState.RoomPreparation:
                 case ShellSessionState.RoomConfirmed:

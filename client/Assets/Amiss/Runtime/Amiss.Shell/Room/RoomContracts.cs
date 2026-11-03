@@ -31,6 +31,7 @@ namespace Amiss.Shell.Room
         SpaceSetupCancelled,
         SpaceSetupFailed,
         NoScene,
+        NoCurrentRoom,
         SceneLoadFailed,
         InvalidGeometry,
         DisconnectedRegion,
@@ -226,17 +227,17 @@ namespace Amiss.Shell.Room
                     CollisionSurfaceRole.Ceiling, new Vector3(c.x, region.max.y, c.z), new Vector3(s.x, thickness, s.z),
                     Quaternion.identity, Vector3.down, "simplified static ceiling plane"),
                 new CollisionSurface(idPrefix + "-wall-left", "WALL_FACE", PrimaryRepresentation.Plane, provenance,
-                    CollisionSurfaceRole.Wall, new Vector3(region.min.x, c.y, c.z), new Vector3(thickness, s.y, s.z),
-                    Quaternion.identity, Vector3.right, "simplified static wall plane"),
+                    CollisionSurfaceRole.Wall, new Vector3(region.min.x, c.y, c.z), new Vector3(s.z, s.y, thickness),
+                    Quaternion.LookRotation(Vector3.right, Vector3.up), Vector3.right, "simplified static wall plane"),
                 new CollisionSurface(idPrefix + "-wall-right", "WALL_FACE", PrimaryRepresentation.Plane, provenance,
-                    CollisionSurfaceRole.Wall, new Vector3(region.max.x, c.y, c.z), new Vector3(thickness, s.y, s.z),
-                    Quaternion.identity, Vector3.left, "simplified static wall plane"),
+                    CollisionSurfaceRole.Wall, new Vector3(region.max.x, c.y, c.z), new Vector3(s.z, s.y, thickness),
+                    Quaternion.LookRotation(Vector3.left, Vector3.up), Vector3.left, "simplified static wall plane"),
                 new CollisionSurface(idPrefix + "-wall-back", "WALL_FACE", PrimaryRepresentation.Plane, provenance,
                     CollisionSurfaceRole.Wall, new Vector3(c.x, c.y, region.min.z), new Vector3(s.x, s.y, thickness),
                     Quaternion.identity, Vector3.forward, "simplified static wall plane"),
                 new CollisionSurface(idPrefix + "-wall-front", "WALL_FACE", PrimaryRepresentation.Plane, provenance,
                     CollisionSurfaceRole.Wall, new Vector3(c.x, c.y, region.max.z), new Vector3(s.x, s.y, thickness),
-                    Quaternion.identity, Vector3.back, "simplified static wall plane")
+                    Quaternion.LookRotation(Vector3.back, Vector3.up), Vector3.back, "simplified static wall plane")
             };
         }
     }
@@ -276,10 +277,16 @@ namespace Amiss.Shell.Room
         }
 
         public static bool TryCreate(string preparationId, RoomDraft draft, double minimumVolumeM3,
-            out CollisionRepresentation representation, out RoomFailureReason failure)
+            out CollisionRepresentation representation, out RoomFailureReason failure) =>
+            TryCreate(preparationId, draft, minimumVolumeM3, false, out representation, out failure);
+
+        public static bool TryCreate(string preparationId, RoomDraft draft, double minimumVolumeM3,
+            bool allowUnsafeRegion, out CollisionRepresentation representation, out RoomFailureReason failure)
         {
             representation = null;
             failure = draft?.Validate(minimumVolumeM3) ?? RoomFailureReason.InvalidGeometry;
+            if (allowUnsafeRegion && failure == RoomFailureReason.UnsafeRegion)
+                failure = RoomFailureReason.None;
             if (failure != RoomFailureReason.None || string.IsNullOrWhiteSpace(preparationId))
                 return false;
             var id = "collision-" + preparationId;
@@ -374,6 +381,7 @@ namespace Amiss.Shell.Room
         public Vector3 ConfirmedUserForward { get; }
         public float ClearSwingRadiusMeters { get; }
         public IReadOnlyList<Bounds> ExcludedObstacles { get; }
+        public IReadOnlyList<WallSurface> Walls { get; }
 
         internal RoomConfirmation(string preparationId, RoomDraft draft, CollisionRepresentation collision)
         {
@@ -390,6 +398,7 @@ namespace Amiss.Shell.Room
             ExcludedObstacles = new ReadOnlyCollection<Bounds>(draft.Surfaces
                 .Where(s => s.Role == CollisionSurfaceRole.Obstacle)
                 .Select(s => s.WorldBounds).ToArray());
+            Walls = WallSurface.FromSurfaces(draft.Surfaces);
         }
     }
 

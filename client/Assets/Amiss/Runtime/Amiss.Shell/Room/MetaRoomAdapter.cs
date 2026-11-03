@@ -31,7 +31,7 @@ namespace Amiss.Shell.Room
                 return;
             Mruk.SceneSettings.DataSource = MRUK.SceneDataSource.Device;
             Mruk.SceneSettings.LoadSceneOnStartup = false;
-            Mruk.EnableWorldLock = true;
+            Mruk.EnableWorldLock = false;
             Mruk.RoomUpdatedEvent.AddListener(OnRoomUpdated);
         }
 
@@ -100,6 +100,7 @@ namespace Amiss.Shell.Room
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (Mruk == null)
                 return new RoomLoadResult(null, RoomFailureReason.SceneLoadFailed);
+            Mruk.EnableWorldLock = true;
             MRUK.LoadDeviceResult result;
             try
             {
@@ -107,15 +108,26 @@ namespace Amiss.Shell.Room
             }
             catch (Exception)
             {
-                return new RoomLoadResult(null, RoomFailureReason.SceneLoadFailed);
+                return Fail(RoomFailureReason.SceneLoadFailed);
             }
+            Debug.Log("[Amiss] scene load result=" + result);
             if (result != MRUK.LoadDeviceResult.Success)
-                return new RoomLoadResult(null, MapFailure(result));
+                return Fail(MapFailure(result));
             var room = Mruk.GetCurrentRoom();
             if (room == null)
-                return new RoomLoadResult(null, RoomFailureReason.NoScene);
+                return Fail(RoomFailureReason.NoScene);
+            await Task.Yield();
+            ReadHeadsetPose(ref userPosition, ref userForward);
+            if (!room.IsPositionInRoom(userPosition, false))
+                return Fail(RoomFailureReason.NoCurrentRoom);
             var draft = DeriveDraft(room, userPosition, userForward);
             return new RoomLoadResult(draft, draft == null ? RoomFailureReason.InvalidGeometry : RoomFailureReason.None);
+
+            RoomLoadResult Fail(RoomFailureReason reason)
+            {
+                Mruk.EnableWorldLock = false;
+                return new RoomLoadResult(null, reason);
+            }
 #else
             await Task.Yield();
             return new RoomLoadResult(null, RoomFailureReason.NoScene);
@@ -184,6 +196,27 @@ namespace Amiss.Shell.Room
                     "MRUK volume simplified to one static bounding volume");
             }
             return null;
+        }
+
+        static void ReadHeadsetPose(ref Vector3 position, ref Vector3 forward)
+        {
+            var rig = UnityEngine.Object.FindFirstObjectByType<OVRCameraRig>();
+            var eye = rig != null ? rig.centerEyeAnchor : null;
+            if (eye == null)
+            {
+                var camera = Camera.main;
+                eye = camera != null ? camera.transform : null;
+            }
+            if (eye == null)
+                return;
+            forward = eye.forward;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+            position = eye.position;
+            if (rig != null && rig.trackingSpace != null)
+                position.y = rig.trackingSpace.position.y;
+            else
+                position.y -= 1.6f;
         }
 
         static RoomFailureReason MapFailure(MRUK.LoadDeviceResult result)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Amiss.Shell.Room;
+using Amiss.Shell.Simulation;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -36,8 +37,6 @@ namespace Amiss.Tests
             var id = preparation.Begin(1.0);
             preparation.RequestPermission(id);
             preparation.CompletePermission(id, true);
-            preparation.RequestSpaceSetup(id);
-            preparation.CompleteSpaceSetup(id, true);
             preparation.CompleteSceneLoad(id, draft ?? Valid());
             return preparation;
         }
@@ -67,6 +66,49 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void ExistingCurrentRoomSkipsSpaceSetup()
+        {
+            var room = new RoomPreparation();
+            var id = room.Begin(1.0);
+            room.RequestPermission(id);
+            room.CompletePermission(id, true);
+            Assert.AreEqual(RoomPreparationStatus.SceneLoading, room.Status);
+            room.CompleteSceneLoad(id, RoomTestFixtures.Valid());
+            Assert.AreEqual(RoomPreparationStatus.AwaitingConfirmation, room.Status);
+            Assert.IsFalse(room.RequestSpaceSetup(id));
+            Assert.IsNotNull(room.Draft);
+        }
+
+        [Test]
+        public void MissingSceneOffersExplicitSpaceSetup()
+        {
+            var room = new RoomPreparation();
+            var id = room.Begin(1.0);
+            room.RequestPermission(id);
+            room.CompletePermission(id, true);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.NoScene);
+            Assert.AreEqual(RoomPreparationStatus.SpaceSetupReady, room.Status);
+            Assert.AreEqual(RoomFailureReason.NoScene, room.Failure);
+            Assert.IsFalse(room.RoomConfirmed);
+            Assert.IsTrue(room.RequestSpaceSetup(id));
+        }
+
+        [Test]
+        public void OtherLocationRoomOffersScanWithoutFallback()
+        {
+            var room = new RoomPreparation();
+            var id = room.Begin(1.0);
+            room.RequestPermission(id);
+            room.CompletePermission(id, true);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.NoCurrentRoom);
+            Assert.AreEqual(RoomPreparationStatus.SpaceSetupReady, room.Status);
+            Assert.AreEqual(RoomFailureReason.NoCurrentRoom, room.Failure);
+            Assert.IsNull(room.Draft);
+            Assert.IsTrue(room.ChooseManualBoundary(id, Vector3.zero, Vector3.forward));
+            Assert.AreEqual("virtual boundaries — not the scanned room", room.Draft.BoundaryLabel);
+        }
+
+        [Test]
         public void SpaceSetupCancelAndFailureAreRestricted()
         {
             foreach (var cancelled in new[] { true, false })
@@ -75,6 +117,7 @@ namespace Amiss.Tests
                 var id = room.Begin(1.0);
                 room.RequestPermission(id);
                 room.CompletePermission(id, true);
+                room.CompleteSceneLoad(id, null, RoomFailureReason.NoScene);
                 room.RequestSpaceSetup(id);
                 room.CompleteSpaceSetup(id, false, cancelled);
                 Assert.AreEqual(RoomPreparationStatus.Restricted, room.Status);
@@ -84,17 +127,48 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void MissingSceneFailsClosedWithoutFallback()
+        public void MissingSceneAfterSetupFailsClosedWithoutFallback()
         {
             var room = new RoomPreparation();
             var id = room.Begin(1.0);
             room.RequestPermission(id);
             room.CompletePermission(id, true);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.NoScene);
             room.RequestSpaceSetup(id);
             room.CompleteSpaceSetup(id, true);
-            room.CompleteSceneLoad(id, null, RoomFailureReason.NoScene);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.NoCurrentRoom);
             Assert.AreEqual(RoomPreparationStatus.Restricted, room.Status);
-            Assert.AreEqual(RoomFailureReason.NoScene, room.Failure);
+            Assert.AreEqual(RoomFailureReason.NoCurrentRoom, room.Failure);
+            Assert.IsNull(room.Draft);
+            Assert.IsNull(room.Collision);
+        }
+
+        [Test]
+        public void SpaceSetupReturnReloadsCurrentRoom()
+        {
+            var room = new RoomPreparation();
+            var id = room.Begin(1.0);
+            room.RequestPermission(id);
+            room.CompletePermission(id, true);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.NoScene);
+            room.RequestSpaceSetup(id);
+            room.CompleteSpaceSetup(id, true);
+            Assert.AreEqual(RoomPreparationStatus.SceneLoading, room.Status);
+            room.CompleteSceneLoad(id, RoomTestFixtures.Valid());
+            Assert.AreEqual(RoomPreparationStatus.AwaitingConfirmation, room.Status);
+            Assert.IsTrue(room.Confirm(id));
+        }
+
+        [Test]
+        public void InitialLoadFailureDoesNotOfferSpaceSetup()
+        {
+            var room = new RoomPreparation();
+            var id = room.Begin(1.0);
+            room.RequestPermission(id);
+            room.CompletePermission(id, true);
+            room.CompleteSceneLoad(id, null, RoomFailureReason.SceneLoadFailed);
+            Assert.AreEqual(RoomPreparationStatus.Restricted, room.Status);
+            Assert.IsFalse(room.RequestSpaceSetup(id));
         }
 
         [Test]
@@ -107,6 +181,13 @@ namespace Amiss.Tests
             Assert.IsFalse(room.CompletePermission(stale, true));
             Assert.AreEqual(RoomPreparationStatus.Explanation, room.Status);
             Assert.AreNotEqual(stale, room.PreparationId);
+            var sceneStale = room.PreparationId;
+            room.RequestPermission(sceneStale);
+            room.CompletePermission(sceneStale, true);
+            room.Rescan();
+            Assert.IsFalse(room.CompleteSceneLoad(sceneStale, RoomTestFixtures.Valid()));
+            Assert.AreEqual(RoomPreparationStatus.Explanation, room.Status);
+            Assert.IsNull(room.Draft);
         }
 
         [Test]
@@ -164,6 +245,52 @@ namespace Amiss.Tests
                 new Vector3(1.5f, 0.5f, 0f), Vector3.one));
             Assert.AreEqual(39f, room.Collision.EffectiveVolumeM3, 0.0001f);
             StringAssert.Contains("minus", room.Collision.DeductionMethod);
+        }
+
+        [Test]
+        public void SteppingClearOfAnObstacleLetsTheSameScanConfirm()
+        {
+            var source = RoomTestFixtures.Valid();
+            var surfaces = source.Surfaces.ToList();
+            surfaces.Add(new CollisionSurface("table", "TABLE", PrimaryRepresentation.BoundingVolume,
+                BoundaryProvenance.Scanned, CollisionSurfaceRole.Obstacle, Vector3.zero, new Vector3(0.6f, 1f, 0.6f),
+                Quaternion.identity, Vector3.up, "test volume"));
+            var region = new Bounds(new Vector3(0f, 1.25f, 0f), new Vector3(8f, 2.5f, 8f));
+            var blocked = new RoomDraft(region, surfaces, Vector3.zero, Vector3.forward, 0.9f);
+            var room = RoomTestFixtures.Prepared(blocked);
+
+            Assert.AreEqual(RoomFailureReason.UnsafeRegion, room.Failure);
+            Assert.IsFalse(room.Confirm(room.PreparationId));
+            Assert.IsTrue(room.RetargetUser(new Vector3(2f, 0f, 0f), Vector3.forward));
+            Assert.AreEqual(RoomFailureReason.None, room.Failure);
+            Assert.IsTrue(room.Confirm(room.PreparationId));
+        }
+
+        [Test]
+        public void SafetyOffConfirmsAnUnsafeRegion()
+        {
+            var source = RoomTestFixtures.Valid();
+            var surfaces = source.Surfaces.ToList();
+            surfaces.Add(new CollisionSurface("table", "TABLE", PrimaryRepresentation.BoundingVolume,
+                BoundaryProvenance.Scanned, CollisionSurfaceRole.Obstacle, Vector3.zero, new Vector3(0.6f, 1f, 0.6f),
+                Quaternion.identity, Vector3.up, "test volume"));
+            var blocked = new RoomDraft(new Bounds(new Vector3(0f, 1.25f, 0f), new Vector3(8f, 2.5f, 8f)),
+                surfaces, Vector3.zero, Vector3.forward, 0.9f);
+            var room = RoomTestFixtures.Prepared(blocked);
+
+            Assert.AreEqual(RoomFailureReason.UnsafeRegion, room.Failure);
+            Assert.IsFalse(room.Confirm(room.PreparationId));
+            Assert.IsTrue(room.Confirm(room.PreparationId, true));
+            Assert.AreEqual(RoomPreparationStatus.Confirmed, room.Status);
+        }
+
+        [Test]
+        public void ALoadedRoomCanOfferAReplacementScan()
+        {
+            var room = RoomTestFixtures.Prepared();
+            Assert.IsTrue(room.OfferReplacementScan(room.PreparationId));
+            Assert.AreEqual(RoomPreparationStatus.SpaceSetupReady, room.Status);
+            Assert.IsFalse(room.OfferReplacementScan(room.PreparationId));
         }
 
         [Test]
@@ -250,8 +377,6 @@ namespace Amiss.Tests
             var id = first.PreparationId;
             first.RequestPermission(id);
             first.CompletePermission(id, true);
-            first.RequestSpaceSetup(id);
-            first.CompleteSpaceSetup(id, true);
             first.CompleteSceneLoad(id, RoomTestFixtures.Valid());
             Assert.IsTrue(first.Confirm(id));
             var next = first;
@@ -310,8 +435,10 @@ namespace Amiss.Tests
             var room = RoomTestFixtures.Confirmed();
             var recovery = new ShellRecovery();
             recovery.ConfirmRoom(room);
-            Assert.AreEqual(new Vector2(1.2f, 0.8f), recovery.Panel.PanelEnvelope);
+            Assert.AreEqual(PanelMount.ScreenEnvelope, recovery.Panel.PanelEnvelope);
             Assert.AreEqual(PanelPlacementStatus.Placed, recovery.Panel.Status);
+            Assert.AreEqual(PanelMountMode.WallMounted, recovery.Panel.MountMode);
+            Assert.AreEqual(PanelPlacementSource.AutoNearestWall, recovery.Panel.Source);
             Assert.IsTrue(ShellRecovery.ValidatePanel(recovery.Panel, room.Confirmation));
             var directionToUser = room.Confirmation.ConfirmedUserPosition - recovery.Panel.Position;
             directionToUser.y = 0f;
@@ -359,6 +486,65 @@ namespace Amiss.Tests
 
     public class EvidenceManifestTests
     {
+        [Test]
+        public void SimulationEvidenceCapturesTheProducerReadoutVerbatim()
+        {
+            var measurement = TemperatureMeasurementFace.Measure("measurement-evidence",
+                new[]
+                {
+                    new PublishedBall("ball-0001", Vector3.zero,
+                        new Vector3(1f, 0.5f, 0.25f), 1f, 0.05f, "free")
+                },
+                new MeasurementWindow("window-evidence", 0, 4, 0.2f, 5), null);
+            Assert.AreEqual(TemperatureMeasurement.NotApplicableStatus, measurement.Status);
+            var manifest = SimulationEvidenceManifest.Create("what_is_temperature");
+            manifest.CaptureReadout(new TemperatureReadoutSnapshot("trial-evidence", 4,
+                "view-evidence", measurement,
+                new TemperatureEnergyLedger(1.0, 1.0, 1.0, 0.0), 0));
+
+            Assert.AreEqual("not_applicable", manifest.readout_status);
+            Assert.AreEqual("", manifest.readout_kelvin,
+                "a not-applicable measurement writes no kelvin number");
+            Assert.AreEqual("", manifest.readout_celsius);
+            Assert.AreEqual("", manifest.readout_fahrenheit);
+            Assert.AreEqual("", manifest.readout_kelvin_ratio_baseline);
+            Assert.AreEqual("K", manifest.readout_display_primary_unit);
+            Assert.IsTrue(manifest.readout_panel_text.Contains("not applicable"));
+        }
+
+        [Test]
+        public void SimulationEvidenceCapturesAValidTupleAndTheLedger()
+        {
+            var balls = new List<PublishedBall>();
+            for (var index = 0; index < 12; index++)
+            {
+                var angle = index + 1.0;
+                balls.Add(new PublishedBall("ball-" + index.ToString("D4"), Vector3.zero,
+                    new Vector3((float)System.Math.Sin(angle),
+                        (float)System.Math.Cos(angle), 0.5f), 1f, 0.05f, "free"));
+            }
+            var measurement = TemperatureMeasurementFace.Measure("measurement-evidence",
+                balls, new MeasurementWindow("window-evidence", 0, 4, 0.2f, 5), 300.0);
+            var ledger = new TemperatureEnergyLedger(10.0, 10.0, 8.0, 2.0)
+                .WithContact(new EnergyContactEntry("contact-1", "bat", "ball-0001", 0, 4,
+                    1.5, "separated"));
+            var manifest = SimulationEvidenceManifest.Create("what_is_temperature");
+            manifest.CaptureReadout(new TemperatureReadoutSnapshot("trial-evidence", 4,
+                "view-evidence", measurement, ledger, 1));
+
+            Assert.AreEqual("valid", manifest.readout_status);
+            Assert.AreEqual(measurement.Display.Kelvin.ToString(),
+                manifest.readout_kelvin);
+            Assert.AreEqual(measurement.Display.Celsius.ToString(),
+                manifest.readout_celsius);
+            Assert.AreEqual(measurement.Display.Fahrenheit.ToString(),
+                manifest.readout_fahrenheit);
+            Assert.AreEqual(1.5, manifest.readout_ledger_work_events_cumulative_ke_j);
+            Assert.AreEqual(1, manifest.readout_ledger_contact_count);
+            Assert.AreEqual(1, manifest.readout_contact_commits);
+            StringAssert.Contains("net work +1.50", manifest.readout_panel_text);
+        }
+
         [Test]
         public void ManifestContainsOnlyDerivedSanitizedFields()
         {

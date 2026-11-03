@@ -1,0 +1,215 @@
+{
+  "stage_data_format_version": "1.0.0",
+  "policy_version": "amiss-hackathon-policy-v1",
+  "episode_id": "what_is_temperature",
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "1326ef9154199aba5445cbd5c3cf3bfd7ce099e92d82cb2aa8ac6e782fb14f21",
+    "status": "verified"
+  },
+  "stage_graph": {
+    "initial_stage_id": "stage-0-entry",
+    "nodes": [
+      {
+        "stage_id": "stage-0-entry",
+        "default_path_id": "default-stage-0-entry",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-0-entry",
+            "first_fact_kind": "room-region-confirmed",
+            "second_fact_kind": "first-setup-generated"
+          }
+        ],
+        "user_controls": [
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-1-track-one",
+        "default_path_id": "default-stage-1-track-one",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-1-track-one",
+            "first_fact_kind": "setup-transition-counted",
+            "second_fact_kind": "collision-speed-change-observed"
+          }
+        ],
+        "user_controls": [
+          "skip",
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-2-heat",
+        "default_path_id": "default-stage-2-heat",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-2-heat",
+            "first_fact_kind": "positive-work-contact",
+            "second_fact_kind": "thermal-rise-window"
+          }
+        ],
+        "user_controls": [
+          "skip",
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-3-cool",
+        "default_path_id": "default-stage-3-cool",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-3-cool",
+            "first_fact_kind": "absorption-release",
+            "second_fact_kind": "thermal-drop-window"
+          }
+        ],
+        "user_controls": [
+          "skip",
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-4-group",
+        "default_path_id": "default-stage-4-group",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-4-group",
+            "first_fact_kind": "temperature-window-stable",
+            "second_fact_kind": "speed-distribution-converged"
+          }
+        ],
+        "user_controls": [
+          "skip",
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-5-drift",
+        "default_path_id": "default-stage-5-drift",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-5-drift",
+            "first_fact_kind": "prediction-decision-recorded",
+            "second_fact_kind": "drift-pair-measured"
+          }
+        ],
+        "user_controls": [
+          "skip",
+          "replay"
+        ],
+        "terminal": false
+      },
+      {
+        "stage_id": "stage-7-transfer",
+        "default_path_id": "default-stage-7-transfer",
+        "evidence_pair_rules": [
+          {
+            "rule_id": "pair-stage-7-transfer",
+            "first_fact_kind": "prediction-decision-recorded",
+            "second_fact_kind": "comparison-results-revealed"
+          }
+        ],
+        "user_controls": [
+          "replay",
+          "free_exploration"
+        ],
+        "terminal": true
+      }
+    ]
+  },
+  "evidence_flag_definitions": [
+    {
+      "fact_kind": "room-region-confirmed",
+      "fact_class": "state",
+      "measurement_path_id": "room-confirmation-path"
+    },
+    {
+      "fact_kind": "first-setup-generated",
+      "fact_class": "action",
+      "measurement_path_id": "setup-generation-path"
+    },
+    {
+      "fact_kind": "setup-transition-counted",
+      "fact_class": "action",
+      "measurement_path_id": "setup-transition-path"
+    },
+    {
+      "fact_kind": "collision-speed-change-observed",
+      "fact_class": "state",
+      "measurement_path_id": "collision-speed-path"
+    },
+    {
+      "fact_kind": "positive-work-contact",
+      "fact_class": "action",
+      "measurement_path_id": "prop-work-path"
+    },
+    {
+      "fact_kind": "thermal-rise-window",
+      "fact_class": "state",
+      "measurement_path_id": "thermal-rise-path"
+    },
+    {
+      "fact_kind": "absorption-release",
+      "fact_class": "action",
+      "measurement_path_id": "prop-absorption-path"
+    },
+    {
+      "fact_kind": "thermal-drop-window",
+      "fact_class": "state",
+      "measurement_path_id": "thermal-drop-path"
+    },
+    {
+      "fact_kind": "temperature-window-stable",
+      "fact_class": "state",
+      "measurement_path_id": "temperature-stability-path"
+    },
+    {
+      "fact_kind": "speed-distribution-converged",
+      "fact_class": "state",
+      "measurement_path_id": "distribution-convergence-path"
+    },
+    {
+      "fact_kind": "prediction-decision-recorded",
+      "fact_class": "prediction",
+      "measurement_path_id": "prediction-gate-path"
+    },
+    {
+      "fact_kind": "drift-pair-measured",
+      "fact_class": "state",
+      "measurement_path_id": "drift-comparison-path"
+    },
+    {
+      "fact_kind": "comparison-results-revealed",
+      "fact_class": "state",
+      "measurement_path_id": "comparison-reveal-path"
+    }
+  ],
+  "allowed_action_set": {
+    "action_ids": [
+      "action-state.read-snapshot",
+      "action-state.read-ledger",
+      "action-state.read-measurements",
+      "action-trial.propose-create",
+      "action-trial.propose-derive",
+      "action-trial.orchestrate-start",
+      "action-trial.orchestrate-pause",
+      "action-trial.orchestrate-resume",
+      "action-trial.orchestrate-begin_measurement",
+      "action-trial.orchestrate-archive",
+      "action-trial.orchestrate-present",
+      "action-presentation.request-highlight_surface",
+      "action-presentation.request-replay_slow",
+      "action-presentation.request-open_chart",
+      "action-presentation.request-show_subtitle",
+      "action-speech.emit-answer",
+      "action-speech.emit-proactive",
+      "action-speech.emit-safety"
+    ]
+  }
+}

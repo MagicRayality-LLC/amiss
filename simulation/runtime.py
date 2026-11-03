@@ -341,6 +341,22 @@ def failure_report(
     }
 
 
+# The 07 section 3.2 prototype scale point in the code's internal units: an
+# equal-mass free set of the declared engine ball mass at v_rms = 1.1 m/s
+# measures 300 K, so the declared model constant is
+# k_B_eff = m_ball * v_rms^2 / (3 * T) = 1.3444...e-3 J/K. It is a model
+# constant, not the physical Boltzmann constant: the design prototype ball is
+# m_0 = 1e-20 kg and this engine mass is 1e20 times heavier in the same units.
+DECLARED_BALL_MASS_KG = 1.0
+SCALE_POINT_V_RMS_M_PER_S = 1.1
+SCALE_POINT_T_K = 300.0
+EFFECTIVE_K_B_J_PER_K = (
+    DECLARED_BALL_MASS_KG
+    * SCALE_POINT_V_RMS_M_PER_S ** 2
+    / (3.0 * SCALE_POINT_T_K)
+)
+
+
 DEFAULT_UNIT_CONVENTION = {
     "unit_convention_id": "si-model-v1",
     "internal_units": {
@@ -356,7 +372,7 @@ DEFAULT_UNIT_CONVENTION = {
         "mass": {"display_unit_id": "g", "factor": 1000.0},
     },
     "conversion_tolerance": 1e-12,
-    "scale_constants": {"effective_kB": 1.0},
+    "scale_constants": {"effective_kB": EFFECTIVE_K_B_J_PER_K},
     "degrees_of_freedom": 3,
 }
 
@@ -453,7 +469,7 @@ class HeadlessBallWriter:
         if count < 0:
             raise RuntimeContractError("invalid_ball_count")
         radius = float(setup_parameters.get("ball_radius_m", 0.05))
-        mass = float(setup_parameters.get("ball_mass_kg", 1.0))
+        mass = float(setup_parameters.get("ball_mass_kg", DECLARED_BALL_MASS_KG))
         speed_scale = float(setup_parameters.get("initial_speed_scale", 1.0))
         bounds = collision.bounds()
         balls = {}
@@ -649,7 +665,7 @@ class HeadlessBallWriter:
                 distance = math.sqrt(distance_sq)
                 normal = [component / distance for component in delta]
                 total_mass = first["mass_kg"] + second["mass_kg"]
-                impulse_scale = 2.0 * approaching / total_mass
+                impulse_scale = 2.0 * approaching / (total_mass * distance)
                 for axis in range(3):
                     component = impulse_scale * normal[axis]
                     first["velocity_m_per_s"][axis] -= component * second["mass_kg"]
