@@ -98,6 +98,32 @@ class PackLoadTest(unittest.TestCase):
         self.assertIn("Swing the barrel through the balls", self.pack.system)
         self.assertIn("Open both palms", self.pack.system)
 
+    def test_a_confident_in_scope_question_is_answered_without_confirmation(self):
+        # Founder requirement (2026-11-04): when the question has a
+        # reasonably confident in-scope reading, the teacher answers it in the
+        # same turn. Clarification is reserved for a question too garbled to
+        # read, and a clearly out-of-scope question redirects at once.
+        self.assertIn(
+            "When a question has a reasonably confident in-scope reading, "
+            "answer that reading directly in the same turn.",
+            self.pack.system,
+        )
+        self.assertIn(
+            "Ask one short clarification question only when the question is "
+            "too garbled to read with reasonable confidence.",
+            self.pack.system,
+        )
+        categories = {
+            item["category_id"]: item
+            for item in self.pack.instructor["mistake_classification"]["categories"]
+        }
+        self.assertEqual(
+            "scope-redirect-1", categories["reply-out-of-scope"]["wording_id"]
+        )
+        self.assertEqual(
+            "scope-clarify-1", categories["reply-unreadable-question"]["wording_id"]
+        )
+
     def test_the_supply_names_every_stage_and_no_forbidden_stage(self):
         stage_ids = [node["stage_id"] for node in
                      self.pack.stage_data["stage_graph"]["nodes"]]

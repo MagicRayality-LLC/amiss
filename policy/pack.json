@@ -13,12 +13,12 @@
     },
     {
       "path": "instructor-policy.json",
-      "sha256": "70c90821e4bb8b2f89e8e6e6026dd24cf28e2b685aaebb622c336a3bafa9a53f"
+      "sha256": "d4c41239f519c93d3d4ee887766aefd6061c71ddbc0bcef5523c1118bebc5832"
     }
   ],
   "integrity": {
     "algorithm": "sha256",
-    "digest": "700987aef57ebb3d8f651dadcad1c915c07ca296c6fd6641cc5835e1d9219d53",
+    "digest": "bb480cc77958e80eb47a50eeb6de0460fad8f544ebc665a7839636e4c54bee70",
     "status": "verified"
   }
 }
