@@ -6,6 +6,7 @@
         "Amiss.Shell",
         "meta.xr.mrutilitykit",
         "Meta.WitAi",
+        "Meta.VoiceSDK.Mic.Common",
         "Oculus.VR",
         "Oculus.VR.Editor",
         "Oculus.Interaction",

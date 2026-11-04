@@ -126,6 +126,30 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void TrialStartPauseAndResumeEmitTheirActualSessionEvents()
+        {
+            var accepted = AcceptedRoom(new Vector3(1.6f, 2f, 1.6f), "trial-events", 0.3f);
+            var runtime = new DeviceSimulationRuntime(() => new TestWriter());
+            var events = new List<string>();
+            runtime.SessionEventCommitted = (kind, trialId, tick, revision) =>
+                events.Add(kind + ":" + trialId + ":" + tick + ":" + revision);
+
+            var started = runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "trial-events", accepted.room.Confirmation, accepted.pin, out _));
+            Assert.IsTrue(started.Started, started.ReasonCode);
+            runtime.RequestPause("test");
+            runtime.RequestPause("duplicate");
+            runtime.RequestResume();
+            runtime.RequestResume();
+
+            Assert.AreEqual("trial_started:trial-events:0:0", events[0]);
+            Assert.AreEqual(1, events.Count(item => item.StartsWith("trial_paused:")));
+            Assert.AreEqual(1, events.Count(item => item.StartsWith("trial_resumed:")));
+            Assert.AreEqual(events.Count - 1, events.FindIndex(item =>
+                item.StartsWith("trial_resumed:")));
+        }
+
+        [Test]
         public void PinSurvivesRescanAndTheRuntimeKeepsTheFrozenRepresentation()
         {
             var accepted = AcceptedRoom(new Vector3(4f, 2.5f, 4f), "trial-pin");

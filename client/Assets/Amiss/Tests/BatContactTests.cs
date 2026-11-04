@@ -333,6 +333,12 @@ namespace Amiss.Tests
             // and a contacted closure is one commit with one ledger entry.
             var (runtime, writer, bat) = StartedTrial("trial-bat-commits");
             var revisionBefore = bat.Readout.ContactCommits;
+            var effectiveEvents = new List<string>();
+            runtime.SessionEventCommitted = (kind, trialId, tick, revision) =>
+            {
+                if (kind == "effective_action")
+                    effectiveEvents.Add(trialId + ":" + tick + ":" + revision);
+            };
 
             bat.Consume(BatContactFixtures.Accepted(
                 new Vector3(40f, 40f, 40f), new Vector3(4f, 0f, 0f), 1), 1);
@@ -341,6 +347,7 @@ namespace Amiss.Tests
             Assert.AreEqual(revisionBefore + 1, bat.Readout.ContactCommits,
                 "the empty swing closes as one semantic commit");
             Assert.AreEqual(0, bat.Readout.Ledger.Contacts.Count);
+            Assert.IsEmpty(effectiveEvents, "an empty swing is not an effective action");
 
             var ball = runtime.CurrentView.Balls[0];
             writer.IsolateBalls();
@@ -352,6 +359,8 @@ namespace Amiss.Tests
             Assert.AreEqual(revisionBefore + 2, bat.Readout.ContactCommits,
                 "the contacted swing closes as one more commit, not one per sample");
             Assert.AreEqual(1, bat.Readout.Ledger.Contacts.Count);
+            Assert.AreEqual(1, effectiveEvents.Count);
+            StringAssert.EndsWith(":" + bat.Readout.ContactCommits, effectiveEvents[0]);
         }
 
         [Test]

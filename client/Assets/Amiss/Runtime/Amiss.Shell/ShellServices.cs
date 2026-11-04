@@ -33,6 +33,9 @@ namespace Amiss.Shell
         {
             var runtime = new Simulation.DeviceSimulationRuntime();
             SimulationRuntime = runtime;
+            SessionMemory = new Tutor.SessionMemory();
+            runtime.SessionEventCommitted = (kind, trialId, tick, revision) =>
+                SessionMemory.RecordEvent(kind, tick, trialId, revision);
 
             // The evaluation tutor path is assembled from the bundled public
             // policy pack. The Meta model key is the person's own evaluation
@@ -77,7 +80,7 @@ namespace Amiss.Shell
                 WhatIsTemperatureEpisode.ResolveCriticalAsset);
             Room = GetComponent<RoomPreparationController>();
             TutorConversation = new Tutor.TutorConversation(Tutor, EvaluationContext,
-                LiveTutorState);
+                LiveTutorState, SessionMemory);
             VoiceRig = gameObject.AddComponent<Voice.WitVoiceRig>();
             VoiceStore = new Voice.PlayerPrefsVoiceConsentStore();
             VoiceControl = new Voice.VoiceController(VoiceRig.Dictation, VoiceRig.Speech,
@@ -85,7 +88,8 @@ namespace Amiss.Shell
                 VoiceStore.Load(), () => Time.realtimeSinceStartupAsDouble);
             Panel = new UI.CorePanelController(SimulationRuntime, GuideRunner, Room, VoiceControl);
             gameObject.AddComponent<Voice.VoiceLoop>().Initialize(VoiceControl, VoiceStore,
-                () => Room != null && Room.Recovery != null && Room.Recovery.SafetyHold);
+                () => Room != null && Room.Recovery != null && Room.Recovery.SafetyHold,
+                SessionMemory);
             var driver = gameObject.AddComponent<Simulation.SimulationTickDriver>();
             driver.Initialize(runtime);
 
@@ -151,6 +155,8 @@ namespace Amiss.Shell
 
         /// <summary>The one local tutor turn.</summary>
         public Tutor.TutorConversation TutorConversation { get; private set; }
+
+        public Tutor.SessionMemory SessionMemory { get; private set; }
 
         /// <summary>The device voice rig: two Wit adapters and the saved token.</summary>
         public Voice.WitVoiceRig VoiceRig { get; private set; }

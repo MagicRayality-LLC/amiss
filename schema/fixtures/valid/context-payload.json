@@ -1,5 +1,5 @@
 {
-  "context_payload_version": "1.0.0",
+  "context_payload_version": "1.1.0",
   "comparison_package": [
     {
       "identity": {
@@ -113,9 +113,47 @@
     "tokens": [{"token_id": "stage-token-a", "kind": "stage", "value_id": "stage-a"}]
   },
   "compressed_session_context": {
-    "session_duration_seconds": 0.0,
+    "session_duration_seconds": 42.0,
     "preferences": {"mute": false, "tips_enabled": true, "guidance_preference_id": "default"},
-    "minimal_profile": null
+    "minimal_profile": null,
+    "recent_exchanges": [
+      {
+        "turn_id": "turn-a",
+        "user_text": "Can we compare the groups?",
+        "agent_speech": ["Both synthetic groups are ready.", "Do you want to compare their temperatures?"],
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+        "stage_id": "stage-a",
+        "policy_version": "synthetic-policy-v1"
+      },
+      {
+        "turn_id": "turn-b",
+        "user_text": null,
+        "agent_speech": ["Are you asking about the group temperature?"],
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}],
+        "stage_id": "stage-a",
+        "policy_version": "synthetic-policy-v1"
+      }
+    ],
+    "session_events": [
+      {
+        "event_id": "event-a",
+        "kind": "trial_started",
+        "tick": 0,
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}]
+      },
+      {
+        "event_id": "event-b",
+        "kind": "setup_accepted",
+        "tick": 0,
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}]
+      },
+      {
+        "event_id": "event-c",
+        "kind": "effective_action",
+        "tick": 3,
+        "refs": [{"trial_id": "trial-a", "trial_revision": 1}]
+      }
+    ]
   },
-  "current_user_utterance": {"utterance_id": "utterance-a", "text": "Synthetic utterance."}
+  "current_user_utterance": {"utterance_id": "utterance-a", "text": "yes"}
 }

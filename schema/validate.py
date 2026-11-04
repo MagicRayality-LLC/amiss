@@ -513,7 +513,8 @@ def check_context(value, raw):
     errors = []
     if len(raw.encode("utf-8")) > 256 * 1024:
         errors.append("$: ContextPayload exceeds 256 KiB")
-    if len(canonical_bytes(value["compressed_session_context"])) > 32 * 1024:
+    context = value["compressed_session_context"]
+    if len(canonical_bytes(context)) > 32 * 1024:
         errors.append("$.compressed_session_context: context exceeds 32 KiB")
     if len(value["current_user_utterance"]["text"].encode("utf-8")) > 8 * 1024:
         errors.append("$.current_user_utterance.text: utterance exceeds 8 KiB")
@@ -521,6 +522,30 @@ def check_context(value, raw):
     keys = [ref_key(ref) for ref in refs]
     if len(set(keys)) != len(keys):
         errors.append("$.refs: refs must be canonical and unique")
+
+    turn_ids = set()
+    for index, exchange in enumerate(context.get("recent_exchanges", [])):
+        path = f"$.compressed_session_context.recent_exchanges[{index}]"
+        if exchange["turn_id"] in turn_ids:
+            errors.append(f"{path}.turn_id: duplicate recent exchange")
+        turn_ids.add(exchange["turn_id"])
+        if any(ref_key(ref) not in keys for ref in exchange["refs"]):
+            errors.append(f"{path}.refs: session memory ref is absent from payload refs")
+        if exchange["user_text"] is not None and len(exchange["user_text"].encode("utf-8")) > 8 * 1024:
+            errors.append(f"{path}.user_text: utterance exceeds 8 KiB")
+        for speech_index, text in enumerate(exchange["agent_speech"]):
+            if len(text.encode("utf-8")) > 4 * 1024:
+                errors.append(f"{path}.agent_speech[{speech_index}]: speech exceeds 4 KiB")
+
+    event_ids = set()
+    for index, event in enumerate(context.get("session_events", [])):
+        path = f"$.compressed_session_context.session_events[{index}]"
+        if event["event_id"] in event_ids:
+            errors.append(f"{path}.event_id: duplicate session event")
+        event_ids.add(event["event_id"])
+        if any(ref_key(ref) not in keys for ref in event["refs"]):
+            errors.append(f"{path}.refs: session memory ref is absent from payload refs")
+
     snapshots = value["comparison_package"]
     if len(snapshots) != len(refs):
         errors.append("$.comparison_package: snapshot count must equal ref count")

@@ -483,8 +483,13 @@ namespace Amiss.Shell.Voice
         void OnPartialText(VoiceTurn captured, int capturedEpoch, string text)
         {
             if (!Matches(captured, capturedEpoch) || State != VoiceState.Listening ||
-                active == null || string.IsNullOrWhiteSpace(text))
+                active == null)
                 return;
+            if (!HasCompleteWord(text))
+            {
+                Debug.Log("[Amiss] voice partial ignored: no complete word");
+                return;
+            }
             StopPlayback(VoiceUnitCompletion.Interrupted, "voice_interrupted");
         }
 
@@ -849,6 +854,29 @@ namespace Amiss.Shell.Voice
             rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
             AdvanceEpoch();
             return VoiceOutcome.Refuse(code, readable);
+        }
+
+        /// <summary>
+        /// Barge-in evidence is at least one complete word, not any sound: an
+        /// interim fragment, a breath, or room noise stops nothing.
+        /// </summary>
+        static bool HasCompleteWord(string text)
+        {
+            var run = 0;
+            foreach (var character in text ?? "")
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    run++;
+                    if (run >= 2)
+                        return true;
+                }
+                else if (run > 0)
+                {
+                    run = 0;
+                }
+            }
+            return false;
         }
 
         bool Matches(VoiceTurn captured, int capturedEpoch) =>

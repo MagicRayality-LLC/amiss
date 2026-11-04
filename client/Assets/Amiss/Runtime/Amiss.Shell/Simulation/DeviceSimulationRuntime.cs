@@ -55,6 +55,7 @@ namespace Amiss.Shell.Simulation
         public bool PauseRequested { get; private set; }
         public string PauseReason { get; private set; } = "";
         public string StopReason { get; private set; } = "";
+        public Action<string, string, int, int> SessionEventCommitted;
 
         /// <summary>
         /// Sticky numerical hold from 02 section 3.1. Once a declared contact
@@ -65,16 +66,24 @@ namespace Amiss.Shell.Simulation
 
         public void RequestPause(string reason)
         {
+            var changed = trial != null && !PauseRequested;
             PauseRequested = true;
             PauseReason = reason ?? "";
+            if (changed)
+                SessionEventCommitted?.Invoke("trial_paused", trial.TrialId,
+                    trial.CompletedTick, trial.Temperature.Revision);
         }
 
         public void RequestResume()
         {
             if (!string.IsNullOrEmpty(NumericalHold))
                 return;
+            var changed = trial != null && PauseRequested;
             PauseRequested = false;
             PauseReason = "";
+            if (changed)
+                SessionEventCommitted?.Invoke("trial_resumed", trial.TrialId,
+                    trial.CompletedTick, trial.Temperature.Revision);
         }
 
         public TrialStateView PreviousView { get; private set; }
@@ -241,6 +250,8 @@ namespace Amiss.Shell.Simulation
                     () => trial?.CompletedTick ?? 0,
                     () => request.TrialId)
             };
+            candidate.Temperature.SessionEventCommitted = (kind, tick, revision) =>
+                SessionEventCommitted?.Invoke(kind, request.TrialId, tick, revision);
             try
             {
                 writer.Setup(new SimulationTrialSetup(request.TrialId, balls, collision,
@@ -267,6 +278,8 @@ namespace Amiss.Shell.Simulation
             PauseReason = "";
             NumericalHold = "";
             Publish(candidate);
+            SessionEventCommitted?.Invoke("trial_started", request.TrialId,
+                candidate.CompletedTick, candidate.Temperature.Revision);
             return TrialStartOutcome.Success(request.TrialId, balls.Length,
                 collision.RepresentationId, collision.Checksum, writer.WriterId,
                 writer.ConfigurationId, writer.ConfigurationRecord);

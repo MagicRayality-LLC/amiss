@@ -9,6 +9,7 @@
         "meta.xr.mrutilitykit",
         "Meta.WitAi",
         "Meta.WitAi.Lib",
+        "Meta.VoiceSDK.Mic.Common",
         "Meta.WitAi.TTS",
         "Meta.Wit.Dictation",
         "VoiceSDK.Runtime",

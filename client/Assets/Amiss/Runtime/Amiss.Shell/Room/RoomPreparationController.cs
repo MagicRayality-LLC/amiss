@@ -303,6 +303,7 @@ namespace Amiss.Shell.Room
             }
             StartBlock = "";
             services.Session.MarkSetupAccepted();
+            services.SessionMemory?.RecordEvent("setup_accepted", 0, trialId, 1);
             services.Panel?.ShowSubtitle(WhatIsTemperatureEpisode.OpeningGoal);
             services.VoiceControl?.StartTrialEpisode(WhatIsTemperatureEpisode.OpeningGoal);
             Record("setup_accept", "accepted");

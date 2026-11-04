@@ -665,6 +665,53 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public async Task AnAdmittedQuestionSuppliesTheNextYesWithItsExchange()
+        {
+            var context = Context();
+            var sender = new EchoReplySender("Are you asking about the group temperature?");
+            var transport = new DeviceTutorTransport(new ProposalValidator(context),
+                sender: sender,
+                policy: new PolicyEnvelope("synthetic-policy-v1", "Synthetic fixture policy."),
+                keyStore: new MemoryKeyStore(SentinelKey));
+            var conversation = new TutorConversation(transport, context, () => Source(context));
+
+            await conversation.Ask(TutorConversation.AnswerOrigin, "utterance-question",
+                "Can we compare the groups?");
+            var second = await conversation.Ask(TutorConversation.AnswerOrigin,
+                "utterance-yes", "yes");
+
+            Assert.IsTrue(second.Admitted, second.Failure?.Readable);
+            Assert.AreEqual(2, conversation.Memory.RecentExchanges.Count);
+            var request = (IReadOnlyDictionary<string, object>)sender.LastRequest["context_payload"];
+            var compressed = (IReadOnlyDictionary<string, object>)request["compressed_session_context"];
+            var exchanges = ((IEnumerable<object>)compressed["recent_exchanges"]).Cast<
+                IReadOnlyDictionary<string, object>>().ToArray();
+            Assert.AreEqual(1, exchanges.Length,
+                "the second request precedes and therefore cannot contain its own reply");
+            Assert.AreEqual("Can we compare the groups?", exchanges[0]["user_text"]);
+            Assert.AreEqual("Are you asking about the group temperature?",
+                ((IEnumerable<object>)exchanges[0]["agent_speech"]).First());
+            Assert.AreEqual("yes", ProposalValidator.Text(
+                (IReadOnlyDictionary<string, object>)request["current_user_utterance"], "text"));
+        }
+
+        [Test]
+        public async Task AFailedReplyDoesNotCreateARecentExchange()
+        {
+            var context = Context();
+            var transport = new DeviceTutorTransport(new ProposalValidator(context),
+                sender: new OfflineSender(), keyStore: new MemoryKeyStore(SentinelKey),
+                policy: new PolicyEnvelope("synthetic-policy-v1", "Synthetic fixture policy."));
+            var conversation = new TutorConversation(transport, context, () => Source(context));
+
+            var admission = await conversation.Ask(TutorConversation.AnswerOrigin,
+                "utterance-question", "Can we compare the groups?");
+
+            Assert.IsFalse(admission.Admitted);
+            Assert.IsEmpty(conversation.Memory.RecentExchanges);
+        }
+
+        [Test]
         public async Task AnInvalidCitationRejectsTheWholeReplyWithoutSpeechOrTools()
         {
             var context = Context();

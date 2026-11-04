@@ -114,14 +114,16 @@ namespace Amiss.Shell.Voice
         VoiceController voice;
         PlayerPrefsVoiceConsentStore store;
         Func<bool> safetyHold;
+        Tutor.SessionMemory sessionMemory;
         VoiceConsentStatus saved = VoiceConsentStatus.Absent;
 
         public void Initialize(VoiceController controller, PlayerPrefsVoiceConsentStore consentStore,
-            Func<bool> safetyHold = null)
+            Func<bool> safetyHold = null, Tutor.SessionMemory sessionMemory = null)
         {
             voice = controller;
             store = consentStore;
             this.safetyHold = safetyHold;
+            this.sessionMemory = sessionMemory;
             saved = controller != null ? controller.Consent : VoiceConsentStatus.Absent;
         }
 
@@ -143,6 +145,8 @@ namespace Amiss.Shell.Voice
             voice.Tick();
             if (voice.Consent != saved)
             {
+                if (voice.Consent == VoiceConsentStatus.Revoked)
+                    sessionMemory?.ClearDialogue();
                 store?.Save(voice.Consent, Time.realtimeSinceStartupAsDouble);
                 saved = voice.Consent;
             }

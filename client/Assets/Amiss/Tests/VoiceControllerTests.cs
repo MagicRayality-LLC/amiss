@@ -272,6 +272,48 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void WordlessPartialDoesNotInterruptPlayback()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            var stops = harness.Speech.Stops;
+
+            harness.Dictation.Last.Partial("a");
+            harness.Dictation.Last.Partial("M");
+
+            Assert.AreEqual(stops, harness.Speech.Stops,
+                "a sound with no complete word stops nothing");
+            Assert.IsNotNull(harness.Controller.ActiveUnit);
+            Assert.AreEqual(VoiceState.Listening, harness.Controller.State);
+        }
+
+        [Test]
+        public void QuotedReplyTextIsNotRejectedByAnEchoHeuristic()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Dictation.Last.Partial("Question:");
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver("How warm is the room?");
+            Assert.AreEqual(1, harness.Tutor.Calls);
+            var reply = harness.Speech.Spoken[^1];
+            harness.Dictation.Last.Activate();
+            var stops = harness.Speech.Stops;
+
+            harness.Dictation.Last.Partial(reply);
+            Assert.AreEqual(stops + 1, harness.Speech.Stops,
+                    "current-turn speech still interrupts playback");
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver(reply);
+            harness.Controller.Tick();
+
+            Assert.AreEqual(2, harness.Tutor.Calls,
+                "word overlap alone cannot reject a genuine quoted answer");
+            Assert.AreEqual(reply, harness.Tutor.Utterance);
+            Assert.AreEqual(3, harness.Dictation.Begins);
+        }
+
+        [Test]
         public void SynchronousActivationInsideBeginKeepsTheReArmedTurnLive()
         {
             var harness = new Harness();

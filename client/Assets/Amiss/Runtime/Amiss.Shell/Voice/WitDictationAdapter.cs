@@ -1,5 +1,6 @@
 using System;
 using Meta.WitAi.Configuration;
+using Meta.WitAi.Data;
 using Oculus.Voice.Dictation;
 using Oculus.Voice.Dictation.Configuration;
 using Oculus.VoiceSDK.Utilities;
@@ -21,6 +22,7 @@ namespace Amiss.Shell.Voice
         readonly Transform parent;
 
         AppDictationExperience service;
+        AndroidAecMic aecMic;
         Window window;
         bool unavailable;
 
@@ -31,6 +33,10 @@ namespace Amiss.Shell.Voice
         }
 
         public bool Configured => setup.Configured;
+
+        public bool PlatformIntegrationActive => service != null && service.HasPlatformIntegrations;
+
+        public bool AecActive => aecMic != null && aecMic.AecActive;
 
         public bool MicrophonePermissionGranted => MicPermissionsManager.HasMicPermission();
 
@@ -140,6 +146,10 @@ namespace Amiss.Shell.Voice
                 service = host.AddComponent<AppDictationExperience>();
                 service.RuntimeDictationConfiguration = runtime;
                 service.UsePlatformIntegrations = false;
+#if UNITY_ANDROID && !UNITY_EDITOR
+                aecMic = host.AddComponent<AndroidAecMic>();
+                AudioBuffer.Instance.MicInput = aecMic;
+#endif
 
                 // The platform requests the microphone on enable, so this
                 // object is only created after the local consent and
@@ -150,6 +160,8 @@ namespace Amiss.Shell.Voice
                 service.DictationEvents.OnFullTranscription.AddListener(OnPlatformTranscription);
                 service.DictationEvents.OnError.AddListener(OnPlatformError);
                 host.SetActive(true);
+                Debug.Log("[Amiss] dictation input platform=" +
+                    service.HasPlatformIntegrations + " aec=" + AecActive);
                 return service;
             }
             catch (Exception)
@@ -165,7 +177,12 @@ namespace Amiss.Shell.Voice
             }
         }
 
-        void OnPlatformListening() => window?.Activated();
+        void OnPlatformListening()
+        {
+            Debug.Log("[Amiss] dictation listening platform=" + PlatformIntegrationActive +
+                " aec=" + AecActive);
+            window?.Activated();
+        }
 
         void OnPlatformPartialTranscription(string text) => window?.Partial(text);
 

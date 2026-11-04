@@ -53,6 +53,7 @@ namespace Amiss.Shell.Simulation
         }
 
         public TemperatureMeasurementParameters Parameters { get; }
+        public Action<string, int, int> SessionEventCommitted;
 
         /// <summary>Opens one swept bat contact; a second open contact is refused.</summary>
         public void OpenContact(string contactId, string propId, int startTick)
@@ -131,6 +132,8 @@ namespace Amiss.Shell.Simulation
             if (lastViewId != null)
                 readout = new TemperatureReadoutSnapshot(trialIdReader(), lastTick,
                     lastViewId, measurement, ledger, Revision);
+            if (entry != null)
+                SessionEventCommitted?.Invoke("effective_action", endTick, Revision);
             return new SweptClosure(active.ContactId, active.PropId, active.StartTick,
                 endTick, entry?.WorkJ ?? 0.0, closureReason, entry, true);
         }
@@ -173,6 +176,7 @@ namespace Amiss.Shell.Simulation
         /// </summary>
         public TemperatureReadoutSnapshot Publish(int tick, string viewId)
         {
+            var hadSufficientMeasurement = readout?.Measurement?.EquilibriumSufficient == true;
             var balls = viewReader() ?? Array.Empty<PublishedBall>();
             var energies = TemperatureMeasurementFace.Energies(balls);
             if (initialTK == null && energies.FreeCount >=
@@ -200,6 +204,8 @@ namespace Amiss.Shell.Simulation
             }
             readout = new TemperatureReadoutSnapshot(trialIdReader(), tick, viewId ?? "",
                 measurement, ledger, Revision);
+            if (measurement.EquilibriumSufficient && !hadSufficientMeasurement)
+                SessionEventCommitted?.Invoke("measurement_committed", tick, Revision);
             lastTick = tick;
             lastViewId = viewId ?? "";
             return readout;

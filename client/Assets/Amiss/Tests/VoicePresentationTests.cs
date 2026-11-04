@@ -174,6 +174,41 @@ namespace Amiss.Tests
             }
         }
 
+        [Test]
+        public void RuntimeDictationDoesNotClaimPlatformOrAecSupportInEditor()
+        {
+            var tokens = new WitTokenStore("amiss.test.voice_token_" + Guid.NewGuid().ToString("N"));
+            tokens.Save("editor-test-token");
+            var setup = new WitVoiceSetup(tokens);
+            var configuration = setup.Configuration;
+            var root = new GameObject("VoiceDictationTest");
+            var adapter = new WitDictationAdapter(setup, root.transform);
+            try
+            {
+                var ensure = typeof(WitDictationAdapter).GetMethod("EnsureService",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Assert.IsNotNull(ensure);
+                Assert.DoesNotThrow(() => ensure.Invoke(adapter, null));
+                var field = typeof(WitDictationAdapter).GetField("service",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var service = field.GetValue(adapter);
+                var property = service.GetType().GetProperty("UsePlatformIntegrations");
+                Assert.IsFalse((bool)property.GetValue(service));
+                Assert.IsFalse(adapter.PlatformIntegrationActive,
+                    "the editor does not prove Android platform integration");
+                Assert.IsFalse(adapter.AecActive, "no capture has started and no AEC is active");
+                var mic = root.AddComponent<AndroidAecMic>();
+                Assert.IsFalse(mic.AecActive);
+                Assert.AreEqual(48000, mic.GetMicSampleRate());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                UnityEngine.Object.DestroyImmediate(configuration);
+                tokens.Clear();
+            }
+        }
+
         static int Count(string text, string value)
         {
             var count = 0;

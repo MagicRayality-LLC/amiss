@@ -45,6 +45,7 @@
     {"name": "rejected result stage required", "file": "invalid/rejected-result-missing-stage.json", "schema": "validation-result.schema.json", "valid": false, "error": "requires reason and stage"},
     {"name": "confirmation is not standing authorization", "file": "invalid/confirmation-unknown-field.json", "schema": "confirmation.schema.json", "valid": false},
     {"name": "context excludes policy", "file": "invalid/context-policy-field.json", "schema": "context-payload.schema.json", "valid": false, "error": "unknown field"},
+    {"name": "context rejects stale session memory ref", "file": "invalid/context-session-memory-stale-ref.json", "schema": "context-payload.schema.json", "valid": false, "error": "session memory ref is absent"},
     {"name": "live provenance", "file": "valid/model-provenance-live.json", "schema": "model-provenance.schema.json", "valid": true},
     {"name": "recorded provenance with unreported usage", "file": "valid/model-provenance-recorded.json", "schema": "model-provenance.schema.json", "valid": true},
     {"name": "recorded call fixture", "file": "valid/recorded-call-fixture.json", "schema": "recorded-call-fixture.schema.json", "valid": true},

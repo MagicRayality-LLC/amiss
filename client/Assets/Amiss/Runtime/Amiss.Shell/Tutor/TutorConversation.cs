@@ -34,12 +34,15 @@ namespace Amiss.Shell.Tutor
         int sequence;
 
         public TutorConversation(DeviceTutorTransport transport, ValidationContext context,
-            Func<ContextPayloadSource> source)
+            Func<ContextPayloadSource> source, SessionMemory memory = null)
         {
             this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
             this.context = context ?? throw new ArgumentNullException(nameof(context));
             this.source = source ?? throw new ArgumentNullException(nameof(source));
+            Memory = memory ?? new SessionMemory();
         }
+
+        public SessionMemory Memory { get; }
 
         /// <summary>The last typed, key-free status line of this control.</summary>
         public string LastStatus { get; private set; } = "";
@@ -72,6 +75,12 @@ namespace Amiss.Shell.Tutor
             state.UtteranceId = utteranceId ?? "utterance-none";
             state.UtteranceText = utteranceText ?? "";
             RefreshContext(state);
+            state.SessionMemory = Memory;
+            Memory.ObserveStage(state.PolicyTokens?.StageId, state.Tick,
+                state.TrialId, state.TrialRevision);
+            var memoryRefs = new[] { new TrialReference(state.TrialId, state.TrialRevision) };
+            var memoryStage = state.PolicyTokens?.StageId ?? "unguided";
+            var memoryPolicy = state.PolicyTokens?.PolicyVersion ?? "none";
 
             System.Collections.Generic.Dictionary<string, object> payload;
             try
@@ -101,6 +110,11 @@ namespace Amiss.Shell.Tutor
                     " status=" + LastStatus);
                 return admission;
             }
+
+            if (admission.AcceptedSpeech.Count > 0)
+                Memory.RecordExchange(turnId,
+                    string.IsNullOrEmpty(state.UtteranceText) ? null : state.UtteranceText,
+                    admission.AcceptedSpeech, memoryRefs, memoryStage, memoryPolicy);
 
             LastSubtitle = admission.AcceptedSpeech.Count > 0
                 ? admission.AcceptedSpeech[0]

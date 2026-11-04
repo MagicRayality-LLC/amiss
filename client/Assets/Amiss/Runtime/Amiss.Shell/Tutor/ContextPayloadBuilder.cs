@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Amiss.Contracts;
 using Amiss.Shell.Evaluation;
 using Amiss.Shell.Simulation;
@@ -42,6 +43,7 @@ namespace Amiss.Shell.Tutor
 
         public string UtteranceId = "utterance-none";
         public string UtteranceText = "";
+        public SessionMemory SessionMemory;
     }
 
     /// <summary>
@@ -169,8 +171,9 @@ namespace Amiss.Shell.Tutor
             };
         }
 
-        static Dictionary<string, object> CompressedContext(ContextPayloadSource source) =>
-            new(StringComparer.Ordinal)
+        static Dictionary<string, object> CompressedContext(ContextPayloadSource source)
+        {
+            var context = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 // No session clock or profile store exists in this build, so the
                 // payload carries the oracle's declared zero and a null profile.
@@ -183,6 +186,75 @@ namespace Amiss.Shell.Tutor
                 },
                 ["minimal_profile"] = null
             };
+            var memory = source.SessionMemory;
+            if (memory == null)
+                return context;
+
+            var current = Ref(source.TrialId, source.TrialRevision);
+            var recent = new List<object>();
+            if (memory.TranscriptRetentionEnabled)
+                foreach (var exchange in memory.RecentExchanges)
+                {
+                    if (!CurrentRefs(exchange.Refs, current))
+                        continue;
+                    recent.Add(new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["turn_id"] = exchange.TurnId,
+                        ["user_text"] = exchange.UserText,
+                        ["agent_speech"] = exchange.AgentSpeech.ToArray(),
+                        ["refs"] = Refs(exchange.Refs),
+                        ["stage_id"] = exchange.StageId,
+                        ["policy_version"] = exchange.PolicyVersion
+                    });
+                }
+
+            var events = new List<object>();
+            foreach (var item in memory.SessionEvents)
+            {
+                if (!CurrentRefs(item.Refs, current))
+                    continue;
+                events.Add(new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["event_id"] = item.EventId,
+                    ["kind"] = item.Kind,
+                    ["tick"] = item.Tick,
+                    ["refs"] = Refs(item.Refs)
+                });
+            }
+
+            context["recent_exchanges"] = recent;
+            context["session_events"] = events;
+            while (CanonicalJson.Bytes(context).Length > MaxCompressedContextBytes &&
+                   (recent.Count > 0 || events.Count > 0))
+            {
+                if (recent.Count > 0)
+                    recent.RemoveAt(0);
+                else
+                    events.RemoveAt(0);
+            }
+            if (recent.Count == 0)
+                context.Remove("recent_exchanges");
+            if (events.Count == 0)
+                context.Remove("session_events");
+            return context;
+        }
+
+        static bool CurrentRefs(IEnumerable<TrialReference> remembered,
+            Dictionary<string, object> current)
+        {
+            var any = false;
+            foreach (var reference in remembered ?? Enumerable.Empty<TrialReference>())
+            {
+                any = true;
+                if (reference.TrialId != (string)current["trial_id"] ||
+                    reference.Revision != (int)current["trial_revision"])
+                    return false;
+            }
+            return any;
+        }
+
+        static List<object> Refs(IEnumerable<TrialReference> refs) =>
+            refs.Select(item => (object)Ref(item.TrialId, item.Revision)).ToList();
 
         /// <summary>
         /// One bounded projection of the committed current Trial. The groups
