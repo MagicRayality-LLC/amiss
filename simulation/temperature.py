@@ -8,6 +8,7 @@ device result. Values that 07 section 11 leaves to a later measurement are
 declared here with an uncalibrated label.
 """
 
+from copy import deepcopy
 from dataclasses import dataclass, replace
 import math
 
@@ -424,3 +425,65 @@ class TemperatureEnergyLedger:
         if not isinstance(entry, EnergyContactEntry):
             raise ValueError("contact_entry_invalid")
         return replace(self, contacts=self.contacts + (entry,))
+
+
+# Teacher-operated distribution parameters (founder decision 2026-11-04,
+# option A, distribution-preserving). The teacher sets group-level scalars
+# only — count, uniform mass, random-component speed scale, and one drift
+# vector — and local deterministic sampling produces the balls. Every key is
+# a scalar, so the public ``TargetParameters`` scalar-only contract, the
+# one-input delta, and the per-object state-vector rejection all stand.
+# ``teacher-controlled-group`` is a hackathon-build episode parametrization
+# recorded in ``private/design/next.md``; it does not rewrite the 07 section
+# 5.1 families. Declared bounds are candidates (``UNCALIBRATED``): count
+# spans the single opening ball to the model maximum, speeds and drift span
+# the device held-input limit, and uniform mass spans quarter to four times
+# the engine ball, covering the P1 1x/4x contrast without per-ball masses.
+
+TEACHER_GROUP_FAMILY_ID = "teacher-controlled-group"
+
+TEACHER_GROUP_DEFAULT_PARAMETERS = {
+    "ball_count": 8,
+    "initial_speed_scale": 1.0,
+    "ball_mass_kg": 1.0,
+    "drift_vx_m_per_s": 0.0,
+    "drift_vy_m_per_s": 0.0,
+    "drift_vz_m_per_s": 0.0,
+}
+
+TEACHER_GROUP_CONTROLLABLE_INPUTS = {
+    "ball_count": {"minimum": 1, "maximum": 72},
+    "initial_speed_scale": {"minimum": 0.0, "maximum": 6.0},
+    "ball_mass_kg": {"minimum": 0.25, "maximum": 4.0},
+    "drift_vx_m_per_s": {"minimum": -6.0, "maximum": 6.0},
+    "drift_vy_m_per_s": {"minimum": -6.0, "maximum": 6.0},
+    "drift_vz_m_per_s": {"minimum": -6.0, "maximum": 6.0},
+}
+
+TEACHER_GROUP_DOWNSTREAM_EFFECT_IDS = ("initial-conditions",)
+
+TEACHER_GROUP_INVARIANT_IDS = ("finite-state",)
+
+
+def teacher_group_declarations():
+    """Tool declarations for the teacher's create/derive proposals.
+
+    Both operations share one setup family, one closed scalar parameter set,
+    and one downstream effect. Action ids match the public stage-data
+    catalogue so guide tokens admit them unchanged.
+    """
+    from .validator import ToolDeclaration
+
+    return [
+        ToolDeclaration(
+            action_id=f"action-trial.propose-{operation}",
+            tool="trial.propose",
+            operation=operation,
+            setup_family_id=TEACHER_GROUP_FAMILY_ID,
+            controllable_inputs=deepcopy(TEACHER_GROUP_CONTROLLABLE_INPUTS),
+            default_parameters=dict(TEACHER_GROUP_DEFAULT_PARAMETERS),
+            downstream_effect_ids=TEACHER_GROUP_DOWNSTREAM_EFFECT_IDS,
+            invariant_ids=TEACHER_GROUP_INVARIANT_IDS,
+        )
+        for operation in ("create", "derive")
+    ]

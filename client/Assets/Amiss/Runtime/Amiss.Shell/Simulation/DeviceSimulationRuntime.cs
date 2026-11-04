@@ -277,7 +277,8 @@ namespace Amiss.Shell.Simulation
             var streams = new NamedRandomStreams(request.RootSeed);
             if (!BallSpawner.TrySpawn(streams, request.BallCount,
                     FrozenWriterConfiguration.BallRadiusM, FrozenWriterConfiguration.BallMassKg,
-                    FrozenWriterConfiguration.InitialSpeedScaleMPerS, collision.Region,
+                    FrozenWriterConfiguration.InitialSpeedScaleMPerS, Vector3.zero,
+                    collision.Region,
                     collision.Obstacles, FrozenWriterConfiguration.SpawnAttemptBound,
                     out var balls, out var spawnReason))
                 return TrialStartOutcome.Refused(request.TrialId, TrialStartRefusal.SpawnFailed,

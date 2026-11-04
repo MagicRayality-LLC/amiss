@@ -13,13 +13,16 @@ namespace Amiss.Shell.Simulation
     /// non-overlapping balls inside the usable region, within a declared
     /// attempt bound. Exhausting the bound rejects the setup; it never
     /// reduces the ball count or overlaps balls to make a card pass.
+    /// The teacher's group drift vector is added after the random draws, so
+    /// zero drift reproduces the exact pre-drift spawn, and zero spread plus
+    /// drift gives one ball its exact specified velocity.
     /// </summary>
     public static class BallSpawner
     {
         public static bool TrySpawn(NamedRandomStreams streams, int ballCount,
-            float radiusM, float massKg, float speedScaleMPerS, Bounds region,
-            IReadOnlyList<Bounds> excluded, int attemptBound, out BallState[] balls,
-            out string reason)
+            float radiusM, float massKg, float speedScaleMPerS, Vector3 driftMPerS,
+            Bounds region, IReadOnlyList<Bounds> excluded, int attemptBound,
+            out BallState[] balls, out string reason)
         {
             balls = Array.Empty<BallState>();
             reason = "";
@@ -31,6 +34,11 @@ namespace Amiss.Shell.Simulation
             if (ballCount <= 0)
             {
                 reason = "ball_count_invalid";
+                return false;
+            }
+            if (!Room.RoomGeometry.IsFinite(driftMPerS))
+            {
+                reason = "drift_not_finite";
                 return false;
             }
             if (!Room.RoomGeometry.IsFinite(region.center) ||
@@ -64,9 +72,9 @@ namespace Amiss.Shell.Simulation
                         region.min.y + radiusM + (float)draws[1] * span.y,
                         region.min.z + radiusM + (float)draws[2] * span.z);
                     var velocity = new Vector3(
-                        ((float)draws[3] * 2f - 1f) * speedScaleMPerS,
-                        ((float)draws[4] * 2f - 1f) * speedScaleMPerS,
-                        ((float)draws[5] * 2f - 1f) * speedScaleMPerS);
+                        ((float)draws[3] * 2f - 1f) * speedScaleMPerS + driftMPerS.x,
+                        ((float)draws[4] * 2f - 1f) * speedScaleMPerS + driftMPerS.y,
+                        ((float)draws[5] * 2f - 1f) * speedScaleMPerS + driftMPerS.z);
 
                     if (!IsClear(position, radiusM, placed, excluded))
                         continue;

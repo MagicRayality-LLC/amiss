@@ -23,8 +23,11 @@ namespace Amiss.Tests
         static (RoomPreparation room, CollisionPin pin, PinnedCollision pinned) AcceptedPinned(
             string trialId)
         {
+            // A 2 m room: the 1.8 m swing cube around the standing user must fit
+            // inside the region or Confirm refuses with UnsafeRegion. A smaller
+            // fixture room can never confirm, so it cannot host writer tests.
             var manual = RoomDraft.CreateManual(
-                new Bounds(new Vector3(0f, 0.8f, 0f), new Vector3(1.6f, 1.6f, 1.6f)),
+                new Bounds(new Vector3(0f, 1f, 0f), new Vector3(2f, 2f, 2f)),
                 Vector3.zero, Vector3.forward);
             var room = new RoomPreparation();
             var id = room.Begin(1.0);
@@ -334,9 +337,8 @@ namespace Amiss.Tests
         [Test]
         public void DispersalCarriesNoPhysicsAndStaysInBudget()
         {
-            SandbagModel.TriggerDispersal(new Vector3(0f, 1.2f, 0.4f),
+            var root = SandbagModel.TriggerDispersal(new Vector3(0f, 1.2f, 0.4f),
                 SandbagModel.ReferenceAbsorptionJ);
-            var root = GameObject.Find("SandbagDispersal");
             try
             {
                 Assert.IsNotNull(root, "dispersal builds a transient root");

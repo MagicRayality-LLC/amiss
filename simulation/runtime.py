@@ -471,12 +471,31 @@ class HeadlessBallWriter:
         self.palm_field = None
 
     def setup(self, streams, setup_parameters, collision):
+        # Teacher distribution knobs (founder decision 2026-11-04, option A):
+        # count, uniform mass, random-component speed scale, and one group
+        # drift vector. All are scalars, so the tool-schema scalar-only rule
+        # stands: no per-ball list ever reaches the writer. The drift is added
+        # after the named-stream draws, so zero drift reproduces the exact
+        # pre-drift state bit for bit, and zero spread plus drift gives one
+        # ball its exact specified velocity (the opening_single_ball line).
         count = int(setup_parameters.get("ball_count", 8))
         if count < 0:
             raise RuntimeContractError("invalid_ball_count")
         radius = float(setup_parameters.get("ball_radius_m", 0.05))
+        if not _finite_number(radius) or radius <= 0.0:
+            raise RuntimeContractError("invalid_ball_radius")
         mass = float(setup_parameters.get("ball_mass_kg", DECLARED_BALL_MASS_KG))
+        if not _finite_number(mass) or mass <= 0.0:
+            raise RuntimeContractError("invalid_ball_mass")
         speed_scale = float(setup_parameters.get("initial_speed_scale", 1.0))
+        if not _finite_number(speed_scale) or speed_scale < 0.0:
+            raise RuntimeContractError("invalid_speed_scale")
+        drift = [
+            float(setup_parameters.get(f"drift_v{axis}_m_per_s", 0.0))
+            for axis in ("x", "y", "z")
+        ]
+        if any(not _finite_number(value) for value in drift):
+            raise RuntimeContractError("non_finite_input")
         bounds = collision.bounds()
         balls = {}
         for index in range(count):
@@ -491,7 +510,8 @@ class HeadlessBallWriter:
                 for axis in range(3)
             ]
             velocity = [
-                (draws[3 + axis] * 2.0 - 1.0) * speed_scale for axis in range(3)
+                (draws[3 + axis] * 2.0 - 1.0) * speed_scale + drift[axis]
+                for axis in range(3)
             ]
             balls[entity_id] = {
                 "entity_id": entity_id,

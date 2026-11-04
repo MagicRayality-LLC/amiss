@@ -90,12 +90,14 @@ namespace Amiss.Shell
         /// measured absorbed joules. Founder decision 2026-11-04 (recorded
         /// in `private/design/next.md`): this is for fun and does not claim
         /// the bag measures temperature. Pure presentation: no colliders, no
-        /// impulse, cleaned up a few seconds later.
+        /// impulse, cleaned up a few seconds later. Returns the transient
+        /// root (null for invalid inputs) so tests can inspect the debris
+        /// they must then destroy.
         /// </summary>
-        public static void TriggerDispersal(Vector3 positionM, double absorbedJ)
+        public static GameObject TriggerDispersal(Vector3 positionM, double absorbedJ)
         {
             if (!float.IsFinite(positionM.x + positionM.y + positionM.z))
-                return;
+                return null;
             if (!double.IsFinite(absorbedJ) || absorbedJ < 0.0)
                 absorbedJ = 0.0;
             var intensity = Mathf.Clamp01((float)(absorbedJ / ReferenceAbsorptionJ));
@@ -107,6 +109,7 @@ namespace Amiss.Shell
             BuildGlitter(root.transform, intensity);
             BuildConfetti(root.transform, intensity);
             DestroyObject(root, 3.5f);
+            return root;
         }
 
         /// <summary>Main chrysanthemum burst with per-particle trails.</summary>
@@ -483,8 +486,12 @@ namespace Amiss.Shell
                 return;
             if (Application.isPlaying)
                 Object.Destroy(target, delay);
-            else
+            else if (delay <= 0f)
                 Object.DestroyImmediate(target);
+            // EditMode has no delayed destroy: a delayed transient (the
+            // dispersal root) stays alive for the test that owns it to
+            // inspect and destroy. Destroying it here would make it
+            // unobservable by construction.
         }
     }
 

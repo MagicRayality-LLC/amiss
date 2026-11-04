@@ -1,4 +1,8 @@
 using UnityEngine;
+// NOTE: the bare name `Input` inside `Amiss.Shell.*` resolves to the
+// `Amiss.Shell.Input` namespace instead of Unity's `Input` class (a file-level
+// alias does not win over that), so every engine input call below is fully
+// qualified as `UnityEngine.Input`.
 
 namespace Amiss.Shell.Cooling
 {
@@ -23,19 +27,19 @@ namespace Amiss.Shell.Cooling
             if (!left || !right) return;
 #if ENABLE_LEGACY_INPUT_MANAGER
             float dt = Time.deltaTime;
-            distance += Input.mouseScrollDelta.y * 0.02f;
-            if (Input.GetKey(KeyCode.W)) distance -= 0.25f * dt;
-            if (Input.GetKey(KeyCode.S)) distance += 0.25f * dt;
+            distance += UnityEngine.Input.mouseScrollDelta.y * 0.02f;
+            if (UnityEngine.Input.GetKey(KeyCode.W)) distance -= 0.25f * dt;
+            if (UnityEngine.Input.GetKey(KeyCode.S)) distance += 0.25f * dt;
             distance = Mathf.Clamp(distance, 0.04f, 0.95f);
-            if (Input.GetMouseButton(1)) { yaw += Input.GetAxis("Mouse X") * 3f; pitch -= Input.GetAxis("Mouse Y") * 3f; }
-            if (Input.GetKey(KeyCode.Q)) tiltDeg += 40f * dt;
-            if (Input.GetKey(KeyCode.E)) tiltDeg -= 40f * dt;
-            Vector3 mv = new Vector3((Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0),
-                                     (Input.GetKey(KeyCode.R) ? 1 : 0) - (Input.GetKey(KeyCode.F) ? 1 : 0), 0) * 0.3f * dt;
+            if (UnityEngine.Input.GetMouseButton(1)) { yaw += UnityEngine.Input.GetAxis("Mouse X") * 3f; pitch -= UnityEngine.Input.GetAxis("Mouse Y") * 3f; }
+            if (UnityEngine.Input.GetKey(KeyCode.Q)) tiltDeg += 40f * dt;
+            if (UnityEngine.Input.GetKey(KeyCode.E)) tiltDeg -= 40f * dt;
+            Vector3 mv = new Vector3((UnityEngine.Input.GetKey(KeyCode.D) ? 1 : 0) - (UnityEngine.Input.GetKey(KeyCode.A) ? 1 : 0),
+                                     (UnityEngine.Input.GetKey(KeyCode.R) ? 1 : 0) - (UnityEngine.Input.GetKey(KeyCode.F) ? 1 : 0), 0) * 0.3f * dt;
             transform.position += transform.rotation * mv;
-            if (Input.GetKeyDown(KeyCode.Alpha1)) left.openness = left.openness > 0.5f ? 0.1f : 1f;
-            if (Input.GetKeyDown(KeyCode.Alpha2)) right.openness = right.openness > 0.5f ? 0.1f : 1f;
-            if (Input.GetKeyDown(KeyCode.Space)) left.tracked = right.tracked = !left.tracked;
+            if (UnityEngine.Input.GetKeyDown(KeyCode.Alpha1)) left.openness = left.openness > 0.5f ? 0.1f : 1f;
+            if (UnityEngine.Input.GetKeyDown(KeyCode.Alpha2)) right.openness = right.openness > 0.5f ? 0.1f : 1f;
+            if (UnityEngine.Input.GetKeyDown(KeyCode.Space)) left.tracked = right.tracked = !left.tracked;
 #endif
 
             transform.rotation = Quaternion.Euler(pitch, yaw, 0);

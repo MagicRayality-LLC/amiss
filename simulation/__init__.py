@@ -41,9 +41,15 @@ from .temperature import (
     TemperatureEnergyLedger,
     TemperatureMeasurement,
     TemperatureModelDeclaration,
+    TEACHER_GROUP_CONTROLLABLE_INPUTS,
+    TEACHER_GROUP_DEFAULT_PARAMETERS,
+    TEACHER_GROUP_DOWNSTREAM_EFFECT_IDS,
+    TEACHER_GROUP_FAMILY_ID,
+    TEACHER_GROUP_INVARIANT_IDS,
     compute_space_sizing,
     even_ball_count,
     measure_temperature,
+    teacher_group_declarations,
 )
 from .transport import (
     AdmissionResult,
@@ -104,6 +110,11 @@ __all__ = [
     "TemperatureEnergyLedger",
     "TemperatureMeasurement",
     "TemperatureModelDeclaration",
+    "TEACHER_GROUP_CONTROLLABLE_INPUTS",
+    "TEACHER_GROUP_DEFAULT_PARAMETERS",
+    "TEACHER_GROUP_DOWNSTREAM_EFFECT_IDS",
+    "TEACHER_GROUP_FAMILY_ID",
+    "TEACHER_GROUP_INVARIANT_IDS",
     "ToolDeclaration",
     "TransportError",
     "TransportFailure",
@@ -126,4 +137,5 @@ __all__ = [
     "redact_request_for_log",
     "request_hash",
     "round_trip_units",
+    "teacher_group_declarations",
 ]
