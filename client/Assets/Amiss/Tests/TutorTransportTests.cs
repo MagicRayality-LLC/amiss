@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Amiss.Shell;
+using Amiss.Shell.Episodes;
 using Amiss.Shell.Evaluation;
 using Amiss.Shell.Ports;
 using Amiss.Shell.Simulation;
@@ -618,6 +619,74 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void TheTeacherReadsTheCurrentStatisticsNumbersOfTheTrial()
+        {
+            var context = Context();
+            var payload = ContextPayloadBuilder.Build(Source(context));
+
+            var projection = (IReadOnlyDictionary<string, object>)
+                ((IEnumerable<object>)payload["comparison_package"]).First();
+            var extension = (IReadOnlyDictionary<string, object>)projection["episode_extension"];
+            Assert.AreEqual(EpisodeId, ProposalValidator.Text(extension, "namespace"));
+            var facts = (IReadOnlyDictionary<string, object>)extension["facts"];
+
+            var space = (IReadOnlyDictionary<string, object>)facts["space_sizing"];
+            Assert.AreEqual(3, (int)space["computed_n"]);
+            Assert.AreEqual(true, (bool)space["is_opening_override_n"]);
+
+            var particles = (IReadOnlyDictionary<string, object>)facts["particles"];
+            Assert.AreEqual(3, (int)particles["n_total"]);
+            Assert.AreEqual(3, (int)particles["n_free"]);
+            Assert.AreEqual(0, (int)particles["n_held"]);
+            var group = (IReadOnlyDictionary<string, object>)
+                ((IEnumerable<object>)particles["groups"]).First();
+            Assert.AreEqual(3, (int)group["count_free"]);
+            Assert.AreEqual(1.1, (double)group["v_rms_m_per_s"], 1e-12);
+
+            var energy = (IReadOnlyDictionary<string, object>)facts["energy_ledger"];
+            Assert.AreEqual(3.0, (double)energy["initial_total_ke_j"], 1e-12);
+            Assert.AreEqual(1.0, (double)energy["work_events_cumulative_ke_j"], 1e-12);
+            Assert.AreEqual(0.5, (double)energy["sandbag_absorbed_ke_cumulative_j"], 1e-12);
+
+            // The current temperature is readable as the unrounded instant
+            // value and as the producer-owned K/C/F display tuple.
+            var readout = (IReadOnlyDictionary<string, object>)facts["temperature_readout"];
+            Assert.AreEqual("valid", ProposalValidator.Text(readout, "status"));
+            Assert.AreEqual(300.0, (double)readout["instant_k"], 1e-12);
+            Assert.AreEqual(11, (int)readout["sample_count"]);
+            var display = (IReadOnlyDictionary<string, object>)readout["display_tuple"];
+            Assert.AreEqual(300, (int)display["k"]);
+            Assert.AreEqual(27, (int)display["c"]);
+            Assert.AreEqual(80, (int)display["f"]);
+            Assert.AreEqual(1.0, (double)display["ratio_to_baseline_k"], 1e-12);
+
+            var kinematics =
+                (IReadOnlyDictionary<string, object>)facts["kinematics_and_equilibrium"];
+            Assert.AreEqual(1.0, (double)kinematics["mean_speed_mps"], 1e-12);
+            Assert.AreEqual(1.1, (double)kinematics["v_rms_mps"], 1e-12);
+            Assert.AreEqual(1.0,
+                (double)((IEnumerable<object>)kinematics["v_cm_vec"]).First(), 1e-12);
+
+            var props = (IReadOnlyDictionary<string, object>)facts["prop_summary"];
+            var counts = (IReadOnlyDictionary<string, object>)props["contact_counts_by_prop"];
+            Assert.AreEqual(1, (int)counts[BatTool.PropId]);
+            var latest = (IReadOnlyDictionary<string, object>)props["latest_contact"];
+            Assert.AreEqual(1.0, (double)latest["delta_energy_j"], 1e-12);
+            Assert.AreEqual(BatTool.PropId, ProposalValidator.Text(latest, "prop_id"));
+
+            // The wire request the model receives carries those same numbers.
+            var request = EvaluationRequestBuilder.Build(payload,
+                new PolicyEnvelope("synthetic-policy-v1", "Synthetic fixture policy."),
+                "request-a", "turn-a", "answer");
+            StringAssert.Contains("\"instant_k\":300.0", CanonicalJson.Text(request));
+            var wire = Encoding.UTF8.GetString(MetaChatCompletionCodec.RequestBytes(request));
+            StringAssert.Contains("instant_k", wire);
+            StringAssert.Contains("work_events_cumulative_ke_j", wire);
+            Assert.LessOrEqual(CanonicalJson.Bytes(payload).Length,
+                ContextPayloadBuilder.MaxPayloadBytes);
+        }
+
+        [Test]
         public void TheContextPayloadRefusesAnOversizedUtteranceAndNoTrial()
         {
             var context = Context();
@@ -908,6 +977,12 @@ namespace Amiss.Tests
                 new[] { 1.0, 1.0, 1.0 }, 1.0, 1.1, 300.0, 300.0, true,
                 TemperatureDisplayTuple.FromKelvin(300.0, 300.0), "3N_free", 2,
                 "1.0.0", "1.0.0");
+            var ledger = new TemperatureEnergyLedger(3.0, 3.0, 3.0, 0.0, 0.0, 0.5,
+                new[]
+                {
+                    new EnergyContactEntry("contact-0001", BatTool.PropId, "ball-0001",
+                        0, 4, 1.0, "separated")
+                });
             return new ContextPayloadSource
             {
                 EpisodeId = EpisodeId,
@@ -924,6 +999,10 @@ namespace Amiss.Tests
                 RegionSizeM = new Vector3(2f, 2.5f, 2f),
                 EffectiveVolumeM3 = 10.0,
                 Measurement = measurement,
+                Ledger = ledger,
+                Sizing = TemperatureSpaceSizing.Compute(10.0,
+                    isOpeningOverrideN: true, openingBallCount: 3),
+                BallCount = 3,
                 PolicyTokens = context.PolicyTokens
             };
         }

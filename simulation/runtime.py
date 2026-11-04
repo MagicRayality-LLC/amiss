@@ -356,6 +356,20 @@ EFFECTIVE_K_B_J_PER_K = (
     / (3.0 * SCALE_POINT_T_K)
 )
 
+# Founder energy balance unit (2026-11-04), mirrored by the device tools. One
+# unit is a declared uncalibrated candidate: a fist hit adds 1, a bat strike
+# adds 10, the cloth bag absorbs 10, and a ball below the palm capture speed is
+# trapped instead of passing through. A tool slower than the minimum strike
+# speed adds nothing, so a held-still hand cannot warm the balls. Every applied
+# change is still measured by the writer, so the ledger keeps real signed work.
+ENERGY_QUANTUM_J = 0.05
+FIST_ENERGY_DELTA_J = ENERGY_QUANTUM_J
+BAT_ENERGY_DELTA_J = 10.0 * ENERGY_QUANTUM_J
+SANDBAG_ENERGY_DELTA_J = 10.0 * ENERGY_QUANTUM_J
+PALM_CAPTURE_SPEED_M_PER_S = 0.5
+PALM_PASS_ENERGY_DELTA_J = ENERGY_QUANTUM_J
+MINIMUM_STRIKE_SPEED_M_PER_S = 1.0
+
 
 DEFAULT_UNIT_CONVENTION = {
     "unit_convention_id": "si-model-v1",
@@ -467,8 +481,15 @@ class HeadlessBallWriter:
     def __init__(self):
         # Persistent optical-trap-style cooling field between two palms.
         # None when the field art is off; otherwise a dict with endpoints,
-        # waist/mouth radii, and the molasses damping coefficient beta (1/s).
+        # waist/mouth radii, the molasses damping coefficient beta (1/s), and
+        # the capture speed (m/s) below which a ball is held at the centre.
         self.palm_field = None
+        self._palm_trapped = set()
+        self._palm_inside = set()
+        # One strike per ball per open tool contact: a swing may submit a
+        # sample every Tick, but the founder's balance unit is per hit.
+        self._contact_sweep_hits = {}
+        self._active_sweep_contact = ""
 
     def setup(self, streams, setup_parameters, collision):
         # Teacher distribution knobs (founder decision 2026-11-04, option A):
@@ -521,6 +542,10 @@ class HeadlessBallWriter:
                 "radius_m": radius,
                 "membership": "free",
             }
+        self._palm_trapped = set()
+        self._palm_inside = set()
+        self._contact_sweep_hits = {}
+        self._active_sweep_contact = ""
         return {"balls": balls}
 
     @staticmethod
@@ -530,21 +555,29 @@ class HeadlessBallWriter:
         )
 
     def set_palm_field(self, endpoint_a_m, endpoint_b_m, *, waist_radius_m,
-                       mouth_radius_m, beta_per_s):
-        """Arm the hourglass cooling field between two open palms.
+                       mouth_radius_m,
+                       pass_energy_delta_j=PALM_PASS_ENERGY_DELTA_J,
+                       capture_speed_m_per_s=0.0):
+        """Arm the hourglass field between two open palms.
 
         The tube is wide at the palms (mouth_radius_m) and pinched at the
-        waist (waist_radius_m), like the optical trap used to cool atoms:
-        balls inside feel optical-molasses drag F = -m*beta*v. Beta is the
-        damping coefficient in 1/s; velocities scale by exp(-beta*dt).
+        waist (waist_radius_m), like the optical trap used to cool atoms. A
+        ball crossing the tube loses one declared energy unit on each new
+        pass, clamped to its own kinetic energy. A ball slower than
+        capture_speed_m_per_s is trapped instead: it leaves the free set and
+        is held at the field centre until the field clears, keeping the
+        velocity it had so the held account owns its energy.
         """
         for value in list(endpoint_a_m) + list(endpoint_b_m):
             if not _finite_number(value):
                 raise RuntimeContractError("non_finite_input")
-        for value in (waist_radius_m, mouth_radius_m, beta_per_s):
+        for value in (waist_radius_m, mouth_radius_m, pass_energy_delta_j,
+                      capture_speed_m_per_s):
             if not _finite_number(value):
                 raise RuntimeContractError("non_finite_input")
-        if waist_radius_m <= 0.0 or mouth_radius_m <= 0.0 or beta_per_s < 0.0:
+        if waist_radius_m <= 0.0 or mouth_radius_m <= 0.0:
+            raise RuntimeContractError("invalid_palm_field")
+        if pass_energy_delta_j <= 0.0 or capture_speed_m_per_s < 0.0:
             raise RuntimeContractError("invalid_palm_field")
         separation = math.sqrt(math.fsum(
             (endpoint_b_m[axis] - endpoint_a_m[axis]) ** 2 for axis in range(3)))
@@ -555,40 +588,90 @@ class HeadlessBallWriter:
             "endpoint_b_m": [float(endpoint_b_m[axis]) for axis in range(3)],
             "waist_radius_m": float(waist_radius_m),
             "mouth_radius_m": float(mouth_radius_m),
-            "beta_per_s": float(beta_per_s),
+            "pass_energy_delta_j": float(pass_energy_delta_j),
+            "capture_speed_m_per_s": float(capture_speed_m_per_s),
         }
 
     def clear_palm_field(self):
         self.palm_field = None
+        self._palm_inside.clear()
 
     def _apply_palm_field(self, state, delta_s, facts):
         field = self.palm_field
-        if field is None or field["beta_per_s"] <= 0.0 or delta_s <= 0.0:
+        if field is None:
+            if self._palm_trapped:
+                # The palms dropped the field: release the trapped balls as
+                # free, at rest at the centre with their captured velocity.
+                for entity_id in sorted(self._palm_trapped):
+                    ball = state["balls"].get(entity_id)
+                    if ball is not None and ball["membership"] == "held":
+                        ball["membership"] = "free"
+                self._palm_trapped.clear()
+            return
+        if delta_s <= 0.0:
             return
         axis = [field["endpoint_b_m"][i] - field["endpoint_a_m"][i] for i in range(3)]
         length_sq = math.fsum(component * component for component in axis)
         if length_sq <= 0.0:
             return
-        factor = math.exp(-field["beta_per_s"] * delta_s)
-        if factor >= 1.0:
-            return
+        pass_energy = field["pass_energy_delta_j"]
+        capture_speed = field.get("capture_speed_m_per_s", 0.0)
+        center = [
+            0.5 * (field["endpoint_a_m"][i] + field["endpoint_b_m"][i])
+            for i in range(3)
+        ]
         waist = field["waist_radius_m"]
         mouth = field["mouth_radius_m"]
+
+        # A trapped ball rides the moving field centre and keeps the velocity
+        # it had at capture, so the held account owns its energy.
+        for entity_id in sorted(self._palm_trapped):
+            ball = state["balls"].get(entity_id)
+            if ball is None or ball["membership"] != "held":
+                self._palm_trapped.discard(entity_id)
+                continue
+            ball["position_m"] = list(center)
+
         for entity_id in sorted(state["balls"]):
             ball = state["balls"][entity_id]
             if ball["membership"] != "free":
+                self._palm_inside.discard(entity_id)
                 continue
             relative = [ball["position_m"][i] - field["endpoint_a_m"][i] for i in range(3)]
             fraction = math.fsum(relative[i] * axis[i] for i in range(3)) / length_sq
-            if fraction < 0.0 or fraction > 1.0:
+            inside = False
+            if 0.0 <= fraction <= 1.0:
+                closest = [field["endpoint_a_m"][i] + axis[i] * fraction for i in range(3)]
+                distance = math.sqrt(math.fsum(
+                    (ball["position_m"][i] - closest[i]) ** 2 for i in range(3)))
+                tube_radius = waist + (mouth - waist) * abs(2.0 * fraction - 1.0) ** 1.5
+                inside = distance <= tube_radius + 0.5 * ball["radius_m"]
+            if not inside:
+                self._palm_inside.discard(entity_id)
                 continue
-            closest = [field["endpoint_a_m"][i] + axis[i] * fraction for i in range(3)]
-            distance = math.sqrt(math.fsum(
-                (ball["position_m"][i] - closest[i]) ** 2 for i in range(3)))
-            tube_radius = waist + (mouth - waist) * abs(2.0 * fraction - 1.0) ** 1.5
-            if distance > tube_radius + 0.5 * ball["radius_m"]:
+            speed = math.sqrt(math.fsum(
+                v * v for v in ball["velocity_m_per_s"]))
+            if capture_speed > 0.0 and speed <= capture_speed:
+                ball["membership"] = "held"
+                ball["position_m"] = list(center)
+                self._palm_trapped.add(entity_id)
+                self._palm_inside.discard(entity_id)
+                facts["applied_effects"].append({
+                    "effect_kind": "palm_trap",
+                    "entity_id": entity_id,
+                    "energy_delta_j": 0.0,
+                })
+                facts["palm_trapped_count"] = facts.get("palm_trapped_count", 0) + 1
                 continue
+            if entity_id in self._palm_inside:
+                continue
+            # A new pass through the tube removes exactly one balance unit.
+            self._palm_inside.add(entity_id)
             before = self._ball_energy(ball)
+            removed = min(pass_energy, before)
+            if removed <= 0.0:
+                continue
+            factor = math.sqrt(max(0.0, 1.0 - removed / before))
             for i in range(3):
                 ball["velocity_m_per_s"][i] *= factor
             facts["applied_effects"].append({
@@ -617,8 +700,15 @@ class HeadlessBallWriter:
             for axis in range(3):
                 ball["velocity_m_per_s"][axis] += effect["delta_v_m_per_s"][axis]
         elif kind == "damping":
+            if "energy_delta_j" in effect:
+                removed = min(effect["energy_delta_j"], before)
+                if removed <= 0.0:
+                    return
+                factor = math.sqrt(max(0.0, 1.0 - removed / before))
+            else:
+                factor = effect["factor"]
             for axis in range(3):
-                ball["velocity_m_per_s"][axis] *= effect["factor"]
+                ball["velocity_m_per_s"][axis] *= factor
         else:
             return
         applied = {
@@ -637,6 +727,11 @@ class HeadlessBallWriter:
         # A point sweep omits origin_b and is the degenerate segment. Each ball
         # couples to the closest point on that segment and to the velocity
         # measured there, so a rotating bat's tip moves faster than its grip.
+        interaction_id = effect.get("interaction_id", "")
+        if interaction_id != self._active_sweep_contact:
+            self._active_sweep_contact = interaction_id
+            self._contact_sweep_hits.clear()
+        hits = self._contact_sweep_hits.setdefault(interaction_id, set())
         origin = effect["origin_m"]
         end = effect.get("origin_b_m", origin)
         segment = [end[axis] - origin[axis] for axis in range(3)]
@@ -671,6 +766,11 @@ class HeadlessBallWriter:
                 + (end_velocity[axis] - origin_velocity[axis]) * tool_parameter
                 for axis in range(3)
             ]
+            # A held-still tool adds no energy even if a contact stays open
+            # or a ball drifts into it.
+            tool_speed = math.sqrt(math.fsum(v * v for v in velocity))
+            if tool_speed < MINIMUM_STRIKE_SPEED_M_PER_S:
+                continue
             sweep_delta = [velocity[axis] * delta_s for axis in range(3)]
             length_sq = math.fsum(component * component for component in sweep_delta)
             relative = [
@@ -702,6 +802,8 @@ class HeadlessBallWriter:
             reach = effect["radius_m"] + ball["radius_m"]
             if distance > reach:
                 continue
+            if entity_id in hits:
+                continue
             if distance <= 1e-9:
                 # A ball on the swept path has no meaningful perpendicular;
                 # push it along the tool's motion instead of a rounding noise
@@ -714,9 +816,22 @@ class HeadlessBallWriter:
             else:
                 direction = [component / distance for component in distance_vector]
             before = self._ball_energy(ball)
-            magnitude = effect["impulse_magnitude"]
+            if "energy_delta_j" in effect:
+                # The founder balance mode adds a fixed kinetic energy along
+                # the push direction: solve |v + p*n|^2 = |v|^2 + 2E/m.
+                along_normal = math.fsum(
+                    direction[axis] * ball["velocity_m_per_s"][axis]
+                    for axis in range(3)
+                )
+                magnitude = -along_normal + math.sqrt(
+                    along_normal * along_normal
+                    + 2.0 * effect["energy_delta_j"] / ball["mass_kg"]
+                )
+            else:
+                magnitude = effect["impulse_magnitude"]
             for axis in range(3):
                 ball["velocity_m_per_s"][axis] += direction[axis] * magnitude
+            hits.add(entity_id)
             facts["applied_effects"].append(
                 {
                     "effect_kind": "sweep",
@@ -923,14 +1038,21 @@ class TrialMechanics:
         }
         return deepcopy(contact["closure"])
 
-    def register_prop(self, prop_id, *, damping_factor=0.5):
+    def register_prop(self, prop_id, *, damping_factor=0.5, energy_delta_j=None):
         if prop_id in self.props:
             raise RuntimeContractError("duplicate_prop_id")
+        if energy_delta_j is not None and (
+            not _finite_number(energy_delta_j) or energy_delta_j <= 0.0
+        ):
+            raise RuntimeContractError("invalid_prop_energy_delta")
         self.props[prop_id] = {
             "prop_id": prop_id,
             "kind": "one_shot_consumable",
             "state": "unused",
             "damping_factor": float(damping_factor),
+            "energy_delta_j": (
+                None if energy_delta_j is None else float(energy_delta_j)
+            ),
             "absorbed_energy_j": 0.0,
         }
         return deepcopy(self.props[prop_id])
@@ -1026,12 +1148,15 @@ class TrialMechanics:
             prop = self._trigger_prop(parameters["prop_id"])
             if prop is None:
                 return None
-            return {
+            effect = {
                 "effect_kind": "damping",
                 "entity_id": parameters["entity_id"],
                 "factor": prop["damping_factor"],
                 "prop_id": parameters["prop_id"],
             }
+            if prop["energy_delta_j"] is not None:
+                effect["energy_delta_j"] = prop["energy_delta_j"]
+            return effect
         if operation == "grab":
             self.grab(parameters["entity_id"], next_tick=entry["target_tick"])
             return None
@@ -1049,8 +1174,11 @@ class TrialMechanics:
                 "origin_m": list(parameters["origin_m"]),
                 "velocity_m_per_s": list(parameters["velocity_m_per_s"]),
                 "radius_m": parameters["radius_m"],
-                "impulse_magnitude": parameters["impulse_magnitude"],
             }
+            if "energy_delta_j" in parameters:
+                effect["energy_delta_j"] = parameters["energy_delta_j"]
+            else:
+                effect["impulse_magnitude"] = parameters["impulse_magnitude"]
             if "origin_b_m" in parameters:
                 effect["origin_b_m"] = list(parameters["origin_b_m"])
                 effect["velocity_b_m_per_s"] = list(
@@ -1761,8 +1889,13 @@ class SimulationRuntime:
             "origin_m": sample["origin_m"],
             "velocity_m_per_s": sample["velocity_m_per_s"],
             "radius_m": sample["radius_m"],
-            "impulse_magnitude": contact_parameters.get("impulse_magnitude", 1.0),
         }
+        if "energy_delta_j" in contact_parameters:
+            parameters["energy_delta_j"] = contact_parameters["energy_delta_j"]
+        else:
+            parameters["impulse_magnitude"] = contact_parameters.get(
+                "impulse_magnitude", 1.0
+            )
         if "origin_b_m" in sample:
             parameters["origin_b_m"] = sample["origin_b_m"]
             parameters["velocity_b_m_per_s"] = sample.get(
@@ -1783,10 +1916,12 @@ class SimulationRuntime:
                 self.kernel.close_interaction(fact_kind="interaction_closed")
         return closure
 
-    def register_prop(self, trial_id, prop_id, *, damping_factor=0.5):
+    def register_prop(self, trial_id, prop_id, *, damping_factor=0.5,
+                      energy_delta_j=None):
         physical = self._require_physical(trial_id)
         return physical.mechanics.register_prop(
-            prop_id, damping_factor=damping_factor
+            prop_id, damping_factor=damping_factor,
+            energy_delta_j=energy_delta_j
         )
 
     def prop_states(self, trial_id):

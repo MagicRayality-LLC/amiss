@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Amiss.Contracts;
+using Amiss.Shell.Episodes;
 using Amiss.Shell.Evaluation;
 using Amiss.Shell.Simulation;
 using UnityEngine;
@@ -36,6 +37,9 @@ namespace Amiss.Shell.Tutor
         public bool VirtualBoundary;
 
         public TemperatureMeasurement Measurement;
+        public TemperatureEnergyLedger Ledger;
+        public SpaceSizing Sizing;
+        public int BallCount;
 
         public PolicyTokenSet PolicyTokens;
         public bool Muted;
@@ -365,11 +369,179 @@ namespace Amiss.Shell.Tutor
                 {
                     ["namespace"] = source.EpisodeId,
                     ["schema_version"] = "1.0.0",
-                    ["facts"] = new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["contact_commits"] = Math.Max(0, source.ContactCommits)
-                    }
+                    ["facts"] = Facts(source)
                 }
+            };
+        }
+
+        /// <summary>
+        /// The current statistics numbers the instructor may read, in the
+        /// versioned episode extension of 07 section 8 and SRD `TEMP-SNAP-1`.
+        /// Every value is a producer-owned aggregate or declared
+        /// not-applicable state; no per-ball position, velocity, or force
+        /// array enters model context. A measurement that is not applicable
+        /// keeps its nulls instead of a fabricated zero.
+        /// </summary>
+        static Dictionary<string, object> Facts(ContextPayloadSource source)
+        {
+            var measurement = source.Measurement;
+            var ledger = source.Ledger;
+            var sizing = source.Sizing ??
+                         TemperatureSpaceSizing.Compute(source.EffectiveVolumeM3);
+            var window = measurement?.Window;
+            var applicable = measurement != null && measurement.Applicable &&
+                             measurement.Display != null;
+
+            var space = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["v_eff_m3"] = sizing.VEffM3,
+                ["v_min_m3"] = sizing.VMinM3,
+                ["furniture_deduction_mode"] = sizing.FurnitureDeductionMode ?? "",
+                ["target_number_density_per_m3"] = sizing.TargetNumberDensityPerM3,
+                ["computed_n"] = sizing.ComputedN.HasValue
+                    ? (object)sizing.ComputedN.Value
+                    : null,
+                ["is_opening_override_n"] = sizing.IsOpeningOverrideN,
+                ["large_room_subspace_applied"] = sizing.LargeRoomSubspaceApplied,
+                ["large_room_warning"] = sizing.LargeRoomWarning,
+                ["status"] = string.IsNullOrEmpty(sizing.Status) ? "invalid" : sizing.Status
+            };
+
+            var nTotal = measurement != null ? measurement.NTotal
+                : Math.Max(0, source.BallCount);
+            var nFree = measurement != null ? measurement.NFree
+                : Math.Max(0, source.BallCount);
+            var nHeld = measurement != null ? measurement.NHeld : 0;
+            var groups = new List<object>();
+            if (measurement != null && nFree > 0)
+                groups.Add(new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["group_id"] = "group-1x",
+                    ["mass_ratio"] = 1.0,
+                    ["mass_kg"] = (double)FrozenWriterConfiguration.BallMassKg,
+                    ["radius_m"] = (double)FrozenWriterConfiguration.BallRadiusM,
+                    ["count_free"] = nFree,
+                    ["mean_ke_j"] = measurement.KTotalJ / nFree,
+                    ["v_rms_m_per_s"] = measurement.VRmsMPerS
+                });
+            var particles = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["n_total"] = nTotal,
+                ["n_free"] = nFree,
+                ["n_held"] = nHeld,
+                ["density_model"] = "uniform_density_spheres",
+                ["groups"] = groups,
+                ["tracked_ball"] = null
+            };
+
+            var thermal = ledger != null ? ledger.KThermalJ
+                : measurement?.KThermalJ ?? 0.0;
+            var drift = ledger != null ? ledger.KDriftJ
+                : measurement?.KDriftJ ?? 0.0;
+            var kTotal = thermal + drift;
+            var energy = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["initial_total_ke_j"] = ledger != null
+                    ? (object)ledger.InitialTotalKeJ
+                    : null,
+                ["free_total_ke_j"] = ledger != null
+                    ? (object)ledger.FreeTotalKeJ
+                    : measurement?.KTotalJ,
+                ["free_thermal_ke_j"] = thermal,
+                ["free_drift_ke_j"] = drift,
+                ["drift_fraction"] = kTotal > 0.0 ? drift / kTotal : 0.0,
+                ["held_ke_j"] = ledger != null ? ledger.KHeldJ
+                    : measurement?.KHeldJ ?? 0.0,
+                ["sandbag_absorbed_ke_cumulative_j"] = ledger?.ESandbagJ ?? 0.0,
+                ["work_events_cumulative_ke_j"] = ledger?.WorkEventsCumulativeKeJ ?? 0.0,
+                ["setup_energy_diff_from_source_j"] =
+                    ledger?.SetupEnergyDiffFromSourceJ
+            };
+
+            var readout = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["status"] = measurement == null ? "not_applicable" : measurement.Status,
+                ["instant_k"] = measurement?.TK,
+                // The producer publishes one instant value and its window; a
+                // separate window mean is not derived here.
+                ["window_mean_k"] = null,
+                ["window_sec"] = window != null ? window.DurationSeconds : 0.0,
+                ["sample_count"] = window != null ? window.SampleCount : 0,
+                ["dof_formula"] = measurement != null && !string.IsNullOrEmpty(
+                    measurement.DofFormula)
+                    ? measurement.DofFormula
+                    : TemperatureModelDeclaration.DofFormula,
+                ["display_tuple"] = applicable
+                    ? new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["k"] = measurement.Display.Kelvin,
+                        ["c"] = measurement.Display.Celsius,
+                        ["f"] = measurement.Display.Fahrenheit,
+                        ["ratio_to_baseline_k"] = measurement.Display.KelvinRatioBaseline
+                    }
+                    : null
+            };
+
+            var vCm = new List<object>(3);
+            for (var axis = 0; axis < 3; axis++)
+                vCm.Add(measurement != null && axis < measurement.VCmMPerS.Count
+                    ? measurement.VCmMPerS[axis]
+                    : 0.0);
+            var kinematics = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["v_cm_vec"] = vCm,
+                // The mass-weighted mean velocity is the center-of-mass velocity.
+                ["mean_velocity_vec"] = new List<object>(vCm),
+                ["mean_speed_mps"] = measurement?.MeanSpeedMPerS ?? 0.0,
+                ["v_rms_mps"] = measurement?.VRmsMPerS ?? 0.0,
+                ["isotropy_score"] = null,
+                ["window_stability_score"] = null,
+                ["intergroup_energy_gap"] = null,
+                ["equilibrium_sufficient"] = measurement?.EquilibriumSufficient ?? false
+            };
+
+            var contacts = ledger != null ? ledger.Contacts : null;
+            var counts = new Dictionary<string, object>(StringComparer.Ordinal);
+            var latest = contacts != null && contacts.Count > 0
+                ? contacts[contacts.Count - 1]
+                : null;
+            if (contacts != null)
+                for (var index = 0; index < contacts.Count; index++)
+                {
+                    var prop = contacts[index].PropId;
+                    counts[prop] = counts.TryGetValue(prop, out var count) ? (int)count + 1 : 1;
+                }
+            var props = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["current_prop"] = null,
+                ["contact_counts_by_prop"] = counts,
+                ["latest_contact"] = latest == null
+                    ? null
+                    : new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["contact_id"] = latest.ContactId,
+                        ["prop_id"] = latest.PropId,
+                        ["target_ball_id"] = latest.TargetBallId,
+                        ["start_tick"] = latest.StartTick,
+                        ["end_tick"] = latest.EndTick,
+                        ["delta_energy_j"] = latest.WorkJ,
+                        ["closure_reason"] = latest.ClosureReason
+                    },
+                ["held_ball_count"] = nHeld,
+                ["assisted_slow_release"] = false,
+                ["sandbag_absorbed_ke_cumulative_j"] = ledger?.ESandbagJ ?? 0.0,
+                ["slow_ball_removed_temp_rise"] = false
+            };
+
+            return new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["space_sizing"] = space,
+                ["particles"] = particles,
+                ["energy_ledger"] = energy,
+                ["temperature_readout"] = readout,
+                ["kinematics_and_equilibrium"] = kinematics,
+                ["prop_summary"] = props,
+                ["contact_commits"] = Math.Max(0, source.ContactCommits)
             };
         }
 

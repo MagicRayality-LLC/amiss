@@ -5,17 +5,19 @@ namespace Amiss.Shell.Cooling
 {
     /// <summary>
     /// The palm cooling tool: while both palms stay open and face each other,
-    /// the hourglass field art shows between them and every ball inside the
-    /// tube slows down, like atoms in an optical trap / optical molasses.
+    /// the hourglass field art shows between them and balls inside the tube
+    /// lose one declared energy unit on each pass, like atoms crossing an
+    /// optical trap. A ball slower than the capture threshold is held at the
+    /// field centre instead.
     ///
     /// The visual (<see cref="PalmCoolingField"/>) owns the shape; this tool
     /// owns the physics push. Each frame with a live field it submits the two
-    /// palm centres plus the declared tube radii and molasses coefficient to
-    /// the writer through <see cref="IPalmCoolingHost"/>; when the gesture
-    /// drops it clears the field so balls fly free again. The writer damps
-    /// velocities itself (v *= exp(-beta*dt)) and the temperature readout
-    /// follows the speed drop. No ledger contact is opened: continuous drag
-    /// is not a one-shot impact.
+    /// palm centres, the declared tube radii, the pass unit, and the capture
+    /// threshold to the writer through <see cref="IPalmCoolingHost"/>; when the
+    /// gesture drops it clears the field so balls fly free again. The writer
+    /// applies and measures the pass debit itself, and the temperature readout
+    /// follows the speed drop. No ledger contact is opened: a pass is a field
+    /// event, not a tool impact.
     /// </summary>
     [DefaultExecutionOrder(110)]
     public sealed class PalmCoolingTool : MonoBehaviour
@@ -27,20 +29,30 @@ namespace Amiss.Shell.Cooling
         public const float DeclaredMouthRadiusM = 0.07f;
 
         /// <summary>
-        /// Prototype molasses coefficient in 1/s at full strength. A ball on
-        /// the axis keeps exp(-beta*dt) of its speed per Tick.
+        /// Founder balance unit (2026-11-04): one pass through the tube removes
+        /// one unit from a ball above the capture threshold. Uncalibrated.
         /// </summary>
-        public const double DeclaredBetaPerS = 1.5;
+        public const double DeclaredPassEnergyDeltaJ = EnergyQuantum.PalmPassJ;
 
-        public const string DeclaredParametersEvidence = "uncalibrated_declared_not_measured";
+        /// <summary>
+        /// Founder trap threshold (2026-11-04): a ball moving no faster than
+        /// this inside the field is held at the field centre until the palms
+        /// drop the field. Uncalibrated candidate.
+        /// </summary>
+        public const float DeclaredCaptureSpeedMPerS = 0.5f;
+
+        public const string DeclaredParametersEvidence = EnergyQuantum.EvidenceStatus;
 
         public static string DeclaredParametersLine =>
             "Palm cooling: waist " + DeclaredWaistRadiusM.ToString("0.###",
                 System.Globalization.CultureInfo.InvariantCulture) + " m · mouth " +
             DeclaredMouthRadiusM.ToString("0.###",
-                System.Globalization.CultureInfo.InvariantCulture) + " m · beta " +
-            DeclaredBetaPerS.ToString("0.##",
-                System.Globalization.CultureInfo.InvariantCulture) + " /s · " +
+                System.Globalization.CultureInfo.InvariantCulture) + " m · pass " +
+            EnergyQuantum.JoulesText(DeclaredPassEnergyDeltaJ) + " (" +
+            EnergyQuantum.PalmPassUnits.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) + " unit) · trap ≤ " +
+            DeclaredCaptureSpeedMPerS.ToString("0.##",
+                System.Globalization.CultureInfo.InvariantCulture) + " m/s · " +
             DeclaredParametersEvidence;
 
         public PalmCoolingGesture gesture;
@@ -78,7 +90,7 @@ namespace Amiss.Shell.Cooling
             {
                 host.SubmitPalmField(gesture.Left.center, gesture.Right.center,
                     DeclaredWaistRadiusM, DeclaredMouthRadiusM,
-                    DeclaredBetaPerS * strength);
+                    DeclaredPassEnergyDeltaJ, DeclaredCaptureSpeedMPerS);
                 submitted = true;
             }
             else if (submitted)

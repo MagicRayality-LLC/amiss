@@ -213,6 +213,9 @@ namespace Amiss.Shell
             var confirmation = Room != null && Room.Preparation != null
                 ? Room.Preparation.Confirmation
                 : null;
+            var sizing = confirmation != null
+                ? TemperatureSpaceSizing.Compute(confirmation.EffectiveVolumeM3)
+                : null;
             var virtualBoundary = confirmation != null &&
                                   confirmation.BoundaryLabel != null &&
                                   confirmation.BoundaryLabel.IndexOf("virtual",
@@ -238,6 +241,9 @@ namespace Amiss.Shell
                 EffectiveVolumeM3 = confirmation != null ? confirmation.EffectiveVolumeM3 : 0.0,
                 VirtualBoundary = virtualBoundary,
                 Measurement = readout != null ? readout.Measurement : null,
+                Ledger = readout != null ? readout.Ledger : null,
+                Sizing = sizing,
+                BallCount = summary != null ? summary.BallCount : 0,
                 PolicyTokens = EvaluationContext.PolicyTokens,
                 Muted = Panel != null && Panel.AudioMuted,
                 TipsEnabled = Panel == null || !Panel.TipsOff,

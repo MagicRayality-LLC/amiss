@@ -58,26 +58,26 @@ namespace Amiss.Shell.Simulation
     }
 
     /// <summary>
-    /// A writer that resolves and applies swept tool impulses. The writer is
-    /// the only side that knows its own state, so it also decides which balls
-    /// a sweep reached and how much energy each one gained; the caller supplies
+    /// A writer that resolves and applies swept tool energy. The writer is the
+    /// only side that knows its own state, so it also decides which balls a
+    /// sweep reached and how much energy each one gained; the caller supplies
     /// only the declared contact shape, its endpoint velocities, and the
-    /// declared impulse.
+    /// declared energy quantum.
     ///
     /// It mirrors <c>HeadlessBallWriter._apply_sweep</c> of the approved
     /// oracle: for each free ball in ascending entity-id order, find the
     /// closest point on the static tool segment, sweep that point by its
     /// interpolated velocity over one fixed Tick, and when the ball is within
-    /// <c>swept radius + ball radius</c> of that swept path, add the impulse
-    /// along the direction from the closest point to the ball centre and
-    /// measure the energy delta. Effects are applied before integration, in
-    /// queue order. When the segment is a point this is the original point
-    /// sweep, operation for operation.
+    /// <c>swept radius + ball radius</c> of that swept path, add the declared
+    /// kinetic energy along the direction from the closest point to the ball
+    /// centre and measure the energy delta. Effects are applied before
+    /// integration, in queue order. When the segment is a point this is the
+    /// original point sweep, operation for operation.
     /// </summary>
     public interface ISweepEffectWriter
     {
         void QueueSweep(string interactionId, SweptSegment segment,
-            double impulseMagnitude);
+            double energyDeltaJ);
 
         /// <summary>Measured hits of the most recently advanced Tick, in apply order.</summary>
         IReadOnlyList<AppliedSweepHit> LastAppliedSweeps { get; }
@@ -162,7 +162,7 @@ namespace Amiss.Shell.Simulation
         int ContactCommits { get; }
         TemperatureReadoutSnapshot Readout { get; }
         void OpenSweptContact(string contactId, string propId, int tick);
-        void SubmitSweep(string contactId, SweptSegment segment);
+        void SubmitSweep(string contactId, SweptSegment segment, double energyDeltaJ);
         SweptClosure CloseSweptContact(string contactId, string reason);
     }
 }

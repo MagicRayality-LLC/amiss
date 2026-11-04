@@ -160,7 +160,7 @@ namespace Amiss.Tests
         }
 
         public void QueueSweep(string interactionId, SweptSegment segment,
-            double impulseMagnitude)
+            double energyDeltaJ)
         {
             applied.Clear();
             var tool = segment.EndM - segment.OriginM;
@@ -189,7 +189,10 @@ namespace Amiss.Tests
                     ? Vector3.right
                     : direction.normalized;
                 var before = 0.5 * (double)ball.MassKg * ball.VelocityMPerS.sqrMagnitude;
-                ball.VelocityMPerS += direction * (float)impulseMagnitude;
+                var along = Vector3.Dot(ball.VelocityMPerS, direction);
+                var impulse = -along + Math.Sqrt(along * along +
+                    2.0 * energyDeltaJ / ball.MassKg);
+                ball.VelocityMPerS += direction * (float)impulse;
                 var after = 0.5 * (double)ball.MassKg * ball.VelocityMPerS.sqrMagnitude;
                 applied.Add(new AppliedSweepHit(interactionId, ball.EntityId, after - before));
             }
@@ -245,7 +248,9 @@ namespace Amiss.Tests
             var revisionBefore = bat.Readout.ContactCommits;
 
             var swing = bat.Consume(BatContactFixtures.Accepted(
-                Vector3.zero, new Vector3(4f, 0f, 0f), 1), 1);
+                Vector3.zero, new Vector3(4f, 0f, 0f), 1), 1,
+                new BatSweepFrame(Vector3.zero, Vector3.zero,
+                    new Vector3(4f, 0f, 0f), new Vector3(4f, 0f, 0f)));
             Assert.AreEqual(BatSwingOutcome.Submitted, swing.Outcome);
             runtime.Step(1);
 
@@ -268,24 +273,47 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void ANegativeStrikeIsRecordedAsNegativeWork()
+        public void AnEmptyHandContactIsAFistAndAddsOneUnit()
         {
-            var (runtime, writer, bat) = StartedTrial("trial-bat-cooling");
+            var (runtime, writer, bat) = StartedTrial("trial-fist");
             var ball = runtime.CurrentView.Balls[0];
-            // The ball arrives against the impulse direction, so the measured
-            // strike removes energy and the ledger keeps the sign.
             writer.IsolateBalls();
-            writer.PlaceBall(ball.EntityId, Vector3.zero, new Vector3(-4f, 0f, 0f));
+            writer.PlaceBall(ball.EntityId, Vector3.zero, Vector3.zero);
 
-            bat.Consume(BatContactFixtures.Accepted(
+            // No measured barrel: the tool shape is the bare hand, so the
+            // contact is a fist and adds one quantum, not the bat's ten.
+            var swing = bat.Consume(BatContactFixtures.Accepted(
                 Vector3.zero, new Vector3(4f, 0f, 0f), 1), 1);
+            Assert.AreEqual(BatSwingOutcome.Submitted, swing.Outcome);
             runtime.Step(1);
             var closed = bat.Close();
 
             Assert.AreEqual(BatSwingOutcome.Contacted, closed.Outcome);
-            Assert.Less(closed.Closure.WorkJ, 0.0);
-            Assert.Less(bat.Readout.Ledger.WorkEventsCumulativeKeJ, 0.0,
-                "the signed algebraic sum keeps a cooling strike negative");
+            Assert.AreEqual(BatTool.FistPropId, closed.Closure.Entry.PropId);
+            Assert.AreEqual(EnergyQuantum.FistJ, closed.Closure.WorkJ, 1e-9);
+        }
+
+        [Test]
+        public void AStrikeAddsTheDeclaredEnergyEvenAgainstTheBall()
+        {
+            var (runtime, writer, bat) = StartedTrial("trial-bat-cooling");
+            var ball = runtime.CurrentView.Balls[0];
+            // The founder's balance unit adds a fixed energy, so a ball
+            // arriving against the push still gains the declared 10 quanta.
+            writer.IsolateBalls();
+            writer.PlaceBall(ball.EntityId, Vector3.zero, new Vector3(-4f, 0f, 0f));
+
+            bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, new Vector3(4f, 0f, 0f), 1), 1,
+                new BatSweepFrame(Vector3.zero, Vector3.zero,
+                    new Vector3(4f, 0f, 0f), new Vector3(4f, 0f, 0f)));
+            runtime.Step(1);
+            var closed = bat.Close();
+
+            Assert.AreEqual(BatSwingOutcome.Contacted, closed.Outcome);
+            Assert.AreEqual(EnergyQuantum.BatJ, closed.Closure.WorkJ, 1e-5);
+            Assert.AreEqual(EnergyQuantum.BatJ,
+                bat.Readout.Ledger.WorkEventsCumulativeKeJ, 1e-5);
         }
 
         [Test]
@@ -605,7 +633,8 @@ namespace Amiss.Tests
             public int ContactCommits => 0;
             public TemperatureReadoutSnapshot Readout => null;
             public void OpenSweptContact(string contactId, string propId, int tick) { }
-            public void SubmitSweep(string contactId, SweptSegment segment) { }
+            public void SubmitSweep(string contactId, SweptSegment segment,
+                double energyDeltaJ) { }
             public SweptClosure CloseSweptContact(string contactId, string reason) => null;
         }
     }

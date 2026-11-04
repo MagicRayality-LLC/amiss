@@ -107,31 +107,43 @@ namespace Amiss.Shell.Simulation
     {
         public const string PropId = "bat";
 
+        /// <summary>The bare hand's own sweep: a fist hit, not a bat strike.</summary>
+        public const string FistPropId = "fist";
+
         /// <summary>
         /// Prototype swept radius from 07 section 4.2's deferred boundary. It is
         /// uncalibrated, so it is labelled and never presented as measured.
         /// </summary>
         public const float DeclaredSweptRadiusM = 0.12f;
 
+        /// <summary>A fist is a smaller contact shape than the barrel.</summary>
+        public const float FistSweptRadiusM = 0.06f;
+
         /// <summary>
-        /// Prototype impulse magnitude; 07 section 4.2 leaves bat impulse and
-        /// prototype parameters to a later measurement.
+        /// Founder balance unit (2026-11-04): a bat strike adds 10 quanta and a
+        /// bare fist adds 1. The writer measures the applied change, so the
+        /// ledger still records real work; only the tool strength is fixed.
         /// </summary>
-        public const double DeclaredImpulseMagnitude = 2.0;
+        public const double DeclaredEnergyDeltaJ = EnergyQuantum.BatJ;
+        public const double DeclaredFistEnergyDeltaJ = EnergyQuantum.FistJ;
 
         /// <summary>
         /// The declared tool parameters are 07 section 4.2 prototype values, so
         /// the readout states that label instead of presenting them as
         /// calibrated.
         /// </summary>
-        public const string DeclaredParametersEvidence = "uncalibrated_declared_not_measured";
+        public const string DeclaredParametersEvidence = EnergyQuantum.EvidenceStatus;
 
         /// <summary>The bat parameter label the panel shows under the readout.</summary>
         public static string DeclaredParametersLine =>
-            "Bat: swept radius " + DeclaredSweptRadiusM.ToString("0.###",
-                System.Globalization.CultureInfo.InvariantCulture) + " m · impulse " +
-            DeclaredImpulseMagnitude.ToString("0.##",
-                System.Globalization.CultureInfo.InvariantCulture) + " m/s · " +
+            "Bat " + DeclaredSweptRadiusM.ToString("0.###",
+                System.Globalization.CultureInfo.InvariantCulture) +
+            " m: " + EnergyQuantum.JoulesText(DeclaredEnergyDeltaJ) + " (" +
+            EnergyQuantum.BatUnits.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) + "), " +
+            EnergyQuantum.JoulesText(DeclaredFistEnergyDeltaJ) + " fist (" +
+            EnergyQuantum.FistUnits.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) + ") · " +
             DeclaredParametersEvidence;
 
         readonly IBatContactHost host;
@@ -139,6 +151,7 @@ namespace Amiss.Shell.Simulation
         int contactCounter;
         string openContactId = "";
         int lastSubmittedTick = -1;
+        bool openIsBat;
 
         public BatTool(IBatContactHost host, InputLimitProfile profile)
         {
@@ -220,14 +233,21 @@ namespace Amiss.Shell.Simulation
             {
                 openContactId = "bat-contact-" + tick.ToString("D8") + "-" +
                                 (++contactCounter).ToString("D4");
-                host.OpenSweptContact(openContactId, PropId, tick);
+                openIsBat = barrel.HasValue;
+                host.OpenSweptContact(openContactId,
+                    openIsBat ? PropId : FistPropId, tick);
             }
-            host.SubmitSweep(openContactId, barrel.HasValue
+            // The tool shape is chosen when the contact opens: a held barrel
+            // is the bat (10 quanta), a bare hand is the fist (1 quantum). A
+            // lost barrel mid-swing falls back to the same point pose so the
+            // contact keeps one identity and one quantum.
+            host.SubmitSweep(openContactId, openIsBat && barrel.HasValue
                 ? new SweptSegment(barrel.Value.GripM, barrel.Value.TipM,
                     barrel.Value.GripVelocityMPerS, barrel.Value.TipVelocityMPerS,
                     DeclaredSweptRadiusM)
                 : SweptSegment.Point(command.Pose.position, command.LinearVelocity,
-                    DeclaredSweptRadiusM));
+                    openIsBat ? DeclaredSweptRadiusM : FistSweptRadiusM),
+                openIsBat ? DeclaredEnergyDeltaJ : DeclaredFistEnergyDeltaJ);
             lastSubmittedTick = tick;
             return new BatSwingResult(BatSwingOutcome.Submitted, tick, "", openContactId);
         }

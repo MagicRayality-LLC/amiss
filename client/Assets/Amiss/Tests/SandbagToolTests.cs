@@ -125,17 +125,21 @@ namespace Amiss.Tests
             var before = fast.VelocityMPerS;
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", fast.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredDampingFactor);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
             var hits = writer.LastAppliedDampings;
             Assert.AreEqual(1, hits.Count, "exactly the first valid impact is reported");
             Assert.AreEqual("ball-0001", hits[0].EntityId);
-            var expectedAfter = before * (float)SandbagTool.DeclaredDampingFactor;
+            var beforeEnergy = 0.5 * before.sqrMagnitude;
+            var expectedAfter = before * (float)Math.Sqrt(
+                1.0 - SandbagTool.DeclaredEnergyDeltaJ / beforeEnergy);
             Assert.AreEqual(expectedAfter.x, fast.VelocityMPerS.x, 1e-6f);
             Assert.AreEqual(0.5 * 1.0 * (expectedAfter.sqrMagnitude - before.sqrMagnitude),
                 hits[0].EnergyDeltaJ, 1e-9,
-                "the measured delta is the damped pre/post ball-energy change");
+                "the measured delta is the absorbed pre/post ball-energy change");
+            Assert.AreEqual(-SandbagTool.DeclaredEnergyDeltaJ, hits[0].EnergyDeltaJ, 1e-9,
+                "the bag removes exactly one declared 10-unit absorption");
             Assert.Less(hits[0].EnergyDeltaJ, 0.0, "slowing the ball absorbs energy");
             Assert.AreEqual("free", fast.Membership, "the ball keeps flying free");
 
@@ -152,7 +156,7 @@ namespace Amiss.Tests
             var writer = WriterWith(new[] { rest }, accepted.pinned);
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", rest.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredDampingFactor);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
             writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
@@ -169,7 +173,7 @@ namespace Amiss.Tests
             var writer = WriterWith(new[] { held }, accepted.pinned);
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", held.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredDampingFactor);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
             Assert.AreEqual(0, writer.LastAppliedDampings.Count);
@@ -191,9 +195,11 @@ namespace Amiss.Tests
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
                 "id", Vector3.zero, 0f, 0.5));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", Vector3.zero, 0.07f, 1.0));
+                "id", Vector3.zero, 0.07f, -1.0));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
                 "id", Vector3.zero, 0.07f, 0.0));
+            Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
+                "id", Vector3.zero, 0.07f, double.NaN));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
                 "id", new Vector3(float.NaN, 0f, 0f), 0.07f, 0.5));
         }

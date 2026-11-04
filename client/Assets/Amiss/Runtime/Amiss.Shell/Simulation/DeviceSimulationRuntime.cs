@@ -107,7 +107,7 @@ namespace Amiss.Shell.Simulation
 
         // ---- IBatContactHost: the one semantic face a bat may use ----------
         // Every member here mutates producer-owned state only. The tool never
-        // writes ball state; the writer applies the queued impulse and measures
+        // writes ball state; the writer applies the queued energy and measures
         // its own pre/post ball energy, which is the only work value recorded.
 
         int IBatContactHost.CurrentTick => Tick;
@@ -125,7 +125,8 @@ namespace Amiss.Shell.Simulation
             trial.Temperature.OpenContact(contactId, propId, tick);
         }
 
-        void IBatContactHost.SubmitSweep(string contactId, SweptSegment segment)
+        void IBatContactHost.SubmitSweep(string contactId, SweptSegment segment,
+            double energyDeltaJ)
         {
             RequireTrial();
             if (trial.Writer is not ISweepEffectWriter sweepWriter)
@@ -135,10 +136,9 @@ namespace Amiss.Shell.Simulation
                 throw new InvalidOperationException("contact_not_open");
             // The writer resolves the declared contact shape against its own
             // state when it advances, and measures the applied energy. The
-            // impulse magnitude is the episode's declared prototype value,
-            // never a panel or model number.
-            sweepWriter.QueueSweep(contactId, segment,
-                BatTool.DeclaredImpulseMagnitude);
+            // quantum is the tool's declared balance value, never a panel or
+            // model number.
+            sweepWriter.QueueSweep(contactId, segment, energyDeltaJ);
         }
 
         SweptClosure IBatContactHost.CloseSweptContact(string contactId, string reason)
@@ -149,8 +149,9 @@ namespace Amiss.Shell.Simulation
 
         // ---- ISandbagContactHost: the one semantic face a sandbag may use --
         // Every member here mutates producer-owned state only. The tool never
-        // writes ball state; the writer applies the queued damping and measures
-        // its own pre/post ball energy, which is the only absorption recorded.
+        // writes ball state; the writer applies the queued absorption and
+        // measures its own pre/post ball energy, which is the only absorption
+        // recorded.
 
         bool ISandbagContactHost.HasTrial => HasTrial;
 
@@ -185,10 +186,10 @@ namespace Amiss.Shell.Simulation
             if (!trial.Temperature.HasOpenContact ||
                 trial.Temperature.OpenContactId != contactId)
                 throw new InvalidOperationException("contact_not_open");
-            // The region and factor are the episode's declared prototype
+            // The region and absorption are the episode's declared prototype
             // values, never a panel or model number.
             dampingWriter.SetHoverAbsorber(contactId, centerM, radiusM,
-                SandbagTool.DeclaredDampingFactor);
+                SandbagTool.DeclaredEnergyDeltaJ);
         }
 
         SweptClosure ISandbagContactHost.CloseSandbagContact(string contactId, string reason)
@@ -210,13 +211,14 @@ namespace Amiss.Shell.Simulation
             trial?.Writer is IPalmCoolingWriter && trial.Temperature != null;
 
         void IPalmCoolingHost.SubmitPalmField(Vector3 endpointA, Vector3 endpointB,
-            float waistRadiusM, float mouthRadiusM, double betaPerS)
+            float waistRadiusM, float mouthRadiusM, double passEnergyDeltaJ,
+            float captureSpeedMPerS)
         {
             RequireTrial();
             if (trial.Writer is not IPalmCoolingWriter coolingWriter)
                 throw new InvalidOperationException("writer_has_no_tool_effect_face");
             coolingWriter.SetPalmField(endpointA, endpointB,
-                waistRadiusM, mouthRadiusM, betaPerS);
+                waistRadiusM, mouthRadiusM, passEnergyDeltaJ, captureSpeedMPerS);
         }
 
         void IPalmCoolingHost.ClearPalmField()

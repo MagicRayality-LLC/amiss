@@ -68,11 +68,16 @@ namespace Amiss.Shell.Simulation
             public Vector3 OriginVelocityMPerS;
             public Vector3 EndVelocityMPerS;
             public float RadiusM;
-            public double ImpulseMagnitude;
+            public double EnergyDeltaJ;
         }
 
         readonly List<QueuedSweep> queuedSweeps = new();
         AppliedSweepHit[] lastAppliedSweeps = Array.Empty<AppliedSweepHit>();
+        // One strike per ball per open tool contact: a swing submits a sweep
+        // every accepted sample, but the founder's balance unit is per hit,
+        // not per sample. The key changes with each new contact id.
+        string quantumContactId = "";
+        readonly HashSet<string> quantumHits = new();
 
         /// <summary>
         /// Below this absorbed energy a ball inside the hover region counts as
@@ -89,7 +94,7 @@ namespace Amiss.Shell.Simulation
         string absorberInteractionId = "";
         Vector3 absorberCenterM;
         float absorberRadiusM;
-        double absorberDampingFactor = 1.0;
+        double absorberEnergyDeltaJ;
         bool absorberArmed;
         AppliedSweepHit[] lastAppliedDampings = Array.Empty<AppliedSweepHit>();
 
@@ -104,8 +109,12 @@ namespace Amiss.Shell.Simulation
         Vector3 palmB;
         float palmWaistRadiusM;
         float palmMouthRadiusM;
-        double palmBetaPerS;
+        double palmPassEnergyDeltaJ;
+        float palmCaptureSpeedMPerS;
+        bool[] palmTrapped;
+        bool[] palmInside;
         int lastPalmCooledCount;
+        int lastPalmTrappedCount;
         double lastPalmAbsorbedJ;
 
         public CustomHardSphereWriter(int contactIterationBound)
@@ -148,6 +157,8 @@ namespace Amiss.Shell.Simulation
             vy = new double[count];
             vz = new double[count];
             freeOrder = new int[count];
+            palmTrapped = new bool[count];
+            palmInside = new bool[count];
             // The writer owns the numeric state for the life of the Trial, the
             // same ownership the frozen Unity writer had through PhysX: it
             // advances the state itself and the runtime reads the step back
@@ -167,16 +178,16 @@ namespace Amiss.Shell.Simulation
         }
 
         public void QueueSweep(string interactionId, SweptSegment segment,
-            double impulseMagnitude)
+            double energyDeltaJ)
         {
             if (!configured)
                 throw new InvalidOperationException("writer_not_setup");
             if (!float.IsFinite(segment.RadiusM) || segment.RadiusM <= 0f)
                 throw new ArgumentException("swept_radius_invalid",
                     nameof(segment));
-            if (!double.IsFinite(impulseMagnitude) || impulseMagnitude <= 0.0)
-                throw new ArgumentException("impulse_magnitude_invalid",
-                    nameof(impulseMagnitude));
+            if (!double.IsFinite(energyDeltaJ) || energyDeltaJ <= 0.0)
+                throw new ArgumentException("energy_delta_invalid",
+                    nameof(energyDeltaJ));
             if (!Finite(segment.OriginM) || !Finite(segment.EndM) ||
                 !Finite(segment.OriginVelocityMPerS) ||
                 !Finite(segment.EndVelocityMPerS))
@@ -189,7 +200,7 @@ namespace Amiss.Shell.Simulation
                 OriginVelocityMPerS = segment.OriginVelocityMPerS,
                 EndVelocityMPerS = segment.EndVelocityMPerS,
                 RadiusM = segment.RadiusM,
-                ImpulseMagnitude = impulseMagnitude
+                EnergyDeltaJ = energyDeltaJ
             });
         }
 
@@ -200,7 +211,7 @@ namespace Amiss.Shell.Simulation
         public IReadOnlyList<AppliedSweepHit> LastAppliedSweeps => lastAppliedSweeps;
 
         public void SetHoverAbsorber(string interactionId, Vector3 centerM, float radiusM,
-            double dampingFactor)
+            double energyDeltaJ)
         {
             if (!configured)
                 throw new InvalidOperationException("writer_not_setup");
@@ -211,14 +222,13 @@ namespace Amiss.Shell.Simulation
                 throw new ArgumentException("absorber_center_invalid", nameof(centerM));
             if (!float.IsFinite(radiusM) || radiusM <= 0f)
                 throw new ArgumentException("absorber_radius_invalid", nameof(radiusM));
-            if (!double.IsFinite(dampingFactor) || dampingFactor <= 0.0 ||
-                dampingFactor >= 1.0)
-                throw new ArgumentException("damping_factor_invalid",
-                    nameof(dampingFactor));
+            if (!double.IsFinite(energyDeltaJ) || energyDeltaJ <= 0.0)
+                throw new ArgumentException("absorber_energy_delta_invalid",
+                    nameof(energyDeltaJ));
             absorberInteractionId = interactionId;
             absorberCenterM = centerM;
             absorberRadiusM = radiusM;
-            absorberDampingFactor = dampingFactor;
+            absorberEnergyDeltaJ = energyDeltaJ;
             absorberArmed = true;
         }
 
@@ -231,14 +241,16 @@ namespace Amiss.Shell.Simulation
         public IReadOnlyList<AppliedSweepHit> LastAppliedDampings => lastAppliedDampings;
 
         /// <summary>
-        /// Arms the persistent hourglass cooling field between two open palms.
-        /// Mouth radius is the field footprint at each palm, waist radius the
-        /// pinched middle, beta the molasses coefficient in 1/s. Mirrors the
-        /// headless oracle's set_palm_field; the field stays armed until
-        /// cleared and cools every ball inside each Tick.
+        /// Arms the persistent hourglass field between two open palms. Mouth
+        /// radius is the field footprint at each palm, waist radius the pinched
+        /// middle, passEnergy the one balance unit a ball loses on each new
+        /// pass through the tube, and captureSpeed the founder's trap
+        /// threshold: a ball slower than it is held at the field centre until
+        /// the field clears. Mirrors the headless oracle's set_palm_field.
         /// </summary>
         public void SetPalmField(Vector3 endpointA, Vector3 endpointB,
-            float waistRadiusM, float mouthRadiusM, double betaPerS)
+            float waistRadiusM, float mouthRadiusM, double passEnergyDeltaJ,
+            float captureSpeedMPerS = 0f)
         {
             if (!configured)
                 throw new InvalidOperationException("writer_not_setup");
@@ -249,22 +261,41 @@ namespace Amiss.Shell.Simulation
             if (!float.IsFinite(waistRadiusM) || waistRadiusM <= 0f ||
                 !float.IsFinite(mouthRadiusM) || mouthRadiusM <= 0f)
                 throw new ArgumentException("palm_field_radius_invalid");
-            if (!double.IsFinite(betaPerS) || betaPerS < 0.0)
-                throw new ArgumentException("palm_field_beta_invalid");
+            if (!double.IsFinite(passEnergyDeltaJ) || passEnergyDeltaJ <= 0.0)
+                throw new ArgumentException("palm_field_pass_energy_invalid");
+            if (!float.IsFinite(captureSpeedMPerS) || captureSpeedMPerS < 0f)
+                throw new ArgumentException("palm_field_capture_speed_invalid");
             if ((endpointB - endpointA).sqrMagnitude <= 0f)
                 throw new ArgumentException("palm_field_endpoints_coincide");
             palmA = endpointA;
             palmB = endpointB;
             palmWaistRadiusM = waistRadiusM;
             palmMouthRadiusM = mouthRadiusM;
-            palmBetaPerS = betaPerS;
+            palmPassEnergyDeltaJ = passEnergyDeltaJ;
+            palmCaptureSpeedMPerS = captureSpeedMPerS;
             palmFieldSet = true;
         }
 
         public void ClearPalmField()
         {
+            if (palmTrapped != null)
+            {
+                // Release every held ball at the centre, keeping the velocity
+                // it had when the trap caught it. The trap stores no energy.
+                for (var index = 0; index < palmTrapped.Length; index++)
+                {
+                    if (!palmTrapped[index])
+                        continue;
+                    palmTrapped[index] = false;
+                    if (order[index].Membership == "held")
+                        order[index].Membership = "free";
+                }
+            }
+            if (palmInside != null)
+                Array.Clear(palmInside, 0, palmInside.Length);
             palmFieldSet = false;
             lastPalmCooledCount = 0;
+            lastPalmTrappedCount = 0;
             lastPalmAbsorbedJ = 0.0;
         }
 
@@ -273,21 +304,29 @@ namespace Amiss.Shell.Simulation
         /// <summary>Free balls cooled on the most recent Tick.</summary>
         public int LastPalmCooledCount => lastPalmCooledCount;
 
+        /// <summary>Balls trapped at the field centre on the most recent Tick.</summary>
+        public int LastPalmTrappedCount => lastPalmTrappedCount;
+
         /// <summary>Measured kinetic energy removed by the field last Tick (J).</summary>
         public double LastPalmAbsorbedJ => lastPalmAbsorbedJ;
 
         /// <summary>
-        /// Applies molasses drag to every free ball inside the hourglass tube:
-        /// v *= exp(-beta*dt). Tube radius interpolates from the mouth at each
-        /// palm to the pinched waist in the middle as r(t) = waist +
+        /// Applies the hourglass field each Tick. A free ball inside the tube
+        /// slower than the declared capture speed is trapped: it leaves the
+        /// free set, keeps the velocity it had, and is pinned to the field
+        /// centre until the field clears. Every other inside ball loses the
+        /// declared pass energy on each new pass, clamped to its own kinetic
+        /// energy. Tube radius interpolates from the mouth at each palm to the
+        /// pinched waist in the middle as r(t) = waist +
         /// (mouth-waist)*|2t-1|^1.5. Runs after pair contacts so the cooling
         /// measurement sees the post-collision velocities, like the oracle.
         /// </summary>
         void ApplyPalmField(double deltaSeconds)
         {
             lastPalmCooledCount = 0;
+            lastPalmTrappedCount = 0;
             lastPalmAbsorbedJ = 0.0;
-            if (!palmFieldSet || palmBetaPerS <= 0.0 || deltaSeconds <= 0.0)
+            if (!palmFieldSet || deltaSeconds <= 0.0)
                 return;
             var axisX = (double)palmB.x - palmA.x;
             var axisY = (double)palmB.y - palmA.y;
@@ -295,33 +334,82 @@ namespace Amiss.Shell.Simulation
             var lengthSq = axisX * axisX + axisY * axisY + axisZ * axisZ;
             if (lengthSq <= 0.0)
                 return;
-            var factor = Math.Exp(-palmBetaPerS * deltaSeconds);
-            if (factor >= 1.0)
-                return;
+            var centerX = 0.5 * ((double)palmA.x + palmB.x);
+            var centerY = 0.5 * ((double)palmA.y + palmB.y);
+            var centerZ = 0.5 * ((double)palmA.z + palmB.z);
+            // A trapped ball rides the moving field centre. It keeps the
+            // velocity it had at capture, so the held account owns its energy
+            // and releasing the field restores its free motion.
+            for (var index = 0; index < order.Length; index++)
+            {
+                if (!palmTrapped[index])
+                    continue;
+                if (order[index].Membership != "held")
+                {
+                    palmTrapped[index] = false;
+                    continue;
+                }
+                px[index] = centerX;
+                py[index] = centerY;
+                pz[index] = centerZ;
+            }
+
             for (var index = 0; index < order.Length; index++)
             {
                 if (order[index].Membership != "free")
+                {
+                    palmInside[index] = false;
                     continue;
+                }
                 var relX = px[index] - palmA.x;
                 var relY = py[index] - palmA.y;
                 var relZ = pz[index] - palmA.z;
                 var fraction = (relX * axisX + relY * axisY + relZ * axisZ) / lengthSq;
-                if (fraction < 0.0 || fraction > 1.0)
+                var inside = false;
+                if (fraction >= 0.0 && fraction <= 1.0)
+                {
+                    var closestX = palmA.x + axisX * fraction;
+                    var closestY = palmA.y + axisY * fraction;
+                    var closestZ = palmA.z + axisZ * fraction;
+                    var dx = px[index] - closestX;
+                    var dy = py[index] - closestY;
+                    var dz = pz[index] - closestZ;
+                    var distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                    var tubeR = palmWaistRadiusM +
+                        (palmMouthRadiusM - palmWaistRadiusM) *
+                        Math.Pow(Math.Abs(2.0 * fraction - 1.0), 1.5);
+                    inside = distance <= tubeR + 0.5 * order[index].RadiusM;
+                }
+                if (!inside)
+                {
+                    palmInside[index] = false;
                     continue;
-                var closestX = palmA.x + axisX * fraction;
-                var closestY = palmA.y + axisY * fraction;
-                var closestZ = palmA.z + axisZ * fraction;
-                var dx = px[index] - closestX;
-                var dy = py[index] - closestY;
-                var dz = pz[index] - closestZ;
-                var distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
-                var tubeR = palmWaistRadiusM + (palmMouthRadiusM - palmWaistRadiusM) *
-                    Math.Pow(Math.Abs(2.0 * fraction - 1.0), 1.5);
-                if (distance > tubeR + 0.5 * order[index].RadiusM)
+                }
+                var speed = Math.Sqrt(vx[index] * vx[index] +
+                    vy[index] * vy[index] + vz[index] * vz[index]);
+                if (palmCaptureSpeedMPerS > 0f && speed <= palmCaptureSpeedMPerS)
+                {
+                    order[index].Membership = "held";
+                    palmTrapped[index] = true;
+                    palmInside[index] = false;
+                    px[index] = centerX;
+                    py[index] = centerY;
+                    pz[index] = centerZ;
+                    lastPalmTrappedCount++;
                     continue;
+                }
+                if (palmInside[index])
+                    continue;
+                // A new pass through the tube removes exactly one balance
+                // unit, clamped to the ball's own kinetic energy.
+                palmInside[index] = true;
                 var mass = (double)order[index].MassKg;
                 var before = 0.5 * mass *
                     (vx[index] * vx[index] + vy[index] * vy[index] + vz[index] * vz[index]);
+                var removed = Math.Min(palmPassEnergyDeltaJ, before);
+                if (removed <= MinimalAbsorptionJ)
+                    continue;
+                var factor = Math.Sqrt(Math.Max(0.0, 1.0 - removed / before));
                 vx[index] *= factor;
                 vy[index] *= factor;
                 vz[index] *= factor;
@@ -360,14 +448,15 @@ namespace Amiss.Shell.Simulation
                 var mass = (double)order[index].MassKg;
                 var before = 0.5 * mass *
                     (vx[index] * vx[index] + vy[index] * vy[index] + vz[index] * vz[index]);
-                var factor = absorberDampingFactor;
+                var removed = Math.Min(absorberEnergyDeltaJ, before);
+                if (removed <= MinimalAbsorptionJ)
+                    continue;
+                var factor = Math.Sqrt(Math.Max(0.0, 1.0 - removed / before));
                 var dampedX = vx[index] * factor;
                 var dampedY = vy[index] * factor;
                 var dampedZ = vz[index] * factor;
                 var after = 0.5 * mass *
                     (dampedX * dampedX + dampedY * dampedY + dampedZ * dampedZ);
-                if (before - after <= MinimalAbsorptionJ)
-                    continue;
                 vx[index] = dampedX;
                 vy[index] = dampedY;
                 vz[index] = dampedZ;
@@ -386,9 +475,9 @@ namespace Amiss.Shell.Simulation
 
         /// <summary>
         /// Resolves and applies every queued sweep before integration, in queue
-        /// order, recording the measured pre/post ball energy of each applied
-        /// impulse. The queue is always cleared, so a sample can never leak into
-        /// a later Tick.
+        /// order, recording the measured pre/post ball energy after adding the
+        /// declared energy. The queue is always cleared, so a sample can never
+        /// leak into a later Tick.
         /// </summary>
         void ApplyQueuedSweeps(double deltaSeconds)
         {
@@ -402,6 +491,12 @@ namespace Amiss.Shell.Simulation
             for (var queueIndex = 0; queueIndex < queuedSweeps.Count; queueIndex++)
             {
                 var queued = queuedSweeps[queueIndex];
+                if (!string.Equals(queued.InteractionId, quantumContactId,
+                        StringComparison.Ordinal))
+                {
+                    quantumContactId = queued.InteractionId;
+                    quantumHits.Clear();
+                }
                 var segmentX = (double)queued.EndM.x - queued.OriginM.x;
                 var segmentY = (double)queued.EndM.y - queued.OriginM.y;
                 var segmentZ = (double)queued.EndM.z - queued.OriginM.z;
@@ -436,6 +531,12 @@ namespace Amiss.Shell.Simulation
                     var velocityZ = queued.OriginVelocityMPerS.z +
                         ((double)queued.EndVelocityMPerS.z -
                             queued.OriginVelocityMPerS.z) * toolParameter;
+                    // A held-still tool must add no energy even if tracking
+                    // jitter keeps a contact open or a ball drifts into it.
+                    var toolSpeed = Math.Sqrt(velocityX * velocityX +
+                        velocityY * velocityY + velocityZ * velocityZ);
+                    if (toolSpeed < EnergyQuantum.MinimumStrikeSpeedMPerS)
+                        continue;
                     var dx = velocityX * deltaSeconds;
                     var dy = velocityY * deltaSeconds;
                     var dz = velocityZ * deltaSeconds;
@@ -479,12 +580,25 @@ namespace Amiss.Shell.Simulation
                         ny = vyDelta / distance;
                         nz = vzDelta / distance;
                     }
+                    if (quantumHits.Contains(order[index].EntityId))
+                        continue;
                     var before = 0.5 * order[index].MassKg *
                                  (vx[index] * vx[index] + vy[index] * vy[index] +
                                   vz[index] * vz[index]);
-                    vx[index] += nx * queued.ImpulseMagnitude;
-                    vy[index] += ny * queued.ImpulseMagnitude;
-                    vz[index] += nz * queued.ImpulseMagnitude;
+                    // Add the declared kinetic energy along the push
+                    // direction. Solving |v + p*n|^2 = |v|^2 + 2E/m for the
+                    // scalar impulse p keeps the added energy fixed instead
+                    // of letting a fast swing inject an unbounded amount.
+                    var mass = (double)order[index].MassKg;
+                    var alongNormal = nx * vx[index] + ny * vy[index] +
+                                      nz * vz[index];
+                    var impulse = -alongNormal + Math.Sqrt(
+                        alongNormal * alongNormal +
+                        2.0 * queued.EnergyDeltaJ / mass);
+                    vx[index] += nx * impulse;
+                    vy[index] += ny * impulse;
+                    vz[index] += nz * impulse;
+                    quantumHits.Add(order[index].EntityId);
                     var after = 0.5 * order[index].MassKg *
                                 (vx[index] * vx[index] + vy[index] * vy[index] +
                                  vz[index] * vz[index]);
@@ -700,7 +814,10 @@ namespace Amiss.Shell.Simulation
             absorberInteractionId = "";
             lastAppliedDampings = Array.Empty<AppliedSweepHit>();
             palmFieldSet = false;
+            palmTrapped = null;
+            palmInside = null;
             lastPalmCooledCount = 0;
+            lastPalmTrappedCount = 0;
             lastPalmAbsorbedJ = 0.0;
             order = null;
             collision = null;
@@ -708,6 +825,8 @@ namespace Amiss.Shell.Simulation
             px = py = pz = vx = vy = vz = null;
             freeOrder = null;
             queuedSweeps.Clear();
+            quantumContactId = "";
+            quantumHits.Clear();
             lastAppliedSweeps = Array.Empty<AppliedSweepHit>();
             LastContactFacts = new ContactStepFacts(0, 0, false);
         }

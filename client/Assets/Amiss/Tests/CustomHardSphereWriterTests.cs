@@ -422,7 +422,8 @@ namespace Amiss.Tests
 
             Assert.AreEqual(1, writer.LastAppliedSweeps.Count);
             Assert.AreEqual("ball-0001", writer.LastAppliedSweeps[0].EntityId);
-            Assert.Greater(writer.LastAppliedSweeps[0].EnergyDeltaJ, 0.0);
+            Assert.AreEqual(2.0, writer.LastAppliedSweeps[0].EnergyDeltaJ, 1e-9,
+                "the sweep adds the declared energy, not a speed-dependent impulse");
             Assert.AreEqual(2f, balls[0].VelocityMPerS.x, 1e-4f);
             Assert.AreEqual(0f, balls[0].VelocityMPerS.y, 1e-4f);
         }
@@ -442,5 +443,120 @@ namespace Amiss.Tests
             Assert.AreEqual(0, writer.LastAppliedSweeps.Count);
             Assert.AreEqual(0f, balls[0].VelocityMPerS.x, 1e-4f);
         }
+
+        [Test]
+        public void StillToolAddsNoEnergy()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "parity-still");
+            var ball = Ball(1, new Vector3(0f, 1.5f, 0f), Vector3.zero);
+            var writer = WriterWith(new[] { ball }, accepted.pinned);
+
+            writer.QueueSweep("bat-contact-still", SweptSegment.Point(
+                ball.PositionM, Vector3.zero, BatTool.DeclaredSweptRadiusM),
+                EnergyQuantum.BatJ);
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual(0, writer.LastAppliedSweeps.Count,
+                "a still bat or fist must not warm the balls");
+            Assert.AreEqual(Vector3.zero, ball.VelocityMPerS);
+        }
+
+        [Test]
+        public void RepeatedSweepSampleInOneContactAddsOneQuantum()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "parity-quantum-once");
+            var ball = Ball(1, new Vector3(0f, 1.5f, 0f), Vector3.zero);
+            var writer = WriterWith(new[] { ball }, accepted.pinned);
+            var segment = SweptSegment.Point(new Vector3(0f, 1.5f, 0f),
+                new Vector3(2f, 0f, 0f), BatTool.DeclaredSweptRadiusM);
+
+            // A sustained swing submits one sample per Tick; the founder's
+            // unit is one strike per ball per contact, not per sample.
+            writer.QueueSweep("bat-contact-1", segment, EnergyQuantum.BatJ);
+            writer.QueueSweep("bat-contact-1", segment, EnergyQuantum.BatJ);
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual(1, writer.LastAppliedSweeps.Count);
+            Assert.AreEqual(EnergyQuantum.BatJ,
+                writer.LastAppliedSweeps[0].EnergyDeltaJ, 1e-9);
+        }
+
+        [Test]
+        public void SlowBallIsTrappedAtThePalmFieldCentreUntilTheFieldClears()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "palm-trap");
+            var slow = Ball(1, new Vector3(0f, 1.5f, 0f), new Vector3(0.4f, 0f, 0f));
+            var writer = WriterWith(new[] { slow }, accepted.pinned);
+
+            writer.SetPalmField(new Vector3(-0.5f, 1.5f, 0f),
+                new Vector3(0.5f, 1.5f, 0f), 0.30f, 0.30f, EnergyQuantum.PalmPassJ,
+                PalmCooling_CaptureSpeed());
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual("held", slow.Membership);
+            Assert.AreEqual(new Vector3(0f, 1.5f, 0f), slow.PositionM);
+            Assert.AreEqual(new Vector3(0.4f, 0f, 0f), slow.VelocityMPerS);
+            Assert.AreEqual(1, writer.LastPalmTrappedCount);
+
+            writer.ClearPalmField();
+            Assert.AreEqual("free", slow.Membership,
+                "dropping the field releases the trapped ball");
+            Assert.AreEqual(new Vector3(0.4f, 0f, 0f), slow.VelocityMPerS,
+                "the trap stores and returns the captured velocity");
+        }
+
+        [Test]
+        public void FastBallPassesThePalmFieldInsteadOfBeingTrapped()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "palm-pass");
+            var fast = Ball(1, new Vector3(0f, 1.5f, 0f), new Vector3(1f, 0f, 0f));
+            var writer = WriterWith(new[] { fast }, accepted.pinned);
+
+            writer.SetPalmField(new Vector3(-0.5f, 1.5f, 0f),
+                new Vector3(0.5f, 1.5f, 0f), 0.30f, 0.30f, EnergyQuantum.PalmPassJ,
+                PalmCooling_CaptureSpeed());
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual("free", fast.Membership);
+            Assert.AreEqual(0, writer.LastPalmTrappedCount);
+            Assert.AreEqual(1, writer.LastPalmCooledCount);
+            Assert.AreEqual(EnergyQuantum.PalmPassJ, writer.LastPalmAbsorbedJ, 1e-9);
+            Assert.Less(fast.VelocityMPerS.x, 1f, "the pass debit still cools it");
+        }
+
+        [Test]
+        public void OnePassLosesOneUnitEvenWhenTheBallStaysInside()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "palm-pass-once");
+            var ball = Ball(1, new Vector3(0f, 1.5f, 0f), new Vector3(1f, 0f, 0f));
+            var writer = WriterWith(new[] { ball }, accepted.pinned);
+
+            writer.SetPalmField(new Vector3(-0.5f, 1.5f, 0f),
+                new Vector3(0.5f, 1.5f, 0f), 0.30f, 0.30f, EnergyQuantum.PalmPassJ,
+                PalmCooling_CaptureSpeed());
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            Assert.AreEqual(1, writer.LastPalmCooledCount);
+            writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            Assert.AreEqual(0, writer.LastPalmCooledCount,
+                "staying inside the same pass adds no second unit");
+
+            // Move the field away for one Tick so the ball leaves the tube,
+            // then bring it back: the next entry is a fresh pass. The writer
+            // owns its numeric state, so the field moves, not the ball.
+            writer.SetPalmField(new Vector3(0f, 10f, 0f),
+                new Vector3(1f, 10f, 0f), 0.30f, 0.30f, EnergyQuantum.PalmPassJ,
+                PalmCooling_CaptureSpeed());
+            writer.Advance(3, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            writer.SetPalmField(new Vector3(-0.5f, 1.5f, 0f),
+                new Vector3(0.5f, 1.5f, 0f), 0.30f, 0.30f, EnergyQuantum.PalmPassJ,
+                PalmCooling_CaptureSpeed());
+            writer.Advance(4, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            Assert.AreEqual(1, writer.LastPalmCooledCount,
+                "a new pass loses another unit");
+            Assert.AreEqual(EnergyQuantum.PalmPassJ, writer.LastPalmAbsorbedJ, 1e-9);
+        }
+
+        static float PalmCooling_CaptureSpeed() =>
+            Amiss.Shell.Cooling.PalmCoolingTool.DeclaredCaptureSpeedMPerS;
     }
 }

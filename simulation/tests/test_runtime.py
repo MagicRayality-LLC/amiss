@@ -5,6 +5,7 @@ import unittest
 from simulation.kernel import TrialKernel
 from simulation.runtime import (
     DEFAULT_UNIT_CONVENTION,
+    SANDBAG_ENERGY_DELTA_J,
     CollisionContractError,
     CollisionRepresentation,
     HeadlessBallWriter,
@@ -444,7 +445,7 @@ class ContactClosureTestCase(unittest.TestCase):
             interaction,
             {
                 "origin_m": position,
-                "velocity_m_per_s": [0.0, 0.0, 0.0],
+                "velocity_m_per_s": [2.0, 0.0, 0.0],
                 "radius_m": 0.1,
                 "tracking_valid": True,
             },
@@ -504,6 +505,92 @@ class ContactClosureTestCase(unittest.TestCase):
         contact = runtime.physical["trial-a"].mechanics.contacts[lost]
         self.assertEqual(contact["closure"]["closure_reason"], "tracking_lost_aborted")
         self.assertEqual(runtime.state_view("trial-a")["entities"], before)
+
+    def test_energy_quantum_sweep_adds_declared_energy(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=4, speed=0.0)
+        position = runtime.state_view("trial-a")["entities"][0]["position_m"]
+        interaction = runtime.open_contact(
+            "trial-a", "swept", ["ball-0001"], {"energy_delta_j": 0.5}
+        )
+        admission = runtime.submit_sweep_sample(
+            "trial-a",
+            interaction,
+            {
+                "origin_m": position,
+                "velocity_m_per_s": [2.0, 0.0, 0.0],
+                "radius_m": 0.1,
+                "tracking_valid": True,
+            },
+        )
+        self.assertTrue(admission["admitted"])
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", interaction)
+        self.assertAlmostEqual(closure["work_j"], 0.5, places=9)
+        velocity = runtime.state_view("trial-a")["entities"][0]["velocity_m_per_s"]
+        self.assertAlmostEqual(math.sqrt(sum(v * v for v in velocity)), 1.0, places=9)
+
+    def test_a_still_tool_adds_no_energy(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=4, speed=0.0)
+        position = runtime.state_view("trial-a")["entities"][0]["position_m"]
+        interaction = runtime.open_contact(
+            "trial-a", "swept", ["ball-0001"], {"energy_delta_j": 0.5}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            interaction,
+            {
+                "origin_m": position,
+                "velocity_m_per_s": [0.0, 0.0, 0.0],
+                "radius_m": 0.1,
+                "tracking_valid": True,
+            },
+        )
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", interaction)
+        self.assertEqual(closure["work_j"], 0.0)
+        velocity = runtime.state_view("trial-a")["entities"][0]["velocity_m_per_s"]
+        self.assertEqual(velocity, [0.0, 0.0, 0.0])
+
+    def test_repeated_sample_in_one_contact_adds_one_quantum(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=4, speed=0.0)
+        position = runtime.state_view("trial-a")["entities"][0]["position_m"]
+        interaction = runtime.open_contact(
+            "trial-a", "swept", ["ball-0001"], {"energy_delta_j": 0.5}
+        )
+        sample = {
+            "origin_m": position,
+            "velocity_m_per_s": [2.0, 0.0, 0.0],
+            "radius_m": 0.1,
+            "tracking_valid": True,
+        }
+        runtime.submit_sweep_sample("trial-a", interaction, sample)
+        runtime.submit_sweep_sample("trial-a", interaction, sample)
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", interaction)
+        self.assertAlmostEqual(closure["work_j"], 0.5, places=9,
+                               msg="one contact adds one balance unit per ball")
+
+    def test_energy_quantum_prop_removes_declared_energy(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=4, speed=1.0)
+        runtime.register_prop(
+            "trial-a", "prop-absorber", energy_delta_j=SANDBAG_ENERGY_DELTA_J
+        )
+        admission = runtime.admit(
+            "trial-a",
+            "prop_trigger",
+            {"prop_id": "prop-absorber", "entity_id": "ball-0002"},
+        )
+        self.assertTrue(admission["admitted"])
+        runtime.request_slice("trial-a", 1)
+        props = runtime.prop_states("trial-a")
+        self.assertEqual(props["prop-absorber"]["state"], "consumed")
+        self.assertAlmostEqual(
+            props["prop-absorber"]["absorbed_energy_j"], 0.5, places=9
+        )
 
     def test_one_shot_prop_consumed_once(self):
         kernel, runtime = make_pair()

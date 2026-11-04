@@ -6,18 +6,18 @@ namespace Amiss.Shell.Simulation
     /// <summary>
     /// A writer that resolves a hovering sandbag absorber against its own
     /// state. The tool supplies only the normalized hover region and the
-    /// declared damping factor; the writer decides which free ball, if any, a
-    /// Tick's motion carried into the region, damps that ball's velocity, and
-    /// measures the ball-energy change it applied — the only value the energy
-    /// ledger accepts (02 section 4.1).
+    /// declared energy quantum; the writer decides which free ball, if any, a
+    /// Tick's motion carried into the region, removes that quantum from the
+    /// ball's kinetic energy, and measures the ball-energy change it applied —
+    /// the only value the energy ledger accepts (02 section 4.1).
     ///
     /// It mirrors the approved headless oracle
     /// (<c>simulation/runtime.py</c>, <c>register_prop</c> /
     /// <c>command_effect(prop_trigger)</c> / <c>record_facts</c>): one
-    /// one-shot consumable, first valid impact only, velocity scaled by the
-    /// damping factor, absorbed energy accumulated once, never repeated.
-    /// Damping hits reuse the <see cref="AppliedSweepHit"/> record shape
-    /// (interaction id, target ball id, signed measured energy delta).
+    /// one-shot consumable, first valid impact only, absorption applied once,
+    /// never repeated. Absorption hits reuse the <see cref="AppliedSweepHit"/>
+    /// record shape (interaction id, target ball id, signed measured energy
+    /// delta).
     /// </summary>
     public interface ISandbagEffectWriter
     {
@@ -26,7 +26,7 @@ namespace Amiss.Shell.Simulation
         /// region; only the first valid impact consumes it.
         /// </summary>
         void SetHoverAbsorber(string interactionId, Vector3 centerM, float radiusM,
-            double dampingFactor);
+            double energyDeltaJ);
 
         /// <summary>Disarms without absorbing; a later impact absorbs nothing.</summary>
         void ClearHoverAbsorber();

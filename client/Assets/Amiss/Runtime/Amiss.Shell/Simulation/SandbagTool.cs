@@ -87,12 +87,13 @@ namespace Amiss.Shell.Simulation
     /// carries the writer-measured absorption into the ledger.
     ///
     /// Semantics mirror the headless oracle
-    /// (<c>simulation/runtime.py</c>, <c>register_prop</c> with the default
-    /// damping factor, one <c>prop_trigger</c>, first impact consumes):
+    /// (<c>simulation/runtime.py</c>, <c>register_prop</c> with the declared
+    /// absorption quantum, one <c>prop_trigger</c>, first impact consumes):
     /// <list type="bullet">
     /// <item>one placement arms one hover region and opens one contact;</item>
-    /// <item>the first valid ball impact damps that ball once, leaves it free,
-    /// and consumes the bag — later balls are unaffected;</item>
+    /// <item>the first valid ball impact removes the declared energy from that
+    /// ball once, leaves it free, and consumes the bag — later balls are
+    /// unaffected;</item>
     /// <item>the closed contact is one ledger entry with signed measured work,
     /// and its negative work raises the separate sandbag account;</item>
     /// <item>placing again after consumption floats a fresh bag with no
@@ -101,7 +102,7 @@ namespace Amiss.Shell.Simulation
     ///
     /// The tool writes no ball state. It arms the region through
     /// <see cref="ISandbagContactHost"/>; the writer applies and measures the
-    /// damping on its next fixed Ticks, and the runtime records the measured
+    /// absorption on its next fixed Ticks, and the runtime records the measured
     /// energy on the one open contact. <see cref="PumpAbsorption"/> is the
     /// only place this tool can close that contact, and it happens at most
     /// once per placement.
@@ -118,26 +119,25 @@ namespace Amiss.Shell.Simulation
         public const float DeclaredAbsorberRadiusM = 0.07f;
 
         /// <summary>
-        /// Prototype damping factor; the absorbed ball keeps this fraction of
-        /// its velocity. It mirrors the headless oracle's default prop
-        /// registration, and 07 section 4.2 leaves the versioned
-        /// mass/contact/restitution parameters to a later measurement.
-        /// A smaller factor slows more; 1 would absorb nothing.
+        /// Founder balance unit (2026-11-04): the bag removes 10 quanta from
+        /// the first ball that reaches it. The writer clamps the removal to
+        /// the ball's own kinetic energy so the ball never reverses.
         /// </summary>
-        public const double DeclaredDampingFactor = 0.5;
+        public const double DeclaredEnergyDeltaJ = EnergyQuantum.SandbagJ;
 
         /// <summary>
         /// The declared tool parameters are 07 section 4.2 prototype values, so
         /// the readout states that label instead of presenting them as calibrated.
         /// </summary>
-        public const string DeclaredParametersEvidence = "uncalibrated_declared_not_measured";
+        public const string DeclaredParametersEvidence = EnergyQuantum.EvidenceStatus;
 
         /// <summary>The bag parameter label the panel shows under the readout.</summary>
         public static string DeclaredParametersLine =>
             "Sandbag: absorber radius " + DeclaredAbsorberRadiusM.ToString("0.###",
-                System.Globalization.CultureInfo.InvariantCulture) + " m · damping factor " +
-            DeclaredDampingFactor.ToString("0.##",
-                System.Globalization.CultureInfo.InvariantCulture) + " · " +
+                System.Globalization.CultureInfo.InvariantCulture) + " m · absorption " +
+            EnergyQuantum.JoulesText(DeclaredEnergyDeltaJ) + " (" +
+            EnergyQuantum.SandbagUnits.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) + " units) · " +
             DeclaredParametersEvidence;
 
         readonly ISandbagContactHost host;
@@ -231,7 +231,7 @@ namespace Amiss.Shell.Simulation
 
         /// <summary>
         /// Polls the open contact after the runtime advanced. The first poll
-        /// that sees writer-measured damping closes the contact exactly once,
+        /// that sees writer-measured absorption closes the contact exactly once,
         /// records the absorption, and disperses the bag. A contact that died
         /// underneath (abort or Trial end) returns to Ready with no entry.
         /// </summary>
