@@ -18,8 +18,8 @@ namespace Amiss.EditorTools
                     "Add an OVRCameraRig with hand prefabs first, or use 'Add Desktop Test Rig'.", "OK");
                 return;
             }
-            var l = left.GetComponent<ReflectionPalmSource>() ?? Undo.AddComponent<ReflectionPalmSource>(left.gameObject);
-            var r = right.GetComponent<ReflectionPalmSource>() ?? Undo.AddComponent<ReflectionPalmSource>(right.gameObject);
+            var l = left.GetComponent<MetaPalmSource>() ?? Undo.AddComponent<MetaPalmSource>(left.gameObject);
+            var r = right.GetComponent<MetaPalmSource>() ?? Undo.AddComponent<MetaPalmSource>(right.gameObject);
             l.side = PalmHandSource.Side.Left;
             r.side = PalmHandSource.Side.Right;
             var root = CreateRoot(l, r);

@@ -64,7 +64,9 @@ namespace Amiss.Shell.Simulation
         {
             public string InteractionId;
             public Vector3 OriginM;
-            public Vector3 VelocityMPerS;
+            public Vector3 EndM;
+            public Vector3 OriginVelocityMPerS;
+            public Vector3 EndVelocityMPerS;
             public float RadiusM;
             public double ImpulseMagnitude;
         }
@@ -164,25 +166,36 @@ namespace Amiss.Shell.Simulation
             configured = true;
         }
 
-        public void QueueSweep(string interactionId, Vector3 origin, Vector3 velocityMPerS,
-            float sweptRadiusM, double impulseMagnitude)
+        public void QueueSweep(string interactionId, SweptSegment segment,
+            double impulseMagnitude)
         {
             if (!configured)
                 throw new InvalidOperationException("writer_not_setup");
-            if (!float.IsFinite(sweptRadiusM) || sweptRadiusM <= 0f)
-                throw new ArgumentException("swept_radius_invalid", nameof(sweptRadiusM));
+            if (!float.IsFinite(segment.RadiusM) || segment.RadiusM <= 0f)
+                throw new ArgumentException("swept_radius_invalid",
+                    nameof(segment));
             if (!double.IsFinite(impulseMagnitude) || impulseMagnitude <= 0.0)
                 throw new ArgumentException("impulse_magnitude_invalid",
                     nameof(impulseMagnitude));
+            if (!Finite(segment.OriginM) || !Finite(segment.EndM) ||
+                !Finite(segment.OriginVelocityMPerS) ||
+                !Finite(segment.EndVelocityMPerS))
+                throw new ArgumentException("sweep_segment_invalid", nameof(segment));
             queuedSweeps.Add(new QueuedSweep
             {
                 InteractionId = interactionId ?? "",
-                OriginM = origin,
-                VelocityMPerS = velocityMPerS,
-                RadiusM = sweptRadiusM,
+                OriginM = segment.OriginM,
+                EndM = segment.EndM,
+                OriginVelocityMPerS = segment.OriginVelocityMPerS,
+                EndVelocityMPerS = segment.EndVelocityMPerS,
+                RadiusM = segment.RadiusM,
                 ImpulseMagnitude = impulseMagnitude
             });
         }
+
+        static bool Finite(Vector3 value) =>
+            float.IsFinite(value.x) && float.IsFinite(value.y) &&
+            float.IsFinite(value.z);
 
         public IReadOnlyList<AppliedSweepHit> LastAppliedSweeps => lastAppliedSweeps;
 
@@ -389,25 +402,53 @@ namespace Amiss.Shell.Simulation
             for (var queueIndex = 0; queueIndex < queuedSweeps.Count; queueIndex++)
             {
                 var queued = queuedSweeps[queueIndex];
-                var dx = queued.VelocityMPerS.x * deltaSeconds;
-                var dy = queued.VelocityMPerS.y * deltaSeconds;
-                var dz = queued.VelocityMPerS.z * deltaSeconds;
-                var lengthSquared = dx * dx + dy * dy + dz * dz;
+                var segmentX = (double)queued.EndM.x - queued.OriginM.x;
+                var segmentY = (double)queued.EndM.y - queued.OriginM.y;
+                var segmentZ = (double)queued.EndM.z - queued.OriginM.z;
+                var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY +
+                                           segmentZ * segmentZ;
                 // Ascending entity id: the order array is already sorted, so
                 // the traversal is the oracle's stable entity order.
                 for (var index = 0; index < order.Length; index++)
                 {
                     if (order[index].Membership != "free")
                         continue;
+                    // The tool contact shape is the segment from grip to tip;
+                    // the ball couples to the closest point on that segment and
+                    // to the velocity measured there, so a rotating barrel's
+                    // tip moves faster than its grip.
                     var rx = px[index] - queued.OriginM.x;
                     var ry = py[index] - queued.OriginM.y;
                     var rz = pz[index] - queued.OriginM.z;
-                    var parameter = lengthSquared > 0.0
-                        ? Math.Clamp((rx * dx + ry * dy + rz * dz) / lengthSquared, 0.0, 1.0)
+                    var toolParameter = segmentLengthSquared > 0.0
+                        ? Math.Clamp((rx * segmentX + ry * segmentY +
+                            rz * segmentZ) / segmentLengthSquared, 0.0, 1.0)
                         : 0.0;
-                    var cx = queued.OriginM.x + dx * parameter;
-                    var cy = queued.OriginM.y + dy * parameter;
-                    var cz = queued.OriginM.z + dz * parameter;
+                    var originX = queued.OriginM.x + segmentX * toolParameter;
+                    var originY = queued.OriginM.y + segmentY * toolParameter;
+                    var originZ = queued.OriginM.z + segmentZ * toolParameter;
+                    var velocityX = queued.OriginVelocityMPerS.x +
+                        ((double)queued.EndVelocityMPerS.x -
+                            queued.OriginVelocityMPerS.x) * toolParameter;
+                    var velocityY = queued.OriginVelocityMPerS.y +
+                        ((double)queued.EndVelocityMPerS.y -
+                            queued.OriginVelocityMPerS.y) * toolParameter;
+                    var velocityZ = queued.OriginVelocityMPerS.z +
+                        ((double)queued.EndVelocityMPerS.z -
+                            queued.OriginVelocityMPerS.z) * toolParameter;
+                    var dx = velocityX * deltaSeconds;
+                    var dy = velocityY * deltaSeconds;
+                    var dz = velocityZ * deltaSeconds;
+                    var lengthSquared = dx * dx + dy * dy + dz * dz;
+                    var sx = px[index] - originX;
+                    var sy = py[index] - originY;
+                    var sz = pz[index] - originZ;
+                    var parameter = lengthSquared > 0.0
+                        ? Math.Clamp((sx * dx + sy * dy + sz * dz) / lengthSquared, 0.0, 1.0)
+                        : 0.0;
+                    var cx = originX + dx * parameter;
+                    var cy = originY + dy * parameter;
+                    var cz = originZ + dz * parameter;
                     var vxDelta = px[index] - cx;
                     var vyDelta = py[index] - cy;
                     var vzDelta = pz[index] - cz;
@@ -418,7 +459,21 @@ namespace Amiss.Shell.Simulation
                     var nx = 1.0;
                     var ny = 0.0;
                     var nz = 0.0;
-                    if (distance > 0.0)
+                    if (distance <= 1e-9)
+                    {
+                        // A ball on the swept path has no meaningful
+                        // perpendicular; push it along the tool's motion
+                        // instead of a rounding-noise direction. A still tool
+                        // keeps the stable +x fallback.
+                        var speed = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                        if (speed > 0.0)
+                        {
+                            nx = dx / speed;
+                            ny = dy / speed;
+                            nz = dz / speed;
+                        }
+                    }
+                    else
                     {
                         nx = vxDelta / distance;
                         ny = vyDelta / distance;

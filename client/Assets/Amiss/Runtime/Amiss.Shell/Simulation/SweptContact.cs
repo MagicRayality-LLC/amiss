@@ -25,23 +25,59 @@ namespace Amiss.Shell.Simulation
     }
 
     /// <summary>
+    /// One declared tool contact shape: a segment with a swept radius and a
+    /// velocity at each endpoint. A point sweep is the degenerate segment whose
+    /// endpoints coincide (the hand or controller pose); a bat uses the barrel
+    /// from grip to tip so a ball the barrel passes through is reached, not
+    /// only one that touches the fist. The velocity is interpolated along the
+    /// segment, so a rotating barrel moves its tip faster than its grip.
+    /// </summary>
+    public readonly struct SweptSegment
+    {
+        public SweptSegment(Vector3 originM, Vector3 endM, Vector3 originVelocityMPerS,
+            Vector3 endVelocityMPerS, float radiusM)
+        {
+            OriginM = originM;
+            EndM = endM;
+            OriginVelocityMPerS = originVelocityMPerS;
+            EndVelocityMPerS = endVelocityMPerS;
+            RadiusM = radiusM;
+        }
+
+        /// <summary>A single-point tool pose, the pre-segment sweep shape.</summary>
+        public static SweptSegment Point(Vector3 originM, Vector3 velocityMPerS,
+            float radiusM) =>
+            new(originM, originM, velocityMPerS, velocityMPerS, radiusM);
+
+        public Vector3 OriginM { get; }
+        public Vector3 EndM { get; }
+        public Vector3 OriginVelocityMPerS { get; }
+        public Vector3 EndVelocityMPerS { get; }
+        public float RadiusM { get; }
+        public bool IsPoint => (EndM - OriginM).sqrMagnitude <= 1e-12f;
+    }
+
+    /// <summary>
     /// A writer that resolves and applies swept tool impulses. The writer is
     /// the only side that knows its own state, so it also decides which balls
     /// a sweep reached and how much energy each one gained; the caller supplies
-    /// only the normalized pose, velocity, swept radius, and declared impulse.
+    /// only the declared contact shape, its endpoint velocities, and the
+    /// declared impulse.
     ///
     /// It mirrors <c>HeadlessBallWriter._apply_sweep</c> of the approved
-    /// oracle: for each free ball in ascending entity-id order, project the
-    /// ball onto the swept segment (origin → origin + velocity·Δt, clamped to
-    /// the segment), and when the distance to that segment is within
-    /// <c>swept radius + ball radius</c>, add the impulse along the direction
-    /// from the closest point to the ball centre and measure the energy delta.
-    /// Effects are applied before integration, in queue order.
+    /// oracle: for each free ball in ascending entity-id order, find the
+    /// closest point on the static tool segment, sweep that point by its
+    /// interpolated velocity over one fixed Tick, and when the ball is within
+    /// <c>swept radius + ball radius</c> of that swept path, add the impulse
+    /// along the direction from the closest point to the ball centre and
+    /// measure the energy delta. Effects are applied before integration, in
+    /// queue order. When the segment is a point this is the original point
+    /// sweep, operation for operation.
     /// </summary>
     public interface ISweepEffectWriter
     {
-        void QueueSweep(string interactionId, Vector3 origin, Vector3 velocityMPerS,
-            float sweptRadiusM, double impulseMagnitude);
+        void QueueSweep(string interactionId, SweptSegment segment,
+            double impulseMagnitude);
 
         /// <summary>Measured hits of the most recently advanced Tick, in apply order.</summary>
         IReadOnlyList<AppliedSweepHit> LastAppliedSweeps { get; }
@@ -126,8 +162,7 @@ namespace Amiss.Shell.Simulation
         int ContactCommits { get; }
         TemperatureReadoutSnapshot Readout { get; }
         void OpenSweptContact(string contactId, string propId, int tick);
-        void SubmitSweep(string contactId, Vector3 origin, Vector3 velocityMPerS,
-            float sweptRadiusM);
+        void SubmitSweep(string contactId, SweptSegment segment);
         SweptClosure CloseSweptContact(string contactId, string reason);
     }
 }

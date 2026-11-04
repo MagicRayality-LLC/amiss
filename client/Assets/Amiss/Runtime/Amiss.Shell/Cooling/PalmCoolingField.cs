@@ -93,7 +93,10 @@ namespace Amiss.Shell.Cooling
         // ---------- setup ----------
         Material MakeMat(string tex, float scroll, float inten)
         {
-            var sh = Shader.Find("PalmCooling/Additive Scroll");
+            // The shader lives in Resources: no serialized material references
+            // it, so Shader.Find alone would let the Android build strip it.
+            var sh = Resources.Load<Shader>("PalmCooling/PalmCoolingAdditive");
+            if (!sh) sh = Shader.Find("PalmCooling/Additive Scroll");
             if (!sh) sh = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Sprites/Default");
             var m = new Material(sh) { name = "PalmCooling_" + tex };
             var t = Resources.Load<Texture2D>("PalmCooling/" + tex);

@@ -633,17 +633,48 @@ class HeadlessBallWriter:
         facts["applied_effects"].append(applied)
 
     def _apply_sweep(self, state, effect, delta_s, facts):
+        # The declared contact shape is a segment from origin to origin_b.
+        # A point sweep omits origin_b and is the degenerate segment. Each ball
+        # couples to the closest point on that segment and to the velocity
+        # measured there, so a rotating bat's tip moves faster than its grip.
         origin = effect["origin_m"]
-        sweep_delta = [
-            effect["velocity_m_per_s"][axis] * delta_s for axis in range(3)
-        ]
-        length_sq = math.fsum(component * component for component in sweep_delta)
+        end = effect.get("origin_b_m", origin)
+        segment = [end[axis] - origin[axis] for axis in range(3)]
+        segment_length_sq = math.fsum(component * component for component in segment)
+        origin_velocity = effect["velocity_m_per_s"]
+        end_velocity = effect.get("velocity_b_m_per_s", origin_velocity)
         for entity_id in sorted(state["balls"]):
             ball = state["balls"][entity_id]
             if ball["membership"] != "free":
                 continue
             relative = [
                 ball["position_m"][axis] - origin[axis] for axis in range(3)
+            ]
+            if segment_length_sq > 0.0:
+                tool_parameter = max(
+                    0.0,
+                    min(
+                        1.0,
+                        math.fsum(
+                            relative[axis] * segment[axis] for axis in range(3)
+                        )
+                        / segment_length_sq,
+                    ),
+                )
+            else:
+                tool_parameter = 0.0
+            tool_origin = [
+                origin[axis] + segment[axis] * tool_parameter for axis in range(3)
+            ]
+            velocity = [
+                origin_velocity[axis]
+                + (end_velocity[axis] - origin_velocity[axis]) * tool_parameter
+                for axis in range(3)
+            ]
+            sweep_delta = [velocity[axis] * delta_s for axis in range(3)]
+            length_sq = math.fsum(component * component for component in sweep_delta)
+            relative = [
+                ball["position_m"][axis] - tool_origin[axis] for axis in range(3)
             ]
             if length_sq > 0.0:
                 parameter = max(
@@ -659,7 +690,8 @@ class HeadlessBallWriter:
             else:
                 parameter = 0.0
             closest = [
-                origin[axis] + sweep_delta[axis] * parameter for axis in range(3)
+                tool_origin[axis] + sweep_delta[axis] * parameter
+                for axis in range(3)
             ]
             distance_vector = [
                 ball["position_m"][axis] - closest[axis] for axis in range(3)
@@ -670,8 +702,15 @@ class HeadlessBallWriter:
             reach = effect["radius_m"] + ball["radius_m"]
             if distance > reach:
                 continue
-            if distance == 0.0:
-                direction = [1.0, 0.0, 0.0]
+            if distance <= 1e-9:
+                # A ball on the swept path has no meaningful perpendicular;
+                # push it along the tool's motion instead of a rounding noise
+                # direction. A still tool keeps the stable +x fallback.
+                speed = math.sqrt(math.fsum(component * component for component in velocity))
+                if speed > 0.0:
+                    direction = [component / speed for component in velocity]
+                else:
+                    direction = [1.0, 0.0, 0.0]
             else:
                 direction = [component / distance for component in distance_vector]
             before = self._ball_energy(ball)
@@ -1004,7 +1043,7 @@ class TrialMechanics:
             contact = self.contacts.get(parameters["interaction_id"])
             if contact is None or contact["closure"] is not None:
                 return None
-            return {
+            effect = {
                 "effect_kind": "sweep",
                 "interaction_id": parameters["interaction_id"],
                 "origin_m": list(parameters["origin_m"]),
@@ -1012,6 +1051,12 @@ class TrialMechanics:
                 "radius_m": parameters["radius_m"],
                 "impulse_magnitude": parameters["impulse_magnitude"],
             }
+            if "origin_b_m" in parameters:
+                effect["origin_b_m"] = list(parameters["origin_b_m"])
+                effect["velocity_b_m_per_s"] = list(
+                    parameters["velocity_b_m_per_s"]
+                )
+            return effect
         raise RuntimeContractError("unknown_operation")
 
     def record_facts(self, facts):
@@ -1718,6 +1763,11 @@ class SimulationRuntime:
             "radius_m": sample["radius_m"],
             "impulse_magnitude": contact_parameters.get("impulse_magnitude", 1.0),
         }
+        if "origin_b_m" in sample:
+            parameters["origin_b_m"] = sample["origin_b_m"]
+            parameters["velocity_b_m_per_s"] = sample.get(
+                "velocity_b_m_per_s", sample["velocity_m_per_s"]
+            )
         return self.admit(trial_id, "sweep_sample", parameters)
 
     def close_contact(self, trial_id, interaction_id, reason="completed"):

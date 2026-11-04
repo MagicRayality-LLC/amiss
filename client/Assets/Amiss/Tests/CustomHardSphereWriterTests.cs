@@ -407,5 +407,40 @@ namespace Amiss.Tests
             Assert.AreEqual(200, onePerFrame.CurrentView.Tick);
             Assert.AreEqual(onePerFrame.CurrentView.ViewId, twoPerFrame.CurrentView.ViewId);
         }
+
+        [Test]
+        public void BarrelSegmentSweepHitsBeyondThePointOrigin()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "parity-segment");
+            var balls = new[] { Ball(1, new Vector3(0.02f, 0.6f, 0f), Vector3.zero) };
+            var writer = WriterWith(balls, accepted.pinned);
+
+            writer.QueueSweep("barrel", new SweptSegment(Vector3.zero,
+                new Vector3(0f, 0.7f, 0f), new Vector3(2f, 0f, 0f),
+                new Vector3(2f, 0f, 0f), BatTool.DeclaredSweptRadiusM), 2.0);
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual(1, writer.LastAppliedSweeps.Count);
+            Assert.AreEqual("ball-0001", writer.LastAppliedSweeps[0].EntityId);
+            Assert.Greater(writer.LastAppliedSweeps[0].EnergyDeltaJ, 0.0);
+            Assert.AreEqual(2f, balls[0].VelocityMPerS.x, 1e-4f);
+            Assert.AreEqual(0f, balls[0].VelocityMPerS.y, 1e-4f);
+        }
+
+        [Test]
+        public void SegmentSweepDoesNotReachBeyondItsDeclaredRadius()
+        {
+            var accepted = AcceptedRoom(new Vector3(3f, 3f, 3f), "parity-segment-miss");
+            var balls = new[] { Ball(1, new Vector3(0f, 0.9f, 0f), Vector3.zero) };
+            var writer = WriterWith(balls, accepted.pinned);
+
+            writer.QueueSweep("barrel", new SweptSegment(Vector3.zero,
+                new Vector3(0f, 0.7f, 0f), new Vector3(2f, 0f, 0f),
+                new Vector3(2f, 0f, 0f), BatTool.DeclaredSweptRadiusM), 2.0);
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            Assert.AreEqual(0, writer.LastAppliedSweeps.Count);
+            Assert.AreEqual(0f, balls[0].VelocityMPerS.x, 1e-4f);
+        }
     }
 }

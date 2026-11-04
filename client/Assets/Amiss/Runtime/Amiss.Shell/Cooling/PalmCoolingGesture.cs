@@ -56,11 +56,14 @@ namespace Amiss.Shell.Cooling
         PalmSample sL, sR;
         float enterTimer, exitTimer, lostTimer, targetStrength;
 
-        void Update()
+        void Update() => Step(Time.deltaTime);
+
+        /// <summary>Advances the detector by one deterministic frame.</summary>
+        public void Step(float deltaSeconds)
         {
-            bool okL = leftHand && leftHand.TrySample(out var rawL) ? (sL = Smooth(sL, rawL, HasPose)).tracked : false;
-            bool okR = rightHand && rightHand.TrySample(out var rawR) ? (sR = Smooth(sR, rawR, HasPose)).tracked : false;
-            float dt = Time.deltaTime;
+            bool okL = leftHand && leftHand.TrySample(out var rawL) ? (sL = Smooth(sL, rawL, HasPose, deltaSeconds)).tracked : false;
+            bool okR = rightHand && rightHand.TrySample(out var rawR) ? (sR = Smooth(sR, rawR, HasPose, deltaSeconds)).tracked : false;
+            float dt = deltaSeconds;
 
             bool both = okL && okR;
             if (both) { HasPose = true; lostTimer = 0f; } else lostTimer += dt;
@@ -105,10 +108,10 @@ namespace Amiss.Shell.Cooling
             Strength = Mathf.MoveTowards(Strength, targetStrength, rate * dt);
         }
 
-        PalmSample Smooth(PalmSample prev, PalmSample raw, bool hasPrev)
+        PalmSample Smooth(PalmSample prev, PalmSample raw, bool hasPrev, float deltaSeconds)
         {
             if (!raw.tracked || !hasPrev || !prev.tracked || poseSmoothing <= 0f) return raw;
-            float k = 1f - Mathf.Exp(-Time.deltaTime / poseSmoothing);
+            float k = 1f - Mathf.Exp(-deltaSeconds / poseSmoothing);
             raw.center = Vector3.Lerp(prev.center, raw.center, k);
             raw.normal = Vector3.Slerp(prev.normal, raw.normal, k).normalized;
             raw.fingerDir = Vector3.Slerp(prev.fingerDir, raw.fingerDir, k).normalized;

@@ -125,8 +125,7 @@ namespace Amiss.Shell.Simulation
             trial.Temperature.OpenContact(contactId, propId, tick);
         }
 
-        void IBatContactHost.SubmitSweep(string contactId, Vector3 origin,
-            Vector3 velocityMPerS, float sweptRadiusM)
+        void IBatContactHost.SubmitSweep(string contactId, SweptSegment segment)
         {
             RequireTrial();
             if (trial.Writer is not ISweepEffectWriter sweepWriter)
@@ -134,11 +133,11 @@ namespace Amiss.Shell.Simulation
             if (!trial.Temperature.HasOpenContact ||
                 trial.Temperature.OpenContactId != contactId)
                 throw new InvalidOperationException("contact_not_open");
-            // The writer resolves the sweep against its own state when it
-            // advances, and measures the applied energy. The impulse magnitude
-            // is the episode's declared prototype value, never a panel or
-            // model number.
-            sweepWriter.QueueSweep(contactId, origin, velocityMPerS, sweptRadiusM,
+            // The writer resolves the declared contact shape against its own
+            // state when it advances, and measures the applied energy. The
+            // impulse magnitude is the episode's declared prototype value,
+            // never a panel or model number.
+            sweepWriter.QueueSweep(contactId, segment,
                 BatTool.DeclaredImpulseMagnitude);
         }
 

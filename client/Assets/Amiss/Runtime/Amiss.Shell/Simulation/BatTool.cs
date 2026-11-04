@@ -1,5 +1,6 @@
 using System;
 using Amiss.Shell.Input;
+using UnityEngine;
 
 namespace Amiss.Shell.Simulation
 {
@@ -43,6 +44,38 @@ namespace Amiss.Shell.Simulation
     }
 
     /// <summary>
+    /// The held bat's barrel in world space with the measured velocity at each
+    /// end. The grip runs from the fist, the tip from the far end of the model;
+    /// the input bridge measures both from the live held transform, so a
+    /// rotating swing moves the tip faster than the grip. A missing or
+    /// non-finite frame falls back to the normalized hand/controller point.
+    /// </summary>
+    public readonly struct BatSweepFrame
+    {
+        public BatSweepFrame(Vector3 gripM, Vector3 tipM, Vector3 gripVelocityMPerS,
+            Vector3 tipVelocityMPerS)
+        {
+            GripM = gripM;
+            TipM = tipM;
+            GripVelocityMPerS = gripVelocityMPerS;
+            TipVelocityMPerS = tipVelocityMPerS;
+        }
+
+        public Vector3 GripM { get; }
+        public Vector3 TipM { get; }
+        public Vector3 GripVelocityMPerS { get; }
+        public Vector3 TipVelocityMPerS { get; }
+
+        public bool IsFinite =>
+            Finite(GripM) && Finite(TipM) && Finite(GripVelocityMPerS) &&
+            Finite(TipVelocityMPerS);
+
+        static bool Finite(Vector3 value) =>
+            float.IsFinite(value.x) && float.IsFinite(value.y) &&
+            float.IsFinite(value.z);
+    }
+
+    /// <summary>
     /// The P0 bat of approved design 07 section 4.2, driven only by normalized
     /// semantic commands. Its semantics follow the approved oracle's swept
     /// contact path (<c>simulation/runtime.py</c>: <c>open_contact</c>,
@@ -57,8 +90,9 @@ namespace Amiss.Shell.Simulation
     /// <item>one contacted closure is one semantic commit, never one per sample.</item>
     /// </list>
     ///
-    /// The tool writes no ball state. It queues a normalized pose and velocity
-    /// with the writer through <see cref="IBatContactHost"/>; the writer applies
+    /// The tool writes no ball state. It queues the held bat's barrel segment
+    /// (or the normalized point pose when no measured barrel is supplied) with
+    /// the writer through <see cref="IBatContactHost"/>; the writer applies
     /// and measures the sweep on its next fixed Tick, and the runtime records
     /// the measured energy on the one open contact. <see cref="InputLimitProfile"/>
     /// supplies the swing limits: production installs the declared candidate
@@ -132,9 +166,23 @@ namespace Amiss.Shell.Simulation
         /// <summary>
         /// Consumes one normalized sample with its validity evidence. Only an
         /// accepted, in-swing sample can touch a ball; a rejected sample aborts
-        /// the open swing without work or a synthetic release.
+        /// the open swing without work or a synthetic release. Without a
+        /// measured <see cref="BatSweepFrame"/> the sample's tool pose is the
+        /// point the writer sweeps, which keeps the controller and test paths
+        /// on the same semantics.
         /// </summary>
-        public BatSwingResult Consume(InputNormalizationResult normalized, int tick)
+        public BatSwingResult Consume(InputNormalizationResult normalized, int tick) =>
+            Consume(normalized, tick, null);
+
+        /// <summary>
+        /// Consumes one normalized sample together with the held bat's measured
+        /// barrel. The barrel, not the fist, is the tool contact shape; its tip
+        /// velocity also classifies the swing, because a rotating bat moves the
+        /// tip far faster than the hand pose. A non-finite frame falls back to
+        /// the point pose so a broken measurement never widens contact.
+        /// </summary>
+        public BatSwingResult Consume(InputNormalizationResult normalized, int tick,
+            BatSweepFrame? sweepFrame)
         {
             if (!normalized.Accepted)
             {
@@ -154,6 +202,17 @@ namespace Amiss.Shell.Simulation
                     "writer_has_no_tool_effect_face", "");
 
             var command = normalized.Command;
+            var barrel = sweepFrame.HasValue && sweepFrame.Value.IsFinite
+                ? sweepFrame.Value
+                : (BatSweepFrame?)null;
+            if (barrel.HasValue)
+            {
+                // The held tool is the bat, so its tip is the swing speed the
+                // profile limits classify. The sample's validity evidence still
+                // belongs to the tracked hand that carried it.
+                command = new NormalizedToolCommand(command.TargetTick, command.Side,
+                    command.Pose, barrel.Value.TipVelocityMPerS, command.AngularVelocity);
+            }
             classifier.Update(command);
             if (classifier.Activity == SwingActivity.Inactive)
                 return new BatSwingResult(BatSwingOutcome.Idle, tick, "swing_inactive", "");
@@ -163,8 +222,12 @@ namespace Amiss.Shell.Simulation
                                 (++contactCounter).ToString("D4");
                 host.OpenSweptContact(openContactId, PropId, tick);
             }
-            host.SubmitSweep(openContactId, command.Pose.position,
-                command.LinearVelocity, DeclaredSweptRadiusM);
+            host.SubmitSweep(openContactId, barrel.HasValue
+                ? new SweptSegment(barrel.Value.GripM, barrel.Value.TipM,
+                    barrel.Value.GripVelocityMPerS, barrel.Value.TipVelocityMPerS,
+                    DeclaredSweptRadiusM)
+                : SweptSegment.Point(command.Pose.position, command.LinearVelocity,
+                    DeclaredSweptRadiusM));
             lastSubmittedTick = tick;
             return new BatSwingResult(BatSwingOutcome.Submitted, tick, "", openContactId);
         }

@@ -113,9 +113,10 @@ namespace Amiss.Shell
             Sandbag.Initialize(runtime);
 
             // The palm cooling field pushes its pose to the writer while both
-            // palms stay open and facing. The rig is added from the Tools menu
-            // (or the desktop test rig); binding here keeps the tool decoupled
-            // from the runtime's concrete type.
+            // palms stay open and facing. The live hand prefabs do not carry
+            // it, so install it here; binding keeps the tool decoupled from
+            // the runtime's concrete type.
+            Cooling.PalmCoolingInstaller.Install(transform);
             foreach (var cooling in GetComponentsInChildren<Cooling.PalmCoolingTool>(true))
                 cooling.Bind(runtime);
 

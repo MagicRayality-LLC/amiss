@@ -1633,6 +1633,53 @@ class BatContactClosureTestCase(unittest.TestCase):
         closure = runtime.close_contact("trial-a", interaction)
         self.assertLess(closure["work_j"], 0.0)
 
+    def test_barrel_segment_reaches_a_ball_beyond_the_point_origin(self):
+        kernel, runtime, physical = self._started()
+        target = sorted(physical.mechanics.state["balls"])[0]
+        physical.mechanics.state["balls"][target]["position_m"] = [1.02, 0.6, 1.0]
+        physical.mechanics.state["balls"][target]["velocity_m_per_s"] = [0.0, 0.0, 0.0]
+
+        # The point pose at the grip cannot reach a ball 0.6 m up the barrel.
+        point = runtime.open_contact(
+            "trial-a", "swept", [target], {"impulse_magnitude": 2.0}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            point,
+            {
+                "origin_m": [1.0, 0.0, 1.0],
+                "velocity_m_per_s": [2.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": True,
+            },
+        )
+        runtime.request_slice("trial-a", 1)
+        self.assertEqual(
+            runtime.close_contact("trial-a", point)["work_j"], 0.0
+        )
+
+        # The measured barrel from grip to tip passes through the ball.
+        barrel = runtime.open_contact(
+            "trial-a", "swept", [target], {"impulse_magnitude": 2.0}
+        )
+        runtime.submit_sweep_sample(
+            "trial-a",
+            barrel,
+            {
+                "origin_m": [1.0, 0.0, 1.0],
+                "origin_b_m": [1.0, 0.8, 1.0],
+                "velocity_m_per_s": [2.0, 0.0, 0.0],
+                "velocity_b_m_per_s": [2.0, 0.0, 0.0],
+                "radius_m": 0.12,
+                "tracking_valid": True,
+            },
+        )
+        runtime.request_slice("trial-a", 1)
+        closure = runtime.close_contact("trial-a", barrel)
+        self.assertGreater(closure["work_j"], 0.0)
+        velocity = physical.mechanics.state["balls"][target]["velocity_m_per_s"]
+        self.assertAlmostEqual(velocity[0], 2.0)
+
     def test_empty_swing_and_tracking_loss_record_no_work(self):
         kernel, runtime, _ = self._started()
         revision_before = kernel.trials["trial-a"].state["trial_revision"]

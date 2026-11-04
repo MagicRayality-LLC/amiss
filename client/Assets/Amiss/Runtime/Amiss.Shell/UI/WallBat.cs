@@ -459,6 +459,27 @@ namespace Amiss.Shell
         public bool IsHeld => held;
         public bool IsDocked => docked;
 
+        /// <summary>0 left, 1 right, -1 unheld; matches the input side order.</summary>
+        public int HoldSide => holdSide;
+
+        /// <summary>
+        /// The held bat's barrel segment in world space: the grip point under
+        /// the fist and the far tip point of the model. False when the bat is
+        /// not held or the visual did not mount. The input bridge sweeps this
+        /// segment, so a ball the barrel passes through is reached instead of
+        /// only one that touches the fist.
+        /// </summary>
+        public bool TryGetHeldBarrel(out Vector3 gripM, out Vector3 tipM)
+        {
+            gripM = default;
+            tipM = default;
+            if (!held || gripPoint == null || tipPoint == null)
+                return false;
+            gripM = gripPoint.position;
+            tipM = tipPoint.position;
+            return true;
+        }
+
         public void SetVisible(bool visible)
         {
             if (!visible)

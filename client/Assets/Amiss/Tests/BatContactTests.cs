@@ -159,22 +159,31 @@ namespace Amiss.Tests
             LastContactFacts = new ContactStepFacts(0, 0, false);
         }
 
-        public void QueueSweep(string interactionId, Vector3 origin, Vector3 velocityMPerS,
-            float sweptRadiusM, double impulseMagnitude)
+        public void QueueSweep(string interactionId, SweptSegment segment,
+            double impulseMagnitude)
         {
             applied.Clear();
-            var sweep = velocityMPerS * FrozenWriterConfiguration.FixedDeltaTimeSeconds;
-            var lengthSquared = Mathf.Max(1e-12f, sweep.sqrMagnitude);
+            var tool = segment.EndM - segment.OriginM;
+            var toolLengthSquared = Mathf.Max(1e-12f, tool.sqrMagnitude);
             for (var index = 0; index < Balls.Length; index++)
             {
                 var ball = Balls[index];
                 if (ball.Membership != "free")
                     continue;
+                var toolParameter = tool.sqrMagnitude > 1e-12f
+                    ? Mathf.Clamp01(Vector3.Dot(ball.PositionM - segment.OriginM, tool) /
+                        toolLengthSquared)
+                    : 0f;
+                var origin = segment.OriginM + tool * toolParameter;
+                var velocity = Vector3.Lerp(segment.OriginVelocityMPerS,
+                    segment.EndVelocityMPerS, toolParameter);
+                var sweep = velocity * FrozenWriterConfiguration.FixedDeltaTimeSeconds;
+                var lengthSquared = Mathf.Max(1e-12f, sweep.sqrMagnitude);
                 var parameter = Mathf.Clamp01(
                     Vector3.Dot(ball.PositionM - origin, sweep) / lengthSquared);
                 var closest = origin + sweep * parameter;
                 var direction = ball.PositionM - closest;
-                if (direction.magnitude > sweptRadiusM + ball.RadiusM)
+                if (direction.magnitude > segment.RadiusM + ball.RadiusM)
                     continue;
                 direction = direction.sqrMagnitude < 1e-12f
                     ? Vector3.right
@@ -483,6 +492,79 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void TheHeldBarrelReachesABallTheHandPointCannot()
+        {
+            var (runtime, writer, bat) = StartedTrial("trial-bat-barrel");
+            var ball = runtime.CurrentView.Balls[0];
+            writer.IsolateBalls();
+            writer.PlaceBall(ball.EntityId, new Vector3(0.02f, 0.6f, 0f), Vector3.zero);
+
+            // The hand stays at the grip; the point pose alone cannot reach a
+            // ball 0.6 m up the barrel. The measured barrel segment does.
+            var point = bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, new Vector3(3f, 0f, 0f), 1), 1);
+            Assert.AreEqual(BatSwingOutcome.Submitted, point.Outcome);
+            runtime.Step(1);
+            Assert.AreEqual(BatSwingOutcome.NoContact, bat.Close().Outcome);
+
+            var frame = new BatSweepFrame(new Vector3(0f, 0f, 0f),
+                new Vector3(0f, 0.7f, 0f), new Vector3(3f, 0f, 0f),
+                new Vector3(3f, 0f, 0f));
+            var barrel = bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, new Vector3(3f, 0f, 0f), 2), 2, frame);
+            Assert.AreEqual(BatSwingOutcome.Submitted, barrel.Outcome);
+            runtime.Step(1);
+            var closed = bat.Close();
+
+            Assert.AreEqual(BatSwingOutcome.Contacted, closed.Outcome, closed.ReasonCode);
+            Assert.AreEqual(ball.EntityId, closed.Closure.Entry.TargetBallId);
+            Assert.Greater(closed.Closure.WorkJ, 0.0);
+        }
+
+        [Test]
+        public void TheBarrelTipVelocityClassifiesARotatingSwing()
+        {
+            var (runtime, writer, bat) = StartedTrial("trial-bat-barrel-speed");
+            var ball = runtime.CurrentView.Balls[0];
+            writer.IsolateBalls();
+            writer.PlaceBall(ball.EntityId, new Vector3(0.02f, 0.6f, 0f), Vector3.zero);
+
+            // The hand rotates without translating, so the sample's own speed
+            // is below the enter threshold; the measured tip speed is above it.
+            var frame = new BatSweepFrame(new Vector3(0f, 0f, 0f),
+                new Vector3(0f, 0.7f, 0f), Vector3.zero, new Vector3(4f, 0f, 0f));
+            var submitted = bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, Vector3.zero, 1), 1, frame);
+            Assert.AreEqual(BatSwingOutcome.Submitted, submitted.Outcome);
+            runtime.Step(1);
+            var closed = bat.Close();
+
+            Assert.AreEqual(BatSwingOutcome.Contacted, closed.Outcome, closed.ReasonCode);
+            Assert.Greater(closed.Closure.WorkJ, 0.0);
+        }
+
+        [Test]
+        public void ANonFiniteBarrelFallsBackToTheHandPoint()
+        {
+            var (runtime, writer, bat) = StartedTrial("trial-bat-barrel-invalid");
+            var ball = runtime.CurrentView.Balls[0];
+            writer.IsolateBalls();
+            writer.PlaceBall(ball.EntityId, Vector3.zero, Vector3.zero);
+
+            var frame = new BatSweepFrame(new Vector3(0f, 0f, 0f),
+                new Vector3(0f, float.NaN, 0f), new Vector3(4f, 0f, 0f),
+                new Vector3(4f, 0f, 0f));
+            bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, new Vector3(4f, 0f, 0f), 1), 1, frame);
+            runtime.Step(1);
+            var closed = bat.Close();
+
+            Assert.AreEqual(BatSwingOutcome.Contacted, closed.Outcome, closed.ReasonCode);
+            Assert.AreEqual(ball.EntityId, closed.Closure.Entry.TargetBallId,
+                "the invalid barrel must not replace the valid hand point");
+        }
+
+        [Test]
         public void ATrialWithoutTheToolEffectFaceRefusesToProduceWork()
         {
             var accepted = BatContactFixtures.AcceptedRoom("trial-no-tool");
@@ -523,8 +605,7 @@ namespace Amiss.Tests
             public int ContactCommits => 0;
             public TemperatureReadoutSnapshot Readout => null;
             public void OpenSweptContact(string contactId, string propId, int tick) { }
-            public void SubmitSweep(string contactId, Vector3 origin, Vector3 velocityMPerS,
-                float sweptRadiusM) { }
+            public void SubmitSweep(string contactId, SweptSegment segment) { }
             public SweptClosure CloseSweptContact(string contactId, string reason) => null;
         }
     }
