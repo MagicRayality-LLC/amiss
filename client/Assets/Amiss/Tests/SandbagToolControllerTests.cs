@@ -1,3 +1,4 @@
+using Amiss.Shell;
 using Amiss.Shell.Episodes;
 using Amiss.Shell.Ports;
 using Amiss.Shell.Room;
@@ -38,6 +39,58 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void ThrownBagFloatArmsAndGrabbingItWithdraws()
+        {
+            var accepted = AcceptedRoom("sandbag-arm");
+            var runtime = new DeviceSimulationRuntime(() => new CustomHardSphereWriter());
+            Assert.IsTrue(runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "sandbag-arm", accepted.room.Confirmation, accepted.pin, out _)).Started);
+            runtime.Step(1);
+
+            var television = new GameObject("Television");
+            television.transform.SetPositionAndRotation(new Vector3(0f, 1.35f, 1.6f),
+                Quaternion.identity);
+            var bagHost = new GameObject("WallClothBag");
+            var controllerHost = new GameObject("SandbagToolControllerArmTest");
+            var controller = controllerHost.AddComponent<SandbagToolController>();
+            try
+            {
+                var visual = bagHost.AddComponent<WallClothBag>();
+                visual.Build();
+                visual.SetVisible(true);
+                visual.Follow(television.transform);
+                controller.Initialize(runtime, visual);
+
+                var point = runtime.CurrentView.Balls[0].PositionM;
+                visual.PlaceAt(point);
+                Assert.AreEqual(ClothBagState.Floating, visual.State);
+                controller.ArmFloatingBag();
+                Assert.AreEqual(SandbagState.Placed, controller.State,
+                    "the still float arms the hover region");
+                Assert.AreEqual(point, controller.Bag.HoverCenter);
+                Assert.AreEqual(1, controller.Bag.PlacementCount);
+
+                Assert.IsTrue(visual.TryCloseGrab(visual.transform.position));
+                controller.SyncVisual();
+                Assert.AreEqual(SandbagState.Ready, controller.State,
+                    "picking the bag back up withdraws the region");
+
+                visual.ReleaseHold();
+                Assert.AreEqual(ClothBagState.Floating, visual.State);
+                controller.ArmFloatingBag();
+                Assert.AreEqual(SandbagState.Placed, controller.State,
+                    "the next float arms a fresh region");
+                Assert.AreEqual(2, controller.Bag.PlacementCount);
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerHost);
+                Object.DestroyImmediate(bagHost);
+                Object.DestroyImmediate(television);
+            }
+        }
+
+        [Test]
         public void MeasuredAbsorptionRaisesTheCelebration()
         {
             var accepted = AcceptedRoom("sandbag-wiring");
@@ -47,10 +100,18 @@ namespace Amiss.Tests
 
             var host = new GameObject("SandbagToolControllerTest");
             var controller = host.AddComponent<SandbagToolController>();
+            var television = new GameObject("Television");
+            television.transform.SetPositionAndRotation(new Vector3(0f, 1.35f, 1.6f),
+                Quaternion.identity);
+            var bagHost = new GameObject("WallClothBag");
             GameObject root = null;
             try
             {
-                controller.Initialize(runtime);
+                var visual = bagHost.AddComponent<WallClothBag>();
+                visual.Build();
+                visual.SetVisible(true);
+                visual.Follow(television.transform);
+                controller.Initialize(runtime, visual);
                 Assert.IsNotNull(controller.Bag, "the controller owns one tool on the host");
 
                 for (var attempt = 0; attempt < 40 && controller.AbsorptionCount == 0; attempt++)
@@ -79,11 +140,15 @@ namespace Amiss.Tests
                 Assert.GreaterOrEqual(
                     root.GetComponentsInChildren<ParticleSystem>(true).Length, 3,
                     "burst plus flash plus falling glitter or confetti");
+                Assert.AreEqual(ClothBagState.Docked, visual.State,
+                    "the consumed bag restocks under the television");
             }
             finally
             {
                 if (root != null)
                     Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bagHost);
+                Object.DestroyImmediate(television);
                 Object.DestroyImmediate(host);
             }
         }

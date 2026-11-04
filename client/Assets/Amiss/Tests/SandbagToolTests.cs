@@ -103,7 +103,8 @@ namespace Amiss.Tests
                 return CloseResult;
             }
 
-            public void ClearHoverAbsorber() { }
+            public bool Cleared;
+            public void ClearHoverAbsorber() { Cleared = true; }
         }
 
         static SweptClosure ContactedClosure(string contactId, double workJ) =>
@@ -330,6 +331,32 @@ namespace Amiss.Tests
             Assert.AreEqual(SandbagState.Ready, bag.State);
             Assert.AreEqual(0, bag.AbsorptionCount);
             Assert.AreEqual(0.0, bag.AbsorbedTotalJ);
+        }
+
+        [Test]
+        public void WithdrawDisarmsWithoutAnEntry()
+        {
+            var host = new ScriptedSandbagHost();
+            var bag = new SandbagTool(host);
+            var placed = bag.Place(new Vector3(0f, 1.2f, 0f), 0);
+            Assert.IsTrue(placed.WasPlaced);
+
+            Assert.IsTrue(bag.Withdraw("bag_moved"));
+            Assert.AreEqual(SandbagState.Ready, bag.State);
+            Assert.AreEqual("bag_moved", host.LastClosedReason,
+                "the moved bag closes its contact instead of absorbing");
+            Assert.IsTrue(host.Cleared, "the hover region is disarmed");
+            Assert.IsFalse(host.HasOpenContactValue);
+            Assert.AreEqual(0, bag.AbsorptionCount);
+            Assert.AreEqual(0.0, bag.AbsorbedTotalJ);
+            Assert.IsFalse(bag.Withdraw("bag_moved"),
+                "there is nothing left to withdraw");
+
+            host.Cleared = false;
+            host.HasHitsValue = false;
+            Assert.IsTrue(bag.Place(new Vector3(0.1f, 1.2f, 0f), 4).WasPlaced,
+                "the next float arms a fresh region");
+            Assert.AreEqual(2, bag.PlacementCount);
         }
 
         // ---- presentation: the celebratory reference firework ----

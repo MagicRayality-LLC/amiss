@@ -269,6 +269,38 @@ namespace Amiss.Shell.Simulation
                 contactId, LastTargetBallId, absorbed);
         }
 
+        /// <summary>
+        /// Disarms a floating bag without absorbing. The wearer picked the bag
+        /// back up or the visual moved away, so the hover region must not stay
+        /// behind: the open contact closes with no measured work and no ledger
+        /// entry, and the next float arms a fresh one. Returns false when no
+        /// bag was floating.
+        /// </summary>
+        public bool Withdraw(string reason)
+        {
+            if (openContactId.Length == 0)
+                return false;
+            var contactId = openContactId;
+            openContactId = "";
+            hoverCenter = default;
+            State = SandbagState.Ready;
+            if (host.HasTrial && host.HasOpenContact &&
+                string.Equals(host.OpenContactId, contactId, StringComparison.Ordinal))
+            {
+                try
+                {
+                    host.CloseSandbagContact(contactId, reason ?? "withdrawn");
+                }
+                catch (InvalidOperationException)
+                {
+                    // The Trial closed the contact underneath; it is already
+                    // gone and no work is attached.
+                }
+                host.ClearHoverAbsorber();
+            }
+            return true;
+        }
+
         /// <summary>The producer-owned readout; this tool never recomputes it.</summary>
         public TemperatureReadoutSnapshot Readout => host.Readout;
 

@@ -51,7 +51,8 @@ namespace Amiss.Shell
         public static readonly Color PastelPink = new(0.95f, 0.65f, 0.85f);
         public static readonly Color PastelLilac = new(0.75f, 0.60f, 0.95f);
 
-        public static bool TryMount(Transform host, out SandbagView view)
+        public static bool TryMount(Transform host, out SandbagView view,
+            bool hover = true, bool centerOnHost = false)
         {
             view = null;
             if (host == null)
@@ -77,10 +78,28 @@ namespace Amiss.Shell
                 return false;
             }
 
-            var hover = visual.AddComponent<SandbagHover>();
-            view = new SandbagView(visual.transform, hover);
+            if (centerOnHost)
+                CenterVisual(visual, host);
+            var hoverDriver = hover ? visual.AddComponent<SandbagHover>() : null;
+            view = new SandbagView(visual.transform, hoverDriver);
             Debug.Log("[Amiss] sandbag mounted");
             return true;
+        }
+
+        /// <summary>
+        /// Shifts the visual so its combined bounds centre sits on the host
+        /// origin. The grabbable bag's host position is the hover anchor, so
+        /// the model centre and the armed region must agree.
+        /// </summary>
+        static void CenterVisual(GameObject visual, Transform host)
+        {
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+                return;
+            var bounds = renderers[0].bounds;
+            for (var index = 1; index < renderers.Length; index++)
+                bounds.Encapsulate(renderers[index].bounds);
+            visual.transform.localPosition -= host.InverseTransformPoint(bounds.center);
         }
 
         /// <summary>
