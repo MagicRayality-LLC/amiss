@@ -77,6 +77,39 @@ namespace Amiss.Shell
         /// </summary>
         public const float SpawnGrabDelaySeconds = 0.25f;
 
+        /// <summary>
+        /// Floor for the centre distance between two still-floating bags, in
+        /// meters. The supply uses the larger of this floor and the two
+        /// visuals' measured extents. Two bags closer than the resulting
+        /// distance push each other apart; the visual is never a physics body,
+        /// so the separation is presentation geometry only.
+        /// </summary>
+        public const float MinBagSeparationMeters = 0.22f;
+
+        /// <summary>
+        /// Returns the symmetric push-apart deltas for two bag centres closer
+        /// than <paramref name="minimum"/>. Coincident centres fall back to a
+        /// deterministic horizontal axis, so the result never depends on
+        /// floating-point direction noise.
+        /// </summary>
+        public static bool TrySeparate(Vector3 first, Vector3 second, float minimum,
+            out Vector3 firstDelta, out Vector3 secondDelta)
+        {
+            firstDelta = default;
+            secondDelta = default;
+            if (!IsFinite(first) || !IsFinite(second) || minimum <= 0f)
+                return false;
+            var offset = second - first;
+            var distance = offset.magnitude;
+            if (distance >= minimum)
+                return false;
+            var direction = distance > 1e-5f ? offset / distance : Vector3.right;
+            var push = (minimum - distance) * 0.5f;
+            firstDelta = -direction * push;
+            secondDelta = direction * push;
+            return true;
+        }
+
         public static Pose DockPose(Pose television) => new Pose(
             television.position + television.rotation * DockLocalPosition,
             television.rotation * Quaternion.Euler(DockLocalEuler));
@@ -168,6 +201,7 @@ namespace Amiss.Shell
     {
         Transform dockedTo;
         Transform trackingSpace;
+        float separationRadius;
         bool built;
         bool shown;
         bool held;
@@ -365,8 +399,25 @@ namespace Amiss.Shell
             if (built)
                 return;
             built = true;
-            SandbagModel.TryMount(transform, out _, hover: false, centerOnHost: true);
+            if (!SandbagModel.TryMount(transform, out var view, hover: false,
+                    centerOnHost: true) || view?.Root == null)
+                return;
+            var renderers = view.Root.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+                return;
+            var bounds = renderers[0].bounds;
+            for (var index = 1; index < renderers.Length; index++)
+                bounds.Encapsulate(renderers[index].bounds);
+            separationRadius = Mathf.Max(bounds.extents.x,
+                Mathf.Max(bounds.extents.y, bounds.extents.z));
         }
+
+        /// <summary>
+        /// The visual's largest half-extent, used so two floating bags push
+        /// apart before they overlap. Falls back to the declared floor.
+        /// </summary>
+        public float SeparationRadiusMeters => Mathf.Max(separationRadius,
+            ClothBagPose.MinBagSeparationMeters * 0.5f);
 
         public ClothBagState State
         {
@@ -611,6 +662,21 @@ namespace Amiss.Shell
             holdSide = -1;
             heldVelocity = Vector3.zero;
             FloatNow();
+        }
+
+        /// <summary>
+        /// Moves a still-floating bag by a presentation-only offset, used when
+        /// two floating bags overlap and push each other aside. The stored
+        /// float anchor moves with the visual so the tool can re-arm the hover
+        /// region at the new centre. Any other state ignores the nudge.
+        /// </summary>
+        public bool NudgeFloating(Vector3 delta)
+        {
+            if (!shown || !floating || !ClothBagPose.IsFinite(delta))
+                return false;
+            floatingPosition += delta;
+            transform.position = floatingPosition;
+            return true;
         }
 
         /// <summary>

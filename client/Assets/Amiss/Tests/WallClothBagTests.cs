@@ -165,6 +165,21 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void SeparationIsSymmetricAndLeavesClearPairsAlone()
+        {
+            Assert.IsFalse(ClothBagPose.TrySeparate(Vector3.zero,
+                new Vector3(0.3f, 0f, 0f), ClothBagPose.MinBagSeparationMeters,
+                out _, out _), "bags already apart do not move");
+
+            Assert.IsTrue(ClothBagPose.TrySeparate(Vector3.zero, Vector3.zero,
+                ClothBagPose.MinBagSeparationMeters, out var first, out var second),
+                "coincident bags still separate deterministically");
+            Assert.AreEqual(ClothBagPose.MinBagSeparationMeters * 0.5f, second.x, 1e-5f);
+            Assert.AreEqual(-first.x, second.x, 1e-5f);
+            Assert.AreEqual(0f, first.y + second.y, 1e-5f);
+        }
+
+        [Test]
         public void ThrowVelocityIsClampedAndTheRuleShowsTheApexStop()
         {
             var clamped = ClothBagPose.ClampThrowVelocity(new Vector3(0f, 100f, 0f));

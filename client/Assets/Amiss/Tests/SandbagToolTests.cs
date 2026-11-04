@@ -63,9 +63,10 @@ namespace Amiss.Tests
             public bool HasTrialValue = true;
             public bool SupportsValue = true;
             public int TickValue;
-            public bool HasOpenContactValue;
-            public string OpenContactIdValue = "";
-            public bool HasHitsValue;
+            public readonly HashSet<string> OpenContacts = new();
+            public readonly HashSet<string> HitContacts = new();
+            public readonly HashSet<string> Cleared = new();
+            public readonly Dictionary<string, SweptClosure> CloseResults = new();
             public Vector3 ArmedCenter;
             public float ArmedRadius;
             public string LastClosedReason = "";
@@ -74,37 +75,39 @@ namespace Amiss.Tests
             public bool HasTrial => HasTrialValue;
             public bool SupportsSandbagContacts => SupportsValue;
             public int CurrentTick => TickValue;
-            public bool HasOpenContact => HasOpenContactValue;
-            public string OpenContactId => OpenContactIdValue;
-            public bool OpenContactHasHits => HasHitsValue;
             public TemperatureReadoutSnapshot Readout => null;
+
+            public bool HasOpenContact(string contactId) =>
+                OpenContacts.Contains(contactId);
+
+            public bool OpenContactHasHits(string contactId) =>
+                HitContacts.Contains(contactId);
 
             public void OpenSandbagContact(string contactId, int tick)
             {
-                if (HasOpenContactValue)
+                if (!OpenContacts.Add(contactId))
                     throw new InvalidOperationException("contact_already_open");
-                HasOpenContactValue = true;
-                OpenContactIdValue = contactId;
             }
 
             public void SubmitHoverAbsorber(string contactId, Vector3 centerM, float radiusM)
             {
-                Assert.AreEqual(OpenContactIdValue, contactId);
+                Assert.IsTrue(OpenContacts.Contains(contactId));
                 ArmedCenter = centerM;
                 ArmedRadius = radiusM;
             }
 
             public SweptClosure CloseSandbagContact(string contactId, string reason)
             {
-                Assert.AreEqual(OpenContactIdValue, contactId);
+                Assert.IsTrue(OpenContacts.Contains(contactId));
                 LastClosedReason = reason;
-                HasOpenContactValue = false;
-                OpenContactIdValue = "";
+                OpenContacts.Remove(contactId);
+                HitContacts.Remove(contactId);
+                if (CloseResults.TryGetValue(contactId, out var closure))
+                    return closure;
                 return CloseResult;
             }
 
-            public bool Cleared;
-            public void ClearHoverAbsorber() { Cleared = true; }
+            public void ClearHoverAbsorber(string contactId) { Cleared.Add(contactId); }
         }
 
         static SweptClosure ContactedClosure(string contactId, double workJ) =>
@@ -146,6 +149,41 @@ namespace Amiss.Tests
             writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
             Assert.AreEqual(0, writer.LastAppliedDampings.Count,
                 "the consumed bag absorbs no second ball");
+        }
+
+        [Test]
+        public void TwoArmedAbsorbersDampTwoBallsInTheSameTick()
+        {
+            var accepted = AcceptedPinned("sandbag-two-bags");
+            var first = Ball("ball-0001", new Vector3(-0.3f, 1f, 0f),
+                new Vector3(2f, 0f, 0f));
+            var second = Ball("ball-0002", new Vector3(0.3f, 1f, 0f),
+                new Vector3(2f, 0f, 0f));
+            var writer = WriterWith(new[] { first, second }, accepted.pinned);
+            var firstBefore = first.VelocityMPerS;
+            var secondBefore = second.VelocityMPerS;
+
+            writer.SetHoverAbsorber("sandbag-contact-00000001-0001", first.PositionM,
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+            writer.SetHoverAbsorber("sandbag-contact-00000001-0002", second.PositionM,
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+            writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+
+            var hits = writer.LastAppliedDampings;
+            Assert.AreEqual(2, hits.Count,
+                "both armed bags trigger; neither replaces the other");
+            var firstHit = hits[0];
+            var secondHit = hits[1];
+            Assert.AreEqual("ball-0001", firstHit.EntityId);
+            Assert.AreEqual("ball-0002", secondHit.EntityId);
+            Assert.AreEqual(-SandbagTool.DeclaredEnergyDeltaJ, firstHit.EnergyDeltaJ, 1e-9);
+            Assert.AreEqual(-SandbagTool.DeclaredEnergyDeltaJ, secondHit.EnergyDeltaJ, 1e-9);
+            Assert.Less(first.VelocityMPerS.magnitude, firstBefore.magnitude);
+            Assert.Less(second.VelocityMPerS.magnitude, secondBefore.magnitude);
+
+            writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            Assert.AreEqual(0, writer.LastAppliedDampings.Count,
+                "each bag spends its one absorption exactly once");
         }
 
         [Test]
@@ -229,7 +267,7 @@ namespace Amiss.Tests
             runtime.OpenContact("sandbag-contact-00000001-0001", SandbagTool.PropId, 0);
             runtime.RecordAppliedHits("sandbag-contact-00000001-0001",
                 new[] { new AppliedSweepHit("sandbag-contact-00000001-0001", "ball-0001", -1.5) });
-            Assert.IsTrue(runtime.HasOpenContactHits);
+            Assert.IsTrue(runtime.HasAnyOpenContactHits);
 
             var closure = runtime.CloseContact("sandbag-contact-00000001-0001", "absorbed");
 
@@ -242,6 +280,40 @@ namespace Amiss.Tests
             Assert.AreEqual(1.5, ledger.ESandbagJ, 1e-12,
                 "the measured negative work joins the separate sandbag account");
             Assert.Throws<ArgumentException>(() => ledger.WithSandbagAbsorption(-0.1));
+        }
+
+        [Test]
+        public void TwoOpenContactsCloseIntoTwoLedgerEntries()
+        {
+            var balls = new List<PublishedBall>
+            {
+                Published("ball-0001", new Vector3(2f, 0f, 0f)),
+                Published("ball-0002", new Vector3(0f, 0f, 1f))
+            };
+            var runtime = LedgerRuntime("ledger-two-bags", balls, 1);
+            runtime.OpenContact("sandbag-contact-00000000-0001",
+                SandbagTool.PropId, 0);
+            runtime.OpenContact("sandbag-contact-00000001-0002",
+                SandbagTool.PropId, 1);
+
+            runtime.RecordAppliedHits("sandbag-contact-00000000-0001",
+                new[] { new AppliedSweepHit("sandbag-contact-00000000-0001",
+                    "ball-0001", -1.0) });
+            runtime.RecordAppliedHits("sandbag-contact-00000001-0002",
+                new[] { new AppliedSweepHit("sandbag-contact-00000001-0002",
+                    "ball-0002", -0.5) });
+
+            Assert.AreEqual(2, runtime.OpenContactIds.Count,
+                "two bags hold two simultaneous contacts");
+            Assert.IsTrue(runtime.HasOpenContactHits("sandbag-contact-00000000-0001"));
+            Assert.IsTrue(runtime.HasOpenContactHits("sandbag-contact-00000001-0002"));
+
+            runtime.CloseContact("sandbag-contact-00000000-0001", "absorbed");
+            runtime.CloseContact("sandbag-contact-00000001-0002", "absorbed");
+
+            Assert.AreEqual(2, runtime.Ledger.Contacts.Count,
+                "each bag closes its own ledger entry");
+            Assert.AreEqual(1.5, runtime.Ledger.ESandbagJ, 1e-12);
         }
 
         // ---- tool: placement, polling, one-shot, abort ----
@@ -258,7 +330,7 @@ namespace Amiss.Tests
             var refusedFace = new SandbagTool(noFace).Place(new Vector3(0f, 1.2f, 0f), 0);
             Assert.AreEqual(SandbagPlaceOutcome.NotAccepted, refusedFace.Outcome);
             Assert.AreEqual("writer_has_no_tool_effect_face", refusedFace.ReasonCode);
-            Assert.IsFalse(noFace.HasOpenContactValue,
+            Assert.AreEqual(0, noFace.OpenContacts.Count,
                 "a refused placement arms no region the ledger cannot see");
         }
 
@@ -283,9 +355,16 @@ namespace Amiss.Tests
 
             var absorbedJ = 0.0;
             var absorbedAt = new Vector3();
-            bag.Absorbed += (center, joules) => { absorbedAt = center; absorbedJ = joules; };
-            host.HasHitsValue = true;
-            host.CloseResult = ContactedClosure(placed.ContactId, -0.375);
+            var absorbedContact = "";
+            bag.Absorbed += (contactId, center, joules) =>
+            {
+                absorbedContact = contactId;
+                absorbedAt = center;
+                absorbedJ = joules;
+            };
+            host.HitContacts.Add(placed.ContactId);
+            host.CloseResults[placed.ContactId] =
+                ContactedClosure(placed.ContactId, -0.375);
             var absorbed = bag.PumpAbsorption();
 
             Assert.AreEqual(SandbagAbsorbOutcome.Absorbed, absorbed.Outcome);
@@ -310,11 +389,12 @@ namespace Amiss.Tests
             var host = new ScriptedSandbagHost();
             var bag = new SandbagTool(host);
             var first = bag.Place(new Vector3(0f, 1.2f, 0f), 0);
-            host.HasHitsValue = true;
-            host.CloseResult = ContactedClosure(first.ContactId, -0.2);
+            host.HitContacts.Add(first.ContactId);
+            host.CloseResults[first.ContactId] =
+                ContactedClosure(first.ContactId, -0.2);
             Assert.AreEqual(SandbagAbsorbOutcome.Absorbed, bag.PumpAbsorption().Outcome);
 
-            host.HasHitsValue = false;
+            host.HitContacts.Clear();
             var second = bag.Place(new Vector3(0.2f, 1.1f, 0f), 5);
             Assert.IsTrue(second.WasPlaced);
             Assert.AreNotEqual(first.ContactId, second.ContactId);
@@ -329,8 +409,7 @@ namespace Amiss.Tests
             var bag = new SandbagTool(host);
             bag.Place(new Vector3(0f, 1.2f, 0f), 0);
 
-            host.HasOpenContactValue = false;
-            host.OpenContactIdValue = "";
+            host.OpenContacts.Clear();
             var aborted = bag.PumpAbsorption();
 
             Assert.AreEqual(SandbagAbsorbOutcome.Aborted, aborted.Outcome);
@@ -351,18 +430,53 @@ namespace Amiss.Tests
             Assert.AreEqual(SandbagState.Ready, bag.State);
             Assert.AreEqual("bag_moved", host.LastClosedReason,
                 "the moved bag closes its contact instead of absorbing");
-            Assert.IsTrue(host.Cleared, "the hover region is disarmed");
-            Assert.IsFalse(host.HasOpenContactValue);
+            Assert.IsTrue(host.Cleared.Contains(placed.ContactId),
+                "the hover region is disarmed");
+            Assert.IsFalse(host.HasOpenContact(placed.ContactId));
             Assert.AreEqual(0, bag.AbsorptionCount);
             Assert.AreEqual(0.0, bag.AbsorbedTotalJ);
             Assert.IsFalse(bag.Withdraw("bag_moved"),
                 "there is nothing left to withdraw");
 
-            host.Cleared = false;
-            host.HasHitsValue = false;
+            host.Cleared.Clear();
+            host.HitContacts.Clear();
             Assert.IsTrue(bag.Place(new Vector3(0.1f, 1.2f, 0f), 4).WasPlaced,
                 "the next float arms a fresh region");
             Assert.AreEqual(2, bag.PlacementCount);
+        }
+
+        [Test]
+        public void TwoPlacementsAbsorbIndependently()
+        {
+            var host = new ScriptedSandbagHost();
+            var bag = new SandbagTool(host);
+            var first = bag.Place(new Vector3(-0.3f, 1.2f, 0f), 0);
+            var second = bag.Place(new Vector3(0.3f, 1.2f, 0f), 1);
+            Assert.IsTrue(first.WasPlaced);
+            Assert.IsTrue(second.WasPlaced, "a second bag does not replace the first");
+            Assert.AreEqual(2, bag.PlacementCount);
+            Assert.IsTrue(bag.HasPlacement(first.ContactId));
+            Assert.IsTrue(bag.HasPlacement(second.ContactId));
+
+            var absorbed = new List<string>();
+            bag.Absorbed += (contactId, center, joules) => absorbed.Add(contactId);
+            host.HitContacts.Add(first.ContactId);
+            host.HitContacts.Add(second.ContactId);
+            host.CloseResults[first.ContactId] =
+                ContactedClosure(first.ContactId, -0.3);
+            host.CloseResults[second.ContactId] =
+                ContactedClosure(second.ContactId, -0.2);
+
+            var result = bag.PumpAbsorption();
+
+            Assert.AreEqual(SandbagAbsorbOutcome.Absorbed, result.Outcome);
+            Assert.AreEqual(2, bag.AbsorptionCount, "both bags trigger in one poll");
+            CollectionAssert.AreEquivalent(
+                new[] { first.ContactId, second.ContactId }, absorbed);
+            Assert.AreEqual(0.5, bag.AbsorbedTotalJ, 1e-12);
+            Assert.AreEqual(SandbagState.Consumed, bag.State);
+            Assert.IsFalse(bag.HasPlacement(first.ContactId));
+            Assert.IsFalse(bag.HasPlacement(second.ContactId));
         }
 
         // ---- presentation: the celebratory reference firework ----

@@ -5,7 +5,7 @@ namespace Amiss.Shell.Simulation
 {
     /// <summary>
     /// The temperature Trial's producer side: one energy ledger, the open
-    /// swept contact, one measurement per published view, and the readout
+    /// tool contacts, one measurement per published view, and the readout
     /// projection. It is owned by <see cref="DeviceSimulationRuntime"/>, so
     /// presentation cannot reach it. Work entries, semantic commits, and
     /// display tuples are produced here and only read elsewhere.
@@ -31,7 +31,8 @@ namespace Amiss.Shell.Simulation
         readonly Func<int> tickReader;
         readonly Func<string> trialIdReader;
 
-        SweptContactState open;
+        readonly SortedDictionary<string, SweptContactState> openContacts =
+            new(StringComparer.Ordinal);
         double initialTotalKeJ = -1.0;
         double? initialTK;
         TemperatureEnergyLedger ledger = new(0.0, 0.0, 0.0, 0.0);
@@ -55,16 +56,20 @@ namespace Amiss.Shell.Simulation
         public TemperatureMeasurementParameters Parameters { get; }
         public Action<string, int, int> SessionEventCommitted;
 
-        /// <summary>Opens one swept bat contact; a second open contact is refused.</summary>
+        /// <summary>
+        /// Opens one tool contact. A Trial may hold several open contacts at
+        /// once — one per physical contact, such as several floating cloth
+        /// bags — but the same contact id cannot be opened twice.
+        /// </summary>
         public void OpenContact(string contactId, string propId, int startTick)
         {
-            if (open != null)
-                throw new InvalidOperationException("contact_already_open");
             if (string.IsNullOrEmpty(contactId))
                 throw new ArgumentException("contact_id_missing", nameof(contactId));
+            if (openContacts.ContainsKey(contactId))
+                throw new InvalidOperationException("contact_already_open");
             if (startTick < 0)
                 throw new ArgumentException("contact_start_tick_invalid", nameof(startTick));
-            open = new SweptContactState
+            openContacts[contactId] = new SweptContactState
             {
                 ContactId = contactId,
                 PropId = propId ?? "",
@@ -72,28 +77,50 @@ namespace Amiss.Shell.Simulation
             };
         }
 
-        public bool HasOpenContact => open != null;
-        public string OpenContactId => open?.ContactId ?? "";
+        public bool HasAnyOpenContact => openContacts.Count > 0;
 
-        /// <summary>
-        /// Applies the writer-measured hits of one accepted sample to the one
-        /// open contact. Exactly one physical contact accumulates here and
-        /// becomes one ledger entry at closure.
-        /// </summary>
-        public void RecordAppliedHits(string contactId, IReadOnlyList<AppliedSweepHit> hits)
+        /// <summary>The only open contact id, or empty when none or several are open.</summary>
+        public string OpenContactId =>
+            openContacts.Count == 1 ? FirstContactId() : "";
+
+        public bool HasOpenContact(string contactId) =>
+            !string.IsNullOrEmpty(contactId) && openContacts.ContainsKey(contactId);
+
+        /// <summary>Open contact ids in stable ordinal order.</summary>
+        public IReadOnlyList<string> OpenContactIds => ContactIds();
+
+        string FirstContactId()
         {
-            if (open == null || open.ContactId != contactId)
-                throw new InvalidOperationException("contact_not_open");
-            if (hits == null || hits.Count == 0)
-                return;
-            open.Contacted = true;
-            open.LastTargetId = hits[0].EntityId;
-            for (var index = 0; index < hits.Count; index++)
-                open.AccumulatedJ += hits[index].EnergyDeltaJ;
+            foreach (var pair in openContacts)
+                return pair.Key;
+            return "";
+        }
+
+        List<string> ContactIds()
+        {
+            var ids = new List<string>(openContacts.Keys);
+            return ids;
         }
 
         /// <summary>
-        /// Closes the open contact exactly once. The closure itself is the
+        /// Applies the writer-measured hits of one accepted sample to the
+        /// named open contact. Each physical contact accumulates separately and
+        /// becomes its own ledger entry at closure.
+        /// </summary>
+        public void RecordAppliedHits(string contactId, IReadOnlyList<AppliedSweepHit> hits)
+        {
+            if (!openContacts.TryGetValue(contactId, out var contact))
+                throw new InvalidOperationException("contact_not_open");
+            if (hits == null || hits.Count == 0)
+                return;
+            contact.Contacted = true;
+            contact.LastTargetId = hits[0].EntityId;
+            for (var index = 0; index < hits.Count; index++)
+                contact.AccumulatedJ += hits[index].EnergyDeltaJ;
+        }
+
+        /// <summary>
+        /// Closes the named open contact exactly once. The closure itself is the
         /// semantic event (02 section 4.1), so every closure is one commit —
         /// mirroring the oracle's <c>close_interaction</c>, which the kernel
         /// applies for every interaction closure. A contacted closure also
@@ -103,10 +130,9 @@ namespace Amiss.Shell.Simulation
         /// </summary>
         public SweptClosure CloseContact(string contactId, string reason)
         {
-            if (open == null || open.ContactId != contactId)
+            if (!openContacts.TryGetValue(contactId, out var active))
                 throw new InvalidOperationException("contact_not_open");
-            var active = open;
-            open = null;
+            openContacts.Remove(contactId);
             var endTick = Math.Max(active.StartTick, tickReader());
             var closureReason = string.IsNullOrEmpty(reason) ? "separated" : reason;
             var aborted = string.Equals(closureReason, TrackingLostAborted,
@@ -149,10 +175,38 @@ namespace Amiss.Shell.Simulation
         public const string TrackingLostAborted = "tracking_lost_aborted";
 
         /// <summary>
-        /// True once the writer's measured tool effect reached the open contact.
-        /// The sandbag polls this to close its contact on the first absorption.
+        /// True once the writer's measured tool effect reached any open contact.
         /// </summary>
-        public bool HasOpenContactHits => open?.Contacted == true;
+        public bool HasAnyOpenContactHits
+        {
+            get
+            {
+                foreach (var pair in openContacts)
+                    if (pair.Value.Contacted)
+                        return true;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// True once the writer's measured tool effect reached the named
+        /// contact. Each sandbag polls its own contact.
+        /// </summary>
+        public bool HasOpenContactHits(string contactId) =>
+            openContacts.TryGetValue(contactId, out var contact) && contact.Contacted;
+
+        /// <summary>
+        /// Closes every open contact with one reason, in stable id order. Used
+        /// when the input channel is lost so no later sample attaches work to
+        /// a contact that lost validity. Returns the number closed.
+        /// </summary>
+        public int CloseOpenContacts(string reason)
+        {
+            var ids = ContactIds();
+            for (var index = 0; index < ids.Count; index++)
+                CloseContact(ids[index], reason);
+            return ids.Count;
+        }
 
         /// <summary>Semantic commits: one per contact closure, contacted or not.</summary>
         public int Revision { get; private set; }
@@ -169,7 +223,7 @@ namespace Amiss.Shell.Simulation
 
         public void Reset()
         {
-            open = null;
+            openContacts.Clear();
             initialTotalKeJ = -1.0;
             initialTK = null;
             ledger = new TemperatureEnergyLedger(0.0, 0.0, 0.0, 0.0);

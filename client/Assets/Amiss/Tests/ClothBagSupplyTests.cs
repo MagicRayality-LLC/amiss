@@ -106,6 +106,41 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void FloatingBagsPushEachOtherAsideWithoutOverlapping()
+        {
+            var supply = BuildSupply(out var supplyHost, out var television);
+            try
+            {
+                var first = supply.DockedBag;
+                Assert.IsTrue(first.TryCloseGrab(first.transform.position));
+                var second = supply.DockedBag;
+                Assert.IsNotNull(second, "the grab refills the dock");
+
+                var point = new Vector3(0f, 1.4f, 1.2f);
+                first.PlaceAt(point);
+                second.PlaceAt(point);
+                supply.SeparateFloatingBags();
+
+                var minimum = first.SeparationRadiusMeters +
+                              second.SeparationRadiusMeters;
+                Assert.GreaterOrEqual(
+                    Vector3.Distance(first.FloatingPosition, second.FloatingPosition),
+                    minimum - 1e-4f,
+                    "two floating bags never overlap");
+                var firstAt = first.FloatingPosition;
+                var secondAt = second.FloatingPosition;
+                supply.SeparateFloatingBags();
+                Assert.AreEqual(firstAt, first.FloatingPosition,
+                    "a separated pair stays put");
+                Assert.AreEqual(secondAt, second.FloatingPosition);
+            }
+            finally
+            {
+                Destroy(supplyHost, television);
+            }
+        }
+
+        [Test]
         public void HidingTheWallSetClearsTheSupplyAndShowsOneBagAgain()
         {
             var supply = BuildSupply(out var supplyHost, out var television);

@@ -154,6 +154,54 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void EveryFloatingBagArmsItsOwnRegion()
+        {
+            var accepted = AcceptedRoom("sandbag-multi-arm");
+            var runtime = new DeviceSimulationRuntime(() => new CustomHardSphereWriter());
+            Assert.IsTrue(runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "sandbag-multi-arm", accepted.room.Confirmation, accepted.pin,
+                out _)).Started);
+            runtime.Step(1);
+
+            var television = new GameObject("Television");
+            television.transform.SetPositionAndRotation(new Vector3(0f, 1.35f, 1.6f),
+                Quaternion.identity);
+            var supplyHost = new GameObject("ClothBagSupply");
+            var controllerHost = new GameObject("SandbagToolControllerMultiArmTest");
+            var controller = controllerHost.AddComponent<SandbagToolController>();
+            try
+            {
+                var supply = supplyHost.AddComponent<ClothBagSupply>();
+                supply.Build(television.transform);
+                supply.SetVisible(true);
+                supply.Follow(television.transform);
+
+                var first = supply.DockedBag;
+                Assert.IsNotNull(first);
+                Assert.IsTrue(first.TryCloseGrab(first.transform.position));
+                var second = supply.DockedBag;
+                Assert.IsNotNull(second, "the grab refills the dock");
+                first.PlaceAt(new Vector3(-0.4f, 1.2f, 0.4f));
+                second.PlaceAt(new Vector3(0.4f, 1.2f, 0.4f));
+
+                controller.Initialize(runtime);
+                controller.ArmFloatingBag();
+
+                Assert.AreEqual(2, controller.Bag.PlacementCount,
+                    "both floating bags arm a region");
+                Assert.IsTrue(controller.Bag.HasPlacement(
+                    controller.Bag.OpenContactId));
+                Assert.AreEqual(SandbagState.Placed, controller.State);
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerHost);
+                Object.DestroyImmediate(supplyHost);
+                Object.DestroyImmediate(television);
+            }
+        }
+
+        [Test]
         public void NoPlacementMeansNoBagAndNoPoll()
         {
             var host = new GameObject("SandbagToolControllerIdleTest");

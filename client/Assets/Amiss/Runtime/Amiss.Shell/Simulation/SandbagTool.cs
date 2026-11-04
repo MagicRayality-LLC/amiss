@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Amiss.Shell.Simulation
@@ -6,10 +7,10 @@ namespace Amiss.Shell.Simulation
     /// <summary>What one sandbag placement attempt produced.</summary>
     public enum SandbagPlaceOutcome
     {
-        /// <summary>The placement was refused: no Trial, no writer face, or a contact is already open.</summary>
+        /// <summary>The placement was refused: no Trial, no writer face, or an invalid anchor.</summary>
         NotAccepted,
 
-        /// <summary>The bag floats at the hover anchor with one open contact.</summary>
+        /// <summary>The bag floats at the hover anchor with its own open contact.</summary>
         Placed
     }
 
@@ -86,26 +87,26 @@ namespace Amiss.Shell.Simulation
     /// writer resolves against its own ball state, plus one open contact that
     /// carries the writer-measured absorption into the ledger.
     ///
-    /// Semantics mirror the headless oracle
-    /// (<c>simulation/runtime.py</c>, <c>register_prop</c> with the declared
-    /// absorption quantum, one <c>prop_trigger</c>, first impact consumes):
+    /// Several bags can float at once, and every one of them triggers. Each
+    /// placement arms its own hover region and opens its own contact, mirroring
+    /// the headless oracle's one-registered-prop-per-bag lifecycle:
     /// <list type="bullet">
     /// <item>one placement arms one hover region and opens one contact;</item>
     /// <item>the first valid ball impact removes the declared energy from that
-    /// ball once, leaves it free, and consumes the bag — later balls are
-    /// unaffected;</item>
-    /// <item>the closed contact is one ledger entry with signed measured work,
-    /// and its negative work raises the separate sandbag account;</item>
+    /// ball once, leaves it free, and consumes only that bag — other armed
+    /// bags keep hovering and later balls still trigger them;</item>
+    /// <item>each closed contact is its own ledger entry with signed measured
+    /// work, and its negative work raises the separate sandbag account;</item>
     /// <item>placing again after consumption floats a fresh bag with no
     /// inventory, cooldown, or score.</item>
     /// </list>
     ///
-    /// The tool writes no ball state. It arms the region through
+    /// The tool writes no ball state. It arms each region through
     /// <see cref="ISandbagContactHost"/>; the writer applies and measures the
     /// absorption on its next fixed Ticks, and the runtime records the measured
-    /// energy on the one open contact. <see cref="PumpAbsorption"/> is the
-    /// only place this tool can close that contact, and it happens at most
-    /// once per placement.
+    /// energy on the matching open contact. <see cref="PumpAbsorption"/> is the
+    /// only place this tool can close contacts, and each placement closes at
+    /// most once.
     /// </summary>
     public sealed class SandbagTool
     {
@@ -140,9 +141,16 @@ namespace Amiss.Shell.Simulation
                 System.Globalization.CultureInfo.InvariantCulture) + " units) · " +
             DeclaredParametersEvidence;
 
+        sealed class Placement
+        {
+            public Vector3 HoverCenter;
+        }
+
         readonly ISandbagContactHost host;
+        readonly SortedDictionary<string, Placement> placements =
+            new(StringComparer.Ordinal);
         int contactCounter;
-        string openContactId = "";
+        string lastContactId = "";
         Vector3 hoverCenter;
 
         public SandbagTool(ISandbagContactHost host)
@@ -152,8 +160,24 @@ namespace Amiss.Shell.Simulation
 
         public SandbagState State { get; private set; } = SandbagState.Ready;
 
-        /// <summary>Where the floating bag hovers while <see cref="State"/> is Placed.</summary>
+        /// <summary>Where the most recently placed bag hovers.</summary>
         public Vector3 HoverCenter => hoverCenter;
+
+        /// <summary>True while the named placement still floats.</summary>
+        public bool HasPlacement(string contactId) =>
+            !string.IsNullOrEmpty(contactId) && placements.ContainsKey(contactId);
+
+        /// <summary>Gets the hover anchor of the named live placement.</summary>
+        public bool TryGetPlacementCenter(string contactId, out Vector3 center)
+        {
+            if (placements.TryGetValue(contactId ?? "", out var placement))
+            {
+                center = placement.HoverCenter;
+                return true;
+            }
+            center = default;
+            return false;
+        }
 
         /// <summary>Successful placements; placing again after consumption is a new bag.</summary>
         public int PlacementCount { get; private set; }
@@ -176,19 +200,21 @@ namespace Amiss.Shell.Simulation
         /// <summary>Target ball of the most recent closed contact.</summary>
         public string LastTargetBallId { get; private set; } = "";
 
-        public string OpenContactId => openContactId;
+        public string OpenContactId => lastContactId;
 
         /// <summary>
-        /// Fired once per absorption with the hover anchor and the measured
-        /// absorbed joules, so presentation can scale its dispersal. The
-        /// ledger entry is already closed; this carries no physics authority.
+        /// Fired once per absorption with the contact id, hover anchor, and
+        /// measured absorbed joules, so presentation can scale and place its
+        /// dispersal. The ledger entry is already closed; this carries no
+        /// physics authority.
         /// </summary>
-        public event Action<Vector3, double> Absorbed;
+        public event Action<string, Vector3, double> Absorbed;
 
         /// <summary>
-        /// Floats a fresh bag at the anchor. Refused when no Trial is live,
-        /// the writer has no absorber face, a contact is already open, or the
-        /// Tick is invalid — never by arming a region the ledger cannot see.
+        /// Floats a fresh bag at the anchor with its own contact. Refused when
+        /// no Trial is live, the writer has no absorber face, or the Tick or
+        /// anchor is invalid — never by arming a region the ledger cannot see.
+        /// A second bag does not replace the first.
         /// </summary>
         public SandbagPlaceResult Place(Vector3 centerM, int tick)
         {
@@ -198,8 +224,6 @@ namespace Amiss.Shell.Simulation
                 return Refused(tick, "writer_has_no_tool_effect_face");
             if (tick < 0)
                 return Refused(tick, "contact_start_tick_invalid");
-            if (openContactId.Length > 0)
-                return Refused(tick, "contact_already_open");
             if (!IsFinite(centerM))
                 return Refused(tick, "hover_anchor_invalid");
 
@@ -212,9 +236,8 @@ namespace Amiss.Shell.Simulation
             }
             catch (InvalidOperationException)
             {
-                // A bat swing (or another bag) already holds the single open
-                // contact slot; the bag stays grounded instead of absorbing
-                // off-ledger.
+                // The id is already open (a duplicate placement id); the bag
+                // stays grounded instead of absorbing off-ledger.
                 return Refused(tick, "contact_already_open");
             }
             catch (ArgumentException)
@@ -222,7 +245,8 @@ namespace Amiss.Shell.Simulation
                 return Refused(tick, "hover_anchor_invalid");
             }
 
-            openContactId = contactId;
+            placements[contactId] = new Placement { HoverCenter = centerM };
+            lastContactId = contactId;
             hoverCenter = centerM;
             State = SandbagState.Placed;
             PlacementCount++;
@@ -230,62 +254,96 @@ namespace Amiss.Shell.Simulation
         }
 
         /// <summary>
-        /// Polls the open contact after the runtime advanced. The first poll
-        /// that sees writer-measured absorption closes the contact exactly once,
-        /// records the absorption, and disperses the bag. A contact that died
-        /// underneath (abort or Trial end) returns to Ready with no entry.
+        /// Polls every open contact after the runtime advanced. Each poll that
+        /// sees writer-measured absorption closes that contact exactly once,
+        /// records its absorption, and disperses that bag; other placements
+        /// keep floating. A contact that died underneath (abort or Trial end)
+        /// leaves no entry.
         /// </summary>
         public SandbagAbsorbResult PumpAbsorption()
         {
-            if (openContactId.Length == 0)
+            if (placements.Count == 0)
                 return new SandbagAbsorbResult(SandbagAbsorbOutcome.NotPlaced,
                     host.CurrentTick, "", "", 0.0);
-            if (!host.HasTrial || !host.HasOpenContact ||
-                !string.Equals(host.OpenContactId, openContactId, StringComparison.Ordinal))
-            {
-                var lost = openContactId;
-                openContactId = "";
-                State = SandbagState.Ready;
-                AbortedCount++;
-                return new SandbagAbsorbResult(SandbagAbsorbOutcome.Aborted,
-                    host.CurrentTick, lost, "", 0.0);
-            }
-            if (!host.OpenContactHasHits)
-                return new SandbagAbsorbResult(SandbagAbsorbOutcome.NoAbsorption,
-                    host.CurrentTick, openContactId, "", 0.0);
 
-            var contactId = openContactId;
-            openContactId = "";
-            var closure = host.CloseSandbagContact(contactId, "absorbed");
-            host.ClearHoverAbsorber();
-            State = SandbagState.Consumed;
-            AbsorptionCount++;
-            var absorbed = closure.Contacted && closure.WorkJ < 0.0 ? -closure.WorkJ : 0.0;
-            LastAbsorbedJ = absorbed;
-            AbsorbedTotalJ += absorbed;
-            LastTargetBallId = closure.Entry?.TargetBallId ?? "";
-            Absorbed?.Invoke(hoverCenter, absorbed);
-            return new SandbagAbsorbResult(SandbagAbsorbOutcome.Absorbed, closure.EndTick,
-                contactId, LastTargetBallId, absorbed);
+            var ids = new List<string>(placements.Keys);
+            SandbagAbsorbResult result = null;
+            var absorbedAny = false;
+            for (var index = 0; index < ids.Count; index++)
+            {
+                var contactId = ids[index];
+                if (!placements.TryGetValue(contactId, out var placement))
+                    continue;
+                if (!host.HasTrial || !host.HasOpenContact(contactId))
+                {
+                    placements.Remove(contactId);
+                    AbortedCount++;
+                    if (result == null)
+                        result = new SandbagAbsorbResult(SandbagAbsorbOutcome.Aborted,
+                            host.CurrentTick, contactId, "", 0.0);
+                    continue;
+                }
+                if (!host.OpenContactHasHits(contactId))
+                {
+                    if (result == null)
+                        result = new SandbagAbsorbResult(
+                            SandbagAbsorbOutcome.NoAbsorption, host.CurrentTick,
+                            contactId, "", 0.0);
+                    continue;
+                }
+
+                placements.Remove(contactId);
+                var closure = host.CloseSandbagContact(contactId, "absorbed");
+                host.ClearHoverAbsorber(contactId);
+                AbsorptionCount++;
+                var absorbed = closure != null && closure.Contacted &&
+                               closure.WorkJ < 0.0
+                    ? -closure.WorkJ
+                    : 0.0;
+                LastAbsorbedJ = absorbed;
+                AbsorbedTotalJ += absorbed;
+                LastTargetBallId = closure?.Entry?.TargetBallId ?? "";
+                Absorbed?.Invoke(contactId, placement.HoverCenter, absorbed);
+                absorbedAny = true;
+                result = new SandbagAbsorbResult(SandbagAbsorbOutcome.Absorbed,
+                    closure?.EndTick ?? host.CurrentTick, contactId,
+                    LastTargetBallId, absorbed);
+            }
+
+            State = placements.Count > 0
+                ? SandbagState.Placed
+                : absorbedAny
+                    ? SandbagState.Consumed
+                    : SandbagState.Ready;
+            return result ?? new SandbagAbsorbResult(SandbagAbsorbOutcome.NotPlaced,
+                host.CurrentTick, "", "", 0.0);
         }
 
         /// <summary>
-        /// Disarms a floating bag without absorbing. The wearer picked the bag
-        /// back up or the visual moved away, so the hover region must not stay
-        /// behind: the open contact closes with no measured work and no ledger
-        /// entry, and the next float arms a fresh one. Returns false when no
-        /// bag was floating.
+        /// Disarms every floating bag without absorbing. The wearer picked a
+        /// bag back up, the visual moved away, or the Trial ended, so no hover
+        /// region may stay behind: each open contact closes with no measured
+        /// work and no ledger entry. Returns false when no bag was floating.
         /// </summary>
         public bool Withdraw(string reason)
         {
-            if (openContactId.Length == 0)
+            if (placements.Count == 0)
                 return false;
-            var contactId = openContactId;
-            openContactId = "";
-            hoverCenter = default;
-            State = SandbagState.Ready;
-            if (host.HasTrial && host.HasOpenContact &&
-                string.Equals(host.OpenContactId, contactId, StringComparison.Ordinal))
+            var ids = new List<string>(placements.Keys);
+            for (var index = 0; index < ids.Count; index++)
+                Withdraw(ids[index], reason);
+            return true;
+        }
+
+        /// <summary>Disarms one floating bag by contact id without absorbing.</summary>
+        public bool Withdraw(string contactId, string reason)
+        {
+            if (string.IsNullOrEmpty(contactId) ||
+                !placements.Remove(contactId))
+                return false;
+            if (placements.Count == 0)
+                State = SandbagState.Ready;
+            if (host.HasTrial && host.HasOpenContact(contactId))
             {
                 try
                 {
@@ -296,7 +354,7 @@ namespace Amiss.Shell.Simulation
                     // The Trial closed the contact underneath; it is already
                     // gone and no work is attached.
                 }
-                host.ClearHoverAbsorber();
+                host.ClearHoverAbsorber(contactId);
             }
             return true;
         }

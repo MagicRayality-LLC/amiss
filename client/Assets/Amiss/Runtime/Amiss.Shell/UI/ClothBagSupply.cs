@@ -12,8 +12,9 @@ namespace Amiss.Shell
     /// supply refills it.
     ///
     /// The supply is presentation only: it never touches the Trial, the hover
-    /// region, or the writer-measured absorption. The tool controller still
-    /// arms one region at a time, as the writer exposes one hover absorber.
+    /// region, or the writer-measured absorption. Still-floating bags push each
+    /// other apart so two never overlap; that separation is visual geometry,
+    /// not a physics body or an impulse.
     /// </summary>
     public sealed class ClothBagSupply : MonoBehaviour
     {
@@ -80,6 +81,51 @@ namespace Amiss.Shell
                     continue;
                 }
                 bag.Follow(television);
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (shown)
+                SeparateFloatingBags();
+        }
+
+        /// <summary>
+        /// Pushes still-floating bags apart until no two overlap. Bags are
+        /// presentation-only, so this is a positional separation, not a physics
+        /// impulse: each pair moves half the overlap in opposite directions.
+        /// The float anchor moves with the bag, and the tool re-arms its hover
+        /// region at the corrected centre on the next frame.
+        /// </summary>
+        public void SeparateFloatingBags()
+        {
+            const int iterations = 4;
+            for (var iteration = 0; iteration < iterations; iteration++)
+            {
+                var moved = false;
+                for (var first = 0; first < bags.Count; first++)
+                {
+                    var a = bags[first];
+                    if (a == null || !a.IsFloating)
+                        continue;
+                    for (var second = first + 1; second < bags.Count; second++)
+                    {
+                        var b = bags[second];
+                        if (b == null || !b.IsFloating)
+                            continue;
+                        var minimum = a.SeparationRadiusMeters +
+                                      b.SeparationRadiusMeters;
+                        if (!ClothBagPose.TrySeparate(a.FloatingPosition,
+                                b.FloatingPosition, minimum,
+                                out var aDelta, out var bDelta))
+                            continue;
+                        a.NudgeFloating(aDelta);
+                        b.NudgeFloating(bDelta);
+                        moved = true;
+                    }
+                }
+                if (!moved)
+                    break;
             }
         }
 

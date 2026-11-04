@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Amiss.Shell.Ports;
 using UnityEngine;
 
@@ -131,8 +132,7 @@ namespace Amiss.Shell.Simulation
             RequireTrial();
             if (trial.Writer is not ISweepEffectWriter sweepWriter)
                 throw new InvalidOperationException("writer_has_no_tool_effect_face");
-            if (!trial.Temperature.HasOpenContact ||
-                trial.Temperature.OpenContactId != contactId)
+            if (!trial.Temperature.HasOpenContact(contactId))
                 throw new InvalidOperationException("contact_not_open");
             // The writer resolves the declared contact shape against its own
             // state when it advances, and measures the applied energy. The
@@ -160,14 +160,11 @@ namespace Amiss.Shell.Simulation
 
         int ISandbagContactHost.CurrentTick => Tick;
 
-        bool ISandbagContactHost.HasOpenContact =>
-            trial?.Temperature?.HasOpenContact == true;
+        bool ISandbagContactHost.HasOpenContact(string contactId) =>
+            trial?.Temperature?.HasOpenContact(contactId) == true;
 
-        string ISandbagContactHost.OpenContactId =>
-            trial?.Temperature?.OpenContactId ?? "";
-
-        bool ISandbagContactHost.OpenContactHasHits =>
-            trial?.Temperature?.HasOpenContactHits == true;
+        bool ISandbagContactHost.OpenContactHasHits(string contactId) =>
+            trial?.Temperature?.HasOpenContactHits(contactId) == true;
 
         TemperatureReadoutSnapshot ISandbagContactHost.Readout => trial?.Temperature?.Readout;
 
@@ -183,8 +180,7 @@ namespace Amiss.Shell.Simulation
             RequireTrial();
             if (trial.Writer is not ISandbagEffectWriter dampingWriter)
                 throw new InvalidOperationException("writer_has_no_tool_effect_face");
-            if (!trial.Temperature.HasOpenContact ||
-                trial.Temperature.OpenContactId != contactId)
+            if (!trial.Temperature.HasOpenContact(contactId))
                 throw new InvalidOperationException("contact_not_open");
             // The region and absorption are the episode's declared prototype
             // values, never a panel or model number.
@@ -198,10 +194,10 @@ namespace Amiss.Shell.Simulation
             return trial.Temperature.CloseContact(contactId, reason);
         }
 
-        void ISandbagContactHost.ClearHoverAbsorber()
+        void ISandbagContactHost.ClearHoverAbsorber(string contactId)
         {
             if (trial?.Writer is ISandbagEffectWriter dampingWriter)
-                dampingWriter.ClearHoverAbsorber();
+                dampingWriter.ClearHoverAbsorber(contactId);
         }
 
         // ---- IPalmCoolingHost: persistent field pose, no contact needed ----
@@ -243,12 +239,12 @@ namespace Amiss.Shell.Simulation
         /// </summary>
         public void AbortOpenToolContact()
         {
-            if (trial?.Temperature == null || !trial.Temperature.HasOpenContact)
+            if (trial?.Temperature == null || !trial.Temperature.HasAnyOpenContact)
                 return;
-            trial.Temperature.CloseContact(trial.Temperature.OpenContactId,
+            trial.Temperature.CloseOpenContacts(
                 TemperatureTrialRuntime.TrackingLostAborted);
             if (trial.Writer is ISandbagEffectWriter dampingWriter)
-                dampingWriter.ClearHoverAbsorber();
+                dampingWriter.ClearHoverAbsorbers();
         }
 
         void RequireTrial()
@@ -425,42 +421,62 @@ namespace Amiss.Shell.Simulation
         }
 
         /// <summary>
-        /// Moves the writer's measured tool effect into the one open bat
-        /// contact. The writer measured it on its own state; no presentation
-        /// value, panel reading, or model output contributes to the work.
+        /// Moves the writer's measured tool effect into the open bat contact
+        /// that names it. The writer measured it on its own state; no
+        /// presentation value, panel reading, or model output contributes to
+        /// the work.
         /// </summary>
         void RecordAppliedSweeps(LiveTrial live)
         {
             if (live.Writer is not ISweepEffectWriter sweepWriter ||
-                live.Temperature == null || !live.Temperature.HasOpenContact)
+                live.Temperature == null)
                 return;
-            var hits = sweepWriter.LastAppliedSweeps;
-            if (hits.Count == 0)
-                return;
-            live.Temperature.RecordAppliedHits(live.Temperature.OpenContactId, hits);
+            RecordHitsByContact(live.Temperature, sweepWriter.LastAppliedSweeps);
         }
 
         /// <summary>
-        /// Moves the writer's measured damping into the one open sandbag
-        /// contact. The writer measured it on its own state; no presentation
-        /// value, panel reading, or model output contributes to the
-        /// absorption. A damping that names no open contact cannot occur while
-        /// the single contact slot holds: arming requires the slot, and the
-        /// first impact consumes the absorber, so a stray record is dropped
-        /// rather than attached to another tool's contact.
+        /// Moves each writer-measured damping into the open sandbag contact
+        /// that names it. Several bags may absorb in one Tick, so hits are
+        /// grouped by interaction id; a hit that names no open contact is
+        /// dropped rather than attached to another tool's contact. The writer
+        /// measured every value on its own state; no presentation value, panel
+        /// reading, or model output contributes to the absorption.
         /// </summary>
         void RecordAppliedDampings(LiveTrial live)
         {
             if (live.Writer is not ISandbagEffectWriter dampingWriter ||
-                live.Temperature == null || !live.Temperature.HasOpenContact)
+                live.Temperature == null)
                 return;
-            var hits = dampingWriter.LastAppliedDampings;
-            if (hits.Count == 0)
+            RecordHitsByContact(live.Temperature, dampingWriter.LastAppliedDampings);
+        }
+
+        static void RecordHitsByContact(TemperatureTrialRuntime temperature,
+            IReadOnlyList<AppliedSweepHit> hits)
+        {
+            if (hits == null || hits.Count == 0)
                 return;
-            if (!string.Equals(live.Temperature.OpenContactId, hits[0].InteractionId,
-                    StringComparison.Ordinal))
-                return;
-            live.Temperature.RecordAppliedHits(live.Temperature.OpenContactId, hits);
+            var order = new List<string>();
+            var groups = new Dictionary<string, List<AppliedSweepHit>>(
+                StringComparer.Ordinal);
+            for (var index = 0; index < hits.Count; index++)
+            {
+                var hit = hits[index];
+                if (hit == null)
+                    continue;
+                if (!groups.TryGetValue(hit.InteractionId, out var group))
+                {
+                    group = new List<AppliedSweepHit>();
+                    groups[hit.InteractionId] = group;
+                    order.Add(hit.InteractionId);
+                }
+                group.Add(hit);
+            }
+            for (var index = 0; index < order.Count; index++)
+            {
+                var contactId = order[index];
+                if (temperature.HasOpenContact(contactId))
+                    temperature.RecordAppliedHits(contactId, groups[contactId]);
+            }
         }
 
         public void StopTrial(string reason)

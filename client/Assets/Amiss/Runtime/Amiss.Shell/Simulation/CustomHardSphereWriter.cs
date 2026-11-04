@@ -88,15 +88,21 @@ namespace Amiss.Shell.Simulation
         /// </summary>
         const double MinimalAbsorptionJ = 1e-9;
 
-        // Armed hover absorber and its measured result. The region persists
-        // across Ticks until the first valid impact consumes it, mirroring the
-        // oracle's unused → active → consumed prop lifecycle.
-        string absorberInteractionId = "";
-        Vector3 absorberCenterM;
-        float absorberRadiusM;
-        double absorberEnergyDeltaJ;
-        bool absorberArmed;
+        // Armed hover absorbers and their measured result. Each region persists
+        // across Ticks until its first valid impact consumes it, mirroring the
+        // oracle's unused → active → consumed lifecycle per prop. Several bags
+        // can hover at once, so the regions are keyed by contact id and
+        // resolved in stable id order.
+        readonly SortedDictionary<string, HoverAbsorber> absorbers =
+            new(StringComparer.Ordinal);
         AppliedSweepHit[] lastAppliedDampings = Array.Empty<AppliedSweepHit>();
+
+        struct HoverAbsorber
+        {
+            public Vector3 CenterM;
+            public float RadiusM;
+            public double EnergyDeltaJ;
+        }
 
         // Persistent hourglass cooling field between two open palms. While set,
         // every free ball inside the tube (wide at the palms, pinched at the
@@ -225,18 +231,22 @@ namespace Amiss.Shell.Simulation
             if (!double.IsFinite(energyDeltaJ) || energyDeltaJ <= 0.0)
                 throw new ArgumentException("absorber_energy_delta_invalid",
                     nameof(energyDeltaJ));
-            absorberInteractionId = interactionId;
-            absorberCenterM = centerM;
-            absorberRadiusM = radiusM;
-            absorberEnergyDeltaJ = energyDeltaJ;
-            absorberArmed = true;
+            absorbers[interactionId] = new HoverAbsorber
+            {
+                CenterM = centerM,
+                RadiusM = radiusM,
+                EnergyDeltaJ = energyDeltaJ
+            };
         }
 
-        public void ClearHoverAbsorber()
+        public void ClearHoverAbsorber(string interactionId)
         {
-            absorberArmed = false;
-            absorberInteractionId = "";
+            if (string.IsNullOrEmpty(interactionId))
+                return;
+            absorbers.Remove(interactionId);
         }
+
+        public void ClearHoverAbsorbers() => absorbers.Clear();
 
         public IReadOnlyList<AppliedSweepHit> LastAppliedDampings => lastAppliedDampings;
 
@@ -427,56 +437,63 @@ namespace Amiss.Shell.Simulation
         }
 
         /// <summary>
-        /// Resolves the armed hover absorber after motion and contacts, in
-        /// ascending entity-id order: the first free ball whose centre entered
-        /// the region is damped once, its measured energy loss is reported,
-        /// and the absorber is consumed. The ball keeps flying free at its
-        /// reduced velocity with the free-ball count unchanged.
+        /// Resolves every armed hover absorber after motion and contacts, in
+        /// stable interaction-id order. Each region independently damps the
+        /// first free ball whose centre entered it, reports that measured
+        /// energy loss, and is consumed; the other armed regions stay armed.
+        /// Every damped ball keeps flying free at its reduced velocity with the
+        /// free-ball count unchanged.
         /// </summary>
         void ApplyHoverAbsorber()
         {
-            if (!absorberArmed)
+            if (absorbers.Count == 0)
             {
                 if (lastAppliedDampings.Length != 0)
                     lastAppliedDampings = Array.Empty<AppliedSweepHit>();
                 return;
             }
-            for (var index = 0; index < order.Length; index++)
+            var applied = new List<AppliedSweepHit>();
+            var consumed = new List<string>();
+            foreach (var pair in absorbers)
             {
-                if (order[index].Membership != "free")
-                    continue;
-                var dx = px[index] - absorberCenterM.x;
-                var dy = py[index] - absorberCenterM.y;
-                var dz = pz[index] - absorberCenterM.z;
-                var distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
-                if (distance > absorberRadiusM + order[index].RadiusM)
-                    continue;
-                var mass = (double)order[index].MassKg;
-                var before = 0.5 * mass *
-                    (vx[index] * vx[index] + vy[index] * vy[index] + vz[index] * vz[index]);
-                var removed = Math.Min(absorberEnergyDeltaJ, before);
-                if (removed <= MinimalAbsorptionJ)
-                    continue;
-                var factor = Math.Sqrt(Math.Max(0.0, 1.0 - removed / before));
-                var dampedX = vx[index] * factor;
-                var dampedY = vy[index] * factor;
-                var dampedZ = vz[index] * factor;
-                var after = 0.5 * mass *
-                    (dampedX * dampedX + dampedY * dampedY + dampedZ * dampedZ);
-                vx[index] = dampedX;
-                vy[index] = dampedY;
-                vz[index] = dampedZ;
-                lastAppliedDampings = new[]
+                var absorber = pair.Value;
+                for (var index = 0; index < order.Length; index++)
                 {
-                    new AppliedSweepHit(absorberInteractionId, order[index].EntityId,
-                        after - before)
-                };
-                absorberArmed = false;
-                absorberInteractionId = "";
-                return;
+                    if (order[index].Membership != "free")
+                        continue;
+                    var dx = px[index] - absorber.CenterM.x;
+                    var dy = py[index] - absorber.CenterM.y;
+                    var dz = pz[index] - absorber.CenterM.z;
+                    var distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                    if (distance > absorber.RadiusM + order[index].RadiusM)
+                        continue;
+                    var mass = (double)order[index].MassKg;
+                    var before = 0.5 * mass *
+                        (vx[index] * vx[index] + vy[index] * vy[index] +
+                         vz[index] * vz[index]);
+                    var removed = Math.Min(absorber.EnergyDeltaJ, before);
+                    if (removed <= MinimalAbsorptionJ)
+                        continue;
+                    var factor = Math.Sqrt(Math.Max(0.0, 1.0 - removed / before));
+                    var dampedX = vx[index] * factor;
+                    var dampedY = vy[index] * factor;
+                    var dampedZ = vz[index] * factor;
+                    var after = 0.5 * mass *
+                        (dampedX * dampedX + dampedY * dampedY + dampedZ * dampedZ);
+                    vx[index] = dampedX;
+                    vy[index] = dampedY;
+                    vz[index] = dampedZ;
+                    applied.Add(new AppliedSweepHit(pair.Key, order[index].EntityId,
+                        after - before));
+                    consumed.Add(pair.Key);
+                    break;
+                }
             }
-            if (lastAppliedDampings.Length != 0)
-                lastAppliedDampings = Array.Empty<AppliedSweepHit>();
+            for (var index = 0; index < consumed.Count; index++)
+                absorbers.Remove(consumed[index]);
+            lastAppliedDampings = applied.Count > 0
+                ? applied.ToArray()
+                : Array.Empty<AppliedSweepHit>();
         }
 
         /// <summary>
@@ -816,8 +833,7 @@ namespace Amiss.Shell.Simulation
         public void Teardown()
         {
             configured = false;
-            absorberArmed = false;
-            absorberInteractionId = "";
+            absorbers.Clear();
             lastAppliedDampings = Array.Empty<AppliedSweepHit>();
             palmFieldSet = false;
             palmTrapped = null;

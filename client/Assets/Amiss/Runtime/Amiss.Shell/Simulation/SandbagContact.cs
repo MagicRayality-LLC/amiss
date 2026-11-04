@@ -22,14 +22,19 @@ namespace Amiss.Shell.Simulation
     public interface ISandbagEffectWriter
     {
         /// <summary>
-        /// Arms the one-shot hover region. Arming twice replaces the pending
-        /// region; only the first valid impact consumes it.
+        /// Arms one one-shot hover region. Each armed region is independent:
+        /// arming a second region does not replace the first, and only the
+        /// first valid impact consumes the region it names. Re-arming the same
+        /// interaction id replaces that region's pending state.
         /// </summary>
         void SetHoverAbsorber(string interactionId, Vector3 centerM, float radiusM,
             double energyDeltaJ);
 
-        /// <summary>Disarms without absorbing; a later impact absorbs nothing.</summary>
-        void ClearHoverAbsorber();
+        /// <summary>Disarms one region without absorbing; a later impact there absorbs nothing.</summary>
+        void ClearHoverAbsorber(string interactionId);
+
+        /// <summary>Disarms every armed region, used when the input channel is lost.</summary>
+        void ClearHoverAbsorbers();
 
         /// <summary>Measured damping of the most recently advanced Tick, in apply order.</summary>
         IReadOnlyList<AppliedSweepHit> LastAppliedDampings { get; }
@@ -48,16 +53,17 @@ namespace Amiss.Shell.Simulation
         bool SupportsSandbagContacts { get; }
 
         int CurrentTick { get; }
-        bool HasOpenContact { get; }
-        string OpenContactId { get; }
 
-        /// <summary>True once the writer's measured damping reached the open contact.</summary>
-        bool OpenContactHasHits { get; }
+        /// <summary>True while the named bag contact is open.</summary>
+        bool HasOpenContact(string contactId);
+
+        /// <summary>True once the writer's measured damping reached the named contact.</summary>
+        bool OpenContactHasHits(string contactId);
 
         TemperatureReadoutSnapshot Readout { get; }
         void OpenSandbagContact(string contactId, int tick);
         void SubmitHoverAbsorber(string contactId, Vector3 centerM, float radiusM);
         SweptClosure CloseSandbagContact(string contactId, string reason);
-        void ClearHoverAbsorber();
+        void ClearHoverAbsorber(string contactId);
     }
 }
