@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Amiss.Shell;
 using Amiss.Shell.Episodes;
 using Amiss.Shell.Ports;
@@ -262,6 +263,184 @@ namespace Amiss.Tests
             var outcome = runtime.TryStartTrial(request);
             Assert.IsFalse(outcome.Started);
             Assert.AreEqual(TrialStartRefusal.RequestInvalid, outcome.Refusal);
+        }
+
+        [Test]
+        public void EveryArmedBagAbsorbsItsOwnBall()
+        {
+            var accepted = AcceptedRoom("sandbag-multi-absorb");
+            var runtime = new DeviceSimulationRuntime(() => new CustomHardSphereWriter());
+            Assert.IsTrue(runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "sandbag-multi-absorb", accepted.room.Confirmation, accepted.pin,
+                out _)).Started);
+            runtime.Step(2);
+
+            var controllerHost = new GameObject("SandbagToolControllerMultiAbsorbTest");
+            var controller = controllerHost.AddComponent<SandbagToolController>();
+            var firstHost = new GameObject("WallClothBag");
+            var secondHost = new GameObject("WallClothBag");
+            try
+            {
+                var first = firstHost.AddComponent<WallClothBag>();
+                var second = secondHost.AddComponent<WallClothBag>();
+                first.Build();
+                second.Build();
+                first.SetVisible(true);
+                second.SetVisible(true);
+                controller.Initialize(runtime);
+
+                var balls = runtime.CurrentView.Balls;
+                Assert.GreaterOrEqual(balls.Count, 2);
+                first.PlaceAt(balls[0].PositionM);
+                second.PlaceAt(balls[1].PositionM);
+                controller.ArmFloatingBag();
+                Assert.AreEqual(2, controller.Bag.PlacementCount,
+                    "both floating bags own a placement");
+
+                for (var attempt = 0;
+                     attempt < 600 && controller.AbsorptionCount < 2;
+                     attempt++)
+                {
+                    runtime.Step(1);
+                    controller.Poll();
+                }
+
+                Assert.AreEqual(2, controller.AbsorptionCount,
+                    "each armed bag absorbs on its own contact");
+                Assert.AreEqual(2, controller.Bag.AbsorptionCount);
+                Assert.Greater(controller.Bag.AbsorbedTotalJ, 0.0);
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerHost);
+                Object.DestroyImmediate(firstHost);
+                Object.DestroyImmediate(secondHost);
+                var dispersals = GameObject.FindObjectsByType<GameObject>(
+                    FindObjectsInactive.Exclude);
+                for (var index = 0; index < dispersals.Length; index++)
+                    if (dispersals[index] != null &&
+                        dispersals[index].name == "SandbagDispersal")
+                        Object.DestroyImmediate(dispersals[index]);
+            }
+        }
+
+        [Test]
+        public void ManyFloatingBagsAllArmAndAbsorb()
+        {
+            var accepted = AcceptedRoom("sandbag-many");
+            var runtime = new DeviceSimulationRuntime(() => new CustomHardSphereWriter());
+            Assert.IsTrue(runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "sandbag-many", accepted.room.Confirmation, accepted.pin, out _)).Started);
+            runtime.Step(2);
+
+            var controllerHost = new GameObject("SandbagToolControllerManyTest");
+            var controller = controllerHost.AddComponent<SandbagToolController>();
+            var hosts = new List<GameObject>();
+            try
+            {
+                var balls = runtime.CurrentView.Balls;
+                var count = Mathf.Min(10, balls.Count);
+                for (var index = 0; index < count; index++)
+                {
+                    var bagHost = new GameObject("WallClothBag");
+                    hosts.Add(bagHost);
+                    var bag = bagHost.AddComponent<WallClothBag>();
+                    bag.Build();
+                    bag.SetVisible(true);
+                    bag.PlaceAt(balls[index].PositionM);
+                }
+                controller.Initialize(runtime);
+                controller.ArmFloatingBag();
+                Assert.AreEqual(count, controller.Bag.PlacementCount,
+                    "every floating bag arms");
+
+                for (var attempt = 0;
+                     attempt < 400 && controller.AbsorptionCount < count;
+                     attempt++)
+                {
+                    runtime.Step(1);
+                    controller.Poll();
+                }
+
+                Assert.AreEqual(count, controller.AbsorptionCount,
+                    "every armed bag absorbs its own ball");
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerHost);
+                for (var index = 0; index < hosts.Count; index++)
+                    Object.DestroyImmediate(hosts[index]);
+                var dispersals = GameObject.FindObjectsByType<GameObject>(
+                    FindObjectsInactive.Exclude);
+                for (var index = 0; index < dispersals.Length; index++)
+                    if (dispersals[index] != null &&
+                        dispersals[index].name == "SandbagDispersal")
+                        Object.DestroyImmediate(dispersals[index]);
+            }
+        }
+
+        [Test]
+        public void OverlappingFloatingBagsSeparateAndBothStayArmed()
+        {
+            var accepted = AcceptedRoom("sandbag-supply-frame");
+            var runtime = new DeviceSimulationRuntime(() => new CustomHardSphereWriter());
+            Assert.IsTrue(runtime.TryStartTrial(TemperatureTrialSetup.CreateTrialStart(
+                "sandbag-supply-frame", accepted.room.Confirmation, accepted.pin,
+                out _)).Started);
+            runtime.Step(2);
+
+            var television = new GameObject("Television");
+            television.transform.SetPositionAndRotation(new Vector3(0f, 1.35f, 1.6f),
+                Quaternion.identity);
+            var supplyHost = new GameObject("ClothBagSupply");
+            var controllerHost = new GameObject("SandbagToolControllerFrameTest");
+            var controller = controllerHost.AddComponent<SandbagToolController>();
+            try
+            {
+                var supply = supplyHost.AddComponent<ClothBagSupply>();
+                supply.Build(television.transform);
+                supply.SetVisible(true);
+                supply.Follow(television.transform);
+
+                var first = supply.DockedBag;
+                Assert.IsNotNull(first);
+                Assert.IsTrue(first.TryCloseGrab(first.transform.position));
+                var second = supply.DockedBag;
+                Assert.IsNotNull(second);
+                Assert.IsTrue(second.TryCloseGrab(second.transform.position));
+
+                var balls = runtime.CurrentView.Balls;
+                first.PlaceAt(balls[0].PositionM);
+                second.PlaceAt(balls[0].PositionM);
+                controller.Initialize(runtime);
+
+                for (var attempt = 0;
+                     attempt < 600 && controller.AbsorptionCount < 2;
+                     attempt++)
+                {
+                    controller.Poll();
+                    controller.SyncVisual();
+                    controller.FloatOrderedBag();
+                    controller.ArmFloatingBag();
+                    supply.SeparateFloatingBags();
+                    runtime.Step(1);
+                }
+
+                Assert.AreEqual(2, controller.AbsorptionCount,
+                    "both overlapping bags stay armed and each absorbs");
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerHost);
+                Object.DestroyImmediate(supplyHost);
+                Object.DestroyImmediate(television);
+                var dispersals = GameObject.FindObjectsByType<GameObject>(
+                    FindObjectsInactive.Exclude);
+                for (var index = 0; index < dispersals.Length; index++)
+                    if (dispersals[index] != null &&
+                        dispersals[index].name == "SandbagDispersal")
+                        Object.DestroyImmediate(dispersals[index]);
+            }
         }
     }
 }

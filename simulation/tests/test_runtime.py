@@ -592,6 +592,42 @@ class ContactClosureTestCase(unittest.TestCase):
             props["prop-absorber"]["absorbed_energy_j"], 0.5, places=9
         )
 
+    def test_energy_capped_prop_keeps_the_ball_flying(self):
+        kernel, runtime = make_pair()
+        start_trial(kernel, runtime, ball_count=2, speed=0.5)
+        before = {
+            entity["entity_id"]: list(entity["velocity_m_per_s"])
+            for entity in runtime.state_view("trial-a")["entities"]
+        }
+        speed_before = math.sqrt(sum(value * value for value in before["ball-0002"]))
+        runtime.register_prop(
+            "trial-a", "prop-absorber", energy_delta_j=SANDBAG_ENERGY_DELTA_J
+        )
+        admission = runtime.admit(
+            "trial-a",
+            "prop_trigger",
+            {"prop_id": "prop-absorber", "entity_id": "ball-0002"},
+        )
+        self.assertTrue(admission["admitted"])
+        runtime.request_slice("trial-a", 1)
+        after = runtime.state_view("trial-a")["entities"]
+        velocity_after = next(
+            entity["velocity_m_per_s"]
+            for entity in after
+            if entity["entity_id"] == "ball-0002"
+        )
+        speed_after = math.sqrt(sum(value * value for value in velocity_after))
+        self.assertAlmostEqual(
+            speed_after, speed_before * 0.5, places=9,
+            msg="a bag halves the ball's speed but never stops it",
+        )
+        props = runtime.prop_states("trial-a")
+        absorbed = props["prop-absorber"]["absorbed_energy_j"]
+        self.assertAlmostEqual(absorbed, 0.75 * 0.5 * speed_before * speed_before,
+            places=9, msg="the declared factor caps the absorption, leaving half the speed")
+        self.assertLess(absorbed, SANDBAG_ENERGY_DELTA_J,
+            "a slow ball may give less than the full declared quantum")
+
     def test_one_shot_prop_consumed_once(self):
         kernel, runtime = make_pair()
         start_trial(kernel, runtime, ball_count=4, speed=1.0)

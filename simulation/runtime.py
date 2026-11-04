@@ -724,6 +724,11 @@ class HeadlessBallWriter:
                 if removed <= 0.0:
                     return
                 factor = math.sqrt(max(0.0, 1.0 - removed / before))
+                # The declared damping factor is a floor, not a replacement: an
+                # energy-capped absorption may never take the ball's whole
+                # speed, so a slowed ball keeps flying and can still reach the
+                # next one-shot prop.
+                factor = max(factor, float(effect.get("factor", 0.0)))
             else:
                 factor = effect["factor"]
             for axis in range(3):

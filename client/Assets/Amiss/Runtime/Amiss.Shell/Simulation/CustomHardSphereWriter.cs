@@ -102,6 +102,7 @@ namespace Amiss.Shell.Simulation
             public Vector3 CenterM;
             public float RadiusM;
             public double EnergyDeltaJ;
+            public float SpeedFloorFactor;
         }
 
         // Persistent hourglass cooling field between two open palms. While set,
@@ -217,7 +218,7 @@ namespace Amiss.Shell.Simulation
         public IReadOnlyList<AppliedSweepHit> LastAppliedSweeps => lastAppliedSweeps;
 
         public void SetHoverAbsorber(string interactionId, Vector3 centerM, float radiusM,
-            double energyDeltaJ)
+            double energyDeltaJ, float speedFloorFactor)
         {
             if (!configured)
                 throw new InvalidOperationException("writer_not_setup");
@@ -231,11 +232,16 @@ namespace Amiss.Shell.Simulation
             if (!double.IsFinite(energyDeltaJ) || energyDeltaJ <= 0.0)
                 throw new ArgumentException("absorber_energy_delta_invalid",
                     nameof(energyDeltaJ));
+            if (!float.IsFinite(speedFloorFactor) || speedFloorFactor < 0f ||
+                speedFloorFactor > 1f)
+                throw new ArgumentException("absorber_speed_floor_invalid",
+                    nameof(speedFloorFactor));
             absorbers[interactionId] = new HoverAbsorber
             {
                 CenterM = centerM,
                 RadiusM = radiusM,
-                EnergyDeltaJ = energyDeltaJ
+                EnergyDeltaJ = energyDeltaJ,
+                SpeedFloorFactor = speedFloorFactor
             };
         }
 
@@ -441,8 +447,11 @@ namespace Amiss.Shell.Simulation
         /// stable interaction-id order. Each region independently damps the
         /// first free ball whose centre entered it, reports that measured
         /// energy loss, and is consumed; the other armed regions stay armed.
-        /// Every damped ball keeps flying free at its reduced velocity with the
-        /// free-ball count unchanged.
+        /// The declared energy is a cap, and the declared speed floor limits
+        /// how much one bag may take: a slowed ball keeps flying at no less
+        /// than the floor fraction of its speed, so it can still reach another
+        /// floating bag. Every damped ball stays free with the free-ball count
+        /// unchanged.
         /// </summary>
         void ApplyHoverAbsorber()
         {
@@ -475,6 +484,11 @@ namespace Amiss.Shell.Simulation
                     if (removed <= MinimalAbsorptionJ)
                         continue;
                     var factor = Math.Sqrt(Math.Max(0.0, 1.0 - removed / before));
+                    // The energy cap alone can take the whole speed of a ball
+                    // that carries about one declared quantum. The floor keeps
+                    // the ball flying so a bag slows it instead of stopping it,
+                    // and every later floating bag can still trigger.
+                    factor = Math.Max(factor, absorber.SpeedFloorFactor);
                     var dampedX = vx[index] * factor;
                     var dampedY = vy[index] * factor;
                     var dampedZ = vz[index] * factor;

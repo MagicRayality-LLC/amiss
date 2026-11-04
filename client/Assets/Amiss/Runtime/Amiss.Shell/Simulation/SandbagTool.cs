@@ -92,9 +92,11 @@ namespace Amiss.Shell.Simulation
     /// the headless oracle's one-registered-prop-per-bag lifecycle:
     /// <list type="bullet">
     /// <item>one placement arms one hover region and opens one contact;</item>
-    /// <item>the first valid ball impact removes the declared energy from that
-    /// ball once, leaves it free, and consumes only that bag — other armed
-    /// bags keep hovering and later balls still trigger them;</item>
+    /// <item>the first valid ball impact takes up to the declared energy from
+    /// that ball once, leaves it free and still flying at no less than the
+    /// declared speed floor (so it can reach another bag), and consumes only
+    /// that bag — other armed bags keep hovering and later balls still trigger
+    /// them;</item>
     /// <item>each closed contact is its own ledger entry with signed measured
     /// work, and its negative work raises the separate sandbag account;</item>
     /// <item>placing again after consumption floats a fresh bag with no
@@ -127,6 +129,16 @@ namespace Amiss.Shell.Simulation
         public const double DeclaredEnergyDeltaJ = EnergyQuantum.SandbagJ;
 
         /// <summary>
+        /// Founder correction (2026-11-04): one bag slows the ball but never
+        /// stops it. The writer takes at most the declared absorption and never
+        /// more than this fraction of the ball's current kinetic energy leaves;
+        /// the ball keeps at least half its speed, continues free, and can
+        /// reach another floating bag. Matches the approved headless prop's
+        /// declared damping factor of 0.5.
+        /// </summary>
+        public const float DeclaredSpeedFloorFactor = 0.5f;
+
+        /// <summary>
         /// The declared tool parameters are 07 section 4.2 prototype values, so
         /// the readout states that label instead of presenting them as calibrated.
         /// </summary>
@@ -138,7 +150,8 @@ namespace Amiss.Shell.Simulation
                 System.Globalization.CultureInfo.InvariantCulture) + " m · absorption " +
             EnergyQuantum.JoulesText(DeclaredEnergyDeltaJ) + " (" +
             EnergyQuantum.SandbagUnits.ToString(
-                System.Globalization.CultureInfo.InvariantCulture) + " units) · " +
+                System.Globalization.CultureInfo.InvariantCulture) +
+            " units max, keeps ≥ half speed) · " +
             DeclaredParametersEvidence;
 
         sealed class Placement

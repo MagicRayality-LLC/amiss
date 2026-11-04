@@ -182,10 +182,11 @@ namespace Amiss.Shell.Simulation
                 throw new InvalidOperationException("writer_has_no_tool_effect_face");
             if (!trial.Temperature.HasOpenContact(contactId))
                 throw new InvalidOperationException("contact_not_open");
-            // The region and absorption are the episode's declared prototype
-            // values, never a panel or model number.
+            // The region, absorption cap, and speed floor are the episode's
+            // declared prototype values, never a panel or model number.
             dampingWriter.SetHoverAbsorber(contactId, centerM, radiusM,
-                SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
         }
 
         SweptClosure ISandbagContactHost.CloseSandbagContact(string contactId, string reason)

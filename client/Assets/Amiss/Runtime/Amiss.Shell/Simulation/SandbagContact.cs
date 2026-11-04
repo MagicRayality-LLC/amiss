@@ -5,11 +5,13 @@ namespace Amiss.Shell.Simulation
 {
     /// <summary>
     /// A writer that resolves a hovering sandbag absorber against its own
-    /// state. The tool supplies only the normalized hover region and the
-    /// declared energy quantum; the writer decides which free ball, if any, a
-    /// Tick's motion carried into the region, removes that quantum from the
-    /// ball's kinetic energy, and measures the ball-energy change it applied —
-    /// the only value the energy ledger accepts (02 section 4.1).
+    /// state. The tool supplies only the normalized hover region, the
+    /// declared energy quantum, and the declared speed floor; the writer
+    /// decides which free ball, if any, a Tick's motion carried into the
+    /// region, removes up to that quantum from the ball's kinetic energy
+    /// without taking more than the floor allows, and measures the ball-energy
+    /// change it applied — the only value the energy ledger accepts (02
+    /// section 4.1).
     ///
     /// It mirrors the approved headless oracle
     /// (<c>simulation/runtime.py</c>, <c>register_prop</c> /
@@ -26,9 +28,12 @@ namespace Amiss.Shell.Simulation
         /// arming a second region does not replace the first, and only the
         /// first valid impact consumes the region it names. Re-arming the same
         /// interaction id replaces that region's pending state.
+        /// <paramref name="speedFloorFactor"/> is the fraction of the ball's
+        /// speed one absorption must leave, so a slowed ball keeps flying and
+        /// can reach another floating bag.
         /// </summary>
         void SetHoverAbsorber(string interactionId, Vector3 centerM, float radiusM,
-            double energyDeltaJ);
+            double energyDeltaJ, float speedFloorFactor);
 
         /// <summary>Disarms one region without absorbing; a later impact there absorbs nothing.</summary>
         void ClearHoverAbsorber(string interactionId);

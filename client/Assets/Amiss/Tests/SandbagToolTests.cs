@@ -119,6 +119,40 @@ namespace Amiss.Tests
         // ---- writer: first valid impact damps once, then the bag is gone ----
 
         [Test]
+        public void OneBagSlowsTheBallButNeverStopsIt()
+        {
+            var accepted = AcceptedPinned("sandbag-row");
+            var ball = Ball("ball-0001", new Vector3(-0.9f, 1f, 0f),
+                new Vector3(1f, 0f, 0f));
+            var writer = WriterWith(new[] { ball }, accepted.pinned);
+            var bagX = new[] { -0.6f, -0.3f, 0f, 0.3f, 0.6f };
+            for (var index = 0; index < bagX.Length; index++)
+                writer.SetHoverAbsorber("bag-" + index,
+                    new Vector3(bagX[index], 1f, 0f),
+                    SandbagTool.DeclaredAbsorberRadiusM,
+                    SandbagTool.DeclaredEnergyDeltaJ,
+                    SandbagTool.DeclaredSpeedFloorFactor);
+            var triggered = new HashSet<string>();
+            for (var tick = 1; tick <= 400; tick++)
+            {
+                writer.Advance(tick, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+                foreach (var hit in writer.LastAppliedDampings)
+                {
+                    triggered.Add(hit.InteractionId);
+                    Assert.Greater(ball.VelocityMPerS.magnitude, 0f,
+                        "a slowed ball keeps flying after each bag");
+                    Assert.Less(hit.EnergyDeltaJ, 0.0,
+                        "each bag reports a measured absorption");
+                    Assert.Greater(hit.EnergyDeltaJ, -SandbagTool.DeclaredEnergyDeltaJ - 1e-9,
+                        "a bag never takes more than its declared cap");
+                }
+            }
+            Assert.AreEqual(bagX.Length, triggered.Count,
+                "every bag in the ball's path triggers");
+            Assert.AreEqual("free", ball.Membership);
+        }
+
+        [Test]
         public void HoverAbsorberDampsTheFirstBallOnce()
         {
             var accepted = AcceptedPinned("sandbag-once");
@@ -128,7 +162,8 @@ namespace Amiss.Tests
             var before = fast.VelocityMPerS;
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", fast.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
             var hits = writer.LastAppliedDampings;
@@ -164,9 +199,11 @@ namespace Amiss.Tests
             var secondBefore = second.VelocityMPerS;
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", first.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
             writer.SetHoverAbsorber("sandbag-contact-00000001-0002", second.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
             var hits = writer.LastAppliedDampings;
@@ -194,7 +231,8 @@ namespace Amiss.Tests
             var writer = WriterWith(new[] { rest }, accepted.pinned);
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", rest.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
             writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
@@ -211,7 +249,8 @@ namespace Amiss.Tests
             var writer = WriterWith(new[] { held }, accepted.pinned);
 
             writer.SetHoverAbsorber("sandbag-contact-00000001-0001", held.PositionM,
-                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ);
+                SandbagTool.DeclaredAbsorberRadiusM, SandbagTool.DeclaredEnergyDeltaJ,
+                SandbagTool.DeclaredSpeedFloorFactor);
             writer.Advance(1, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
 
             Assert.AreEqual(0, writer.LastAppliedDampings.Count);
@@ -227,19 +266,23 @@ namespace Amiss.Tests
             var unconfigured = new CustomHardSphereWriter();
 
             Assert.Throws<InvalidOperationException>(() => unconfigured.SetHoverAbsorber(
-                "id", Vector3.zero, 0.07f, 0.5));
+                "id", Vector3.zero, 0.07f, 0.5, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "", Vector3.zero, 0.07f, 0.5));
+                "", Vector3.zero, 0.07f, 0.5, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", Vector3.zero, 0f, 0.5));
+                "id", Vector3.zero, 0f, 0.5, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", Vector3.zero, 0.07f, -1.0));
+                "id", Vector3.zero, 0.07f, -1.0, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", Vector3.zero, 0.07f, 0.0));
+                "id", Vector3.zero, 0.07f, 0.0, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", Vector3.zero, 0.07f, double.NaN));
+                "id", Vector3.zero, 0.07f, double.NaN, 0.5f));
             Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
-                "id", new Vector3(float.NaN, 0f, 0f), 0.07f, 0.5));
+                "id", new Vector3(float.NaN, 0f, 0f), 0.07f, 0.5, 0.5f));
+            Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
+                "id", Vector3.zero, 0.07f, 0.5, -0.1f));
+            Assert.Throws<ArgumentException>(() => writer.SetHoverAbsorber(
+                "id", Vector3.zero, 0.07f, 0.5, 1.5f));
         }
 
         // ---- ledger: absorption joins the sandbag account, never free energy ----
