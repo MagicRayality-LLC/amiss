@@ -105,6 +105,13 @@ namespace Amiss.Shell
                 Bat.Initialize(toolAdapter, runtime);
             }
 
+            // The sandbag owns its tool on the same runtime host, polls it
+            // after the runtime steps, and disperses on measured absorption.
+            // Placement stays with the stage/wearer: without it the poll is a
+            // no-op and no bag floats.
+            Sandbag = gameObject.AddComponent<Simulation.SandbagToolController>();
+            Sandbag.Initialize(runtime);
+
             // The palm cooling field pushes its pose to the writer while both
             // palms stay open and facing. The rig is added from the Tools menu
             // (or the desktop test rig); binding here keeps the tool decoupled
@@ -141,6 +148,9 @@ namespace Amiss.Shell
 
         /// <summary>The normalized-input bridge to the P0 bat, or null when unbound.</summary>
         public Input.BatToolController Bat { get; private set; }
+
+        /// <summary>The bridge from the floating bag to the P0 sandbag tool.</summary>
+        public Simulation.SandbagToolController Sandbag { get; private set; }
 
         /// <summary>The device evaluation transport; closed until its key exists.</summary>
         public Tutor.DeviceTutorTransport Tutor { get; private set; }

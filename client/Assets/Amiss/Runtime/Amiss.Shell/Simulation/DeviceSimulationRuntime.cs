@@ -25,6 +25,7 @@ namespace Amiss.Shell.Simulation
             public int CompletedTick;
             public int PublicationSequence;
             public TemperatureTrialRuntime Temperature;
+            public Vector3? SandbagAnchorM;
 
             public TrialStateView CreateView() => TrialStateView.From(TrialId, CompletedTick,
                 PublicationSequence, Balls, Collision.RepresentationId, Collision.Checksum,
@@ -91,6 +92,14 @@ namespace Amiss.Shell.Simulation
         public TrialStateView CurrentView { get; private set; }
         public int Tick => trial?.CompletedTick ?? 0;
         public bool HasTrial => trial != null;
+        public string LiveTrialId => trial?.TrialId ?? "";
+
+        /// <summary>
+        /// The requesting stage's sandbag hover anchor for the live Trial, or
+        /// null when no bag was ordered. The bag controller floats one bag
+        /// there once per Trial.
+        /// </summary>
+        public Vector3? LiveSandbagAnchor => trial?.SandbagAnchorM;
 
         public ScientificWriterSlot Writers => slot;
 
@@ -270,6 +279,11 @@ namespace Amiss.Shell.Simulation
                 request.BallCount > FrozenWriterConfiguration.SpawnAttemptBound)
                 return TrialStartOutcome.Refused(request.TrialId, TrialStartRefusal.SizingInvalid);
 
+            if (request.SandbagAnchorM.HasValue &&
+                !Room.RoomGeometry.IsFinite(request.SandbagAnchorM.Value))
+                return TrialStartOutcome.Refused(request.TrialId, TrialStartRefusal.RequestInvalid,
+                    "sandbag_anchor_invalid");
+
             if (!Room.RoomGeometry.IsFinite(request.EffectiveVolumeM3) ||
                 Mathf.Abs(request.EffectiveVolumeM3 - collision.EffectiveVolumeM3) > 0.0001f)
                 return TrialStartOutcome.Refused(request.TrialId, TrialStartRefusal.SizingMismatch);
@@ -329,6 +343,7 @@ namespace Amiss.Shell.Simulation
                 Configuration = configuration,
                 Balls = balls,
                 Writer = writer,
+                SandbagAnchorM = request.SandbagAnchorM,
                 Temperature = new TemperatureTrialRuntime(
                     () => CurrentView?.Balls ?? Array.Empty<PublishedBall>(),
                     () => trial?.CompletedTick ?? 0,

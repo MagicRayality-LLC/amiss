@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Amiss.Shell.Room;
 using Amiss.Shell.Simulation;
+using UnityEngine;
 
 namespace Amiss.Shell.Ports
 {
@@ -160,6 +161,13 @@ namespace Amiss.Shell.Ports
         public float EffectiveVolumeM3 { get; set; }
         public ulong RootSeed { get; set; }
         public string SeedStreamId { get; set; } = "";
+
+        /// <summary>
+        /// Optional sandbag hover anchor for this Trial. Null means no bag
+        /// floats; a finite anchor floats one bag there once, for the stage
+        /// that ordered a sandbag trial. A non-finite anchor refuses the start.
+        /// </summary>
+        public Vector3? SandbagAnchorM { get; set; }
     }
 
     public sealed class TrialStartOutcome
