@@ -1,4 +1,6 @@
 // Unlit additive, vertex-colour tinted, UV-scrolling. Works in URP and Built-in, single-pass instanced (Quest).
+// The field draws over passthrough, so the fragment leaves the framebuffer alpha alone: an additive
+// quad that writes alpha 1 composites as an opaque black plate over the real room.
 Shader "PalmCooling/Additive Scroll"
 {
     Properties
@@ -11,7 +13,7 @@ Shader "PalmCooling/Additive Scroll"
     SubShader
     {
         Tags { "Queue"="Transparent+10" "RenderType"="Transparent" "IgnoreProjector"="True" }
-        Blend One One
+        Blend One One, Zero One
         ZWrite Off
         Cull Off
         Pass
@@ -37,7 +39,7 @@ Shader "PalmCooling/Additive Scroll"
             {
                 fixed4 t = tex2D(_MainTex, i.uv);
                 fixed3 c = t.rgb * t.a * i.color.rgb * i.color.a * _Tint.rgb * _Tint.a * _Intensity;
-                return fixed4(c, 1);
+                return fixed4(c, 0);
             }
             ENDCG
         }
