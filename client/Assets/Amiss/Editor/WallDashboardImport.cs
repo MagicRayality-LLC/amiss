@@ -11,6 +11,7 @@ namespace Amiss.EditorTools
     {
         const string Folder = "/WallDashboard/";
         const string KnifeFolder = "/KnifeSwitch/";
+        const string BatFolder = "/BaseballBat/";
 
         public static void EnsureImported()
         {
@@ -20,18 +21,22 @@ namespace Amiss.EditorTools
             AssetDatabase.ImportAsset(
                 "Assets/Amiss/Art/KnifeSwitch",
                 ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(
+                "Assets/Amiss/Art/BaseballBat",
+                ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
         }
 
         void OnPreprocessModel()
         {
             var wall = assetPath.IndexOf(Folder, System.StringComparison.Ordinal) >= 0;
             var knife = assetPath.IndexOf(KnifeFolder, System.StringComparison.Ordinal) >= 0;
-            if (!wall && !knife)
+            var bat = assetPath.IndexOf(BatFolder, System.StringComparison.Ordinal) >= 0;
+            if (!wall && !knife && !bat)
                 return;
             var importer = (ModelImporter)assetImporter;
             importer.globalScale = 1f;
             importer.useFileScale = true;
-            importer.bakeAxisConversion = wall;
+            importer.bakeAxisConversion = wall || bat;
             importer.importAnimation = false;
             importer.animationType = ModelImporterAnimationType.None;
             importer.importCameras = false;
@@ -44,7 +49,8 @@ namespace Amiss.EditorTools
         void OnPreprocessTexture()
         {
             if (assetPath.IndexOf(Folder, System.StringComparison.Ordinal) < 0 &&
-                assetPath.IndexOf(KnifeFolder, System.StringComparison.Ordinal) < 0)
+                assetPath.IndexOf(KnifeFolder, System.StringComparison.Ordinal) < 0 &&
+                assetPath.IndexOf(BatFolder, System.StringComparison.Ordinal) < 0)
                 return;
             var importer = (TextureImporter)assetImporter;
             var name = System.IO.Path.GetFileNameWithoutExtension(assetPath);

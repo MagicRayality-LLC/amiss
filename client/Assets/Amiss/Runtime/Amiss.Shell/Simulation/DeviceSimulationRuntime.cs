@@ -12,7 +12,8 @@ namespace Amiss.Shell.Simulation
     /// start request, presentation reads immutable views, and input reaches the
     /// writer only through a future validated command path.
     /// </summary>
-    public sealed class DeviceSimulationRuntime : SimulationRuntimePort, IBatContactHost
+    public sealed class DeviceSimulationRuntime : SimulationRuntimePort, IBatContactHost,
+        ISandbagContactHost
     {
         sealed class LiveTrial
         {
@@ -138,6 +139,62 @@ namespace Amiss.Shell.Simulation
             return trial.Temperature.CloseContact(contactId, reason);
         }
 
+        // ---- ISandbagContactHost: the one semantic face a sandbag may use --
+        // Every member here mutates producer-owned state only. The tool never
+        // writes ball state; the writer applies the queued damping and measures
+        // its own pre/post ball energy, which is the only absorption recorded.
+
+        bool ISandbagContactHost.HasTrial => HasTrial;
+
+        bool ISandbagContactHost.SupportsSandbagContacts =>
+            trial?.Writer is ISandbagEffectWriter && trial.Temperature != null;
+
+        int ISandbagContactHost.CurrentTick => Tick;
+
+        bool ISandbagContactHost.HasOpenContact =>
+            trial?.Temperature?.HasOpenContact == true;
+
+        string ISandbagContactHost.OpenContactId =>
+            trial?.Temperature?.OpenContactId ?? "";
+
+        bool ISandbagContactHost.OpenContactHasHits =>
+            trial?.Temperature?.HasOpenContactHits == true;
+
+        TemperatureReadoutSnapshot ISandbagContactHost.Readout => trial?.Temperature?.Readout;
+
+        void ISandbagContactHost.OpenSandbagContact(string contactId, int tick)
+        {
+            RequireTrial();
+            trial.Temperature.OpenContact(contactId, SandbagTool.PropId, tick);
+        }
+
+        void ISandbagContactHost.SubmitHoverAbsorber(string contactId, Vector3 centerM,
+            float radiusM)
+        {
+            RequireTrial();
+            if (trial.Writer is not ISandbagEffectWriter dampingWriter)
+                throw new InvalidOperationException("writer_has_no_tool_effect_face");
+            if (!trial.Temperature.HasOpenContact ||
+                trial.Temperature.OpenContactId != contactId)
+                throw new InvalidOperationException("contact_not_open");
+            // The region and factor are the episode's declared prototype
+            // values, never a panel or model number.
+            dampingWriter.SetHoverAbsorber(contactId, centerM, radiusM,
+                SandbagTool.DeclaredDampingFactor);
+        }
+
+        SweptClosure ISandbagContactHost.CloseSandbagContact(string contactId, string reason)
+        {
+            RequireTrial();
+            return trial.Temperature.CloseContact(contactId, reason);
+        }
+
+        void ISandbagContactHost.ClearHoverAbsorber()
+        {
+            if (trial?.Writer is ISandbagEffectWriter dampingWriter)
+                dampingWriter.ClearHoverAbsorber();
+        }
+
         /// <summary>
         /// The producer-owned readout of the live Trial: one measurement and
         /// one ledger from the same published view. Presentation reads this and
@@ -146,9 +203,11 @@ namespace Amiss.Shell.Simulation
         public TemperatureReadoutSnapshot Readout => trial?.Temperature?.Readout;
 
         /// <summary>
-        /// Aborts any open bat contact as a tracking-loss closure. Called when
-        /// the shell loses the input channel, so no later sample can attach work
-        /// to a swing that lost validity.
+        /// Aborts any open bat or sandbag contact as a tracking-loss closure.
+        /// Called when the shell loses the input channel, so no later sample
+        /// can attach work to a swing that lost validity. An armed hover
+        /// absorber is disarmed with the contact, so a later ball cannot
+        /// absorb off-ledger.
         /// </summary>
         public void AbortOpenToolContact()
         {
@@ -156,6 +215,8 @@ namespace Amiss.Shell.Simulation
                 return;
             trial.Temperature.CloseContact(trial.Temperature.OpenContactId,
                 TemperatureTrialRuntime.TrackingLostAborted);
+            if (trial.Writer is ISandbagEffectWriter dampingWriter)
+                dampingWriter.ClearHoverAbsorber();
         }
 
         void RequireTrial()
@@ -316,6 +377,7 @@ namespace Amiss.Shell.Simulation
                     return new StepResult(executed, trial.CompletedTick, true);
                 }
                 RecordAppliedSweeps(trial);
+                RecordAppliedDampings(trial);
                 trial.CompletedTick++;
                 Publish(trial);
                 executed++;
@@ -335,6 +397,29 @@ namespace Amiss.Shell.Simulation
                 return;
             var hits = sweepWriter.LastAppliedSweeps;
             if (hits.Count == 0)
+                return;
+            live.Temperature.RecordAppliedHits(live.Temperature.OpenContactId, hits);
+        }
+
+        /// <summary>
+        /// Moves the writer's measured damping into the one open sandbag
+        /// contact. The writer measured it on its own state; no presentation
+        /// value, panel reading, or model output contributes to the
+        /// absorption. A damping that names no open contact cannot occur while
+        /// the single contact slot holds: arming requires the slot, and the
+        /// first impact consumes the absorber, so a stray record is dropped
+        /// rather than attached to another tool's contact.
+        /// </summary>
+        void RecordAppliedDampings(LiveTrial live)
+        {
+            if (live.Writer is not ISandbagEffectWriter dampingWriter ||
+                live.Temperature == null || !live.Temperature.HasOpenContact)
+                return;
+            var hits = dampingWriter.LastAppliedDampings;
+            if (hits.Count == 0)
+                return;
+            if (!string.Equals(live.Temperature.OpenContactId, hits[0].InteractionId,
+                    StringComparison.Ordinal))
                 return;
             live.Temperature.RecordAppliedHits(live.Temperature.OpenContactId, hits);
         }

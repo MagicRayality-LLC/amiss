@@ -124,6 +124,14 @@ namespace Amiss.Shell.Simulation
                     active.LastTargetId, active.StartTick, endTick, active.AccumulatedJ,
                     closureReason);
                 ledger = ledger.WithContact(entry);
+                if (string.Equals(entry.PropId, SandbagTool.PropId, StringComparison.Ordinal) &&
+                    entry.WorkJ < 0.0)
+                {
+                    // The sandbag's measured absorption leaves the free-ball
+                    // accounts and joins the separate cumulative sandbag
+                    // account, so E_accounted keeps balancing (07 section 4.1).
+                    ledger = ledger.WithSandbagAbsorption(-entry.WorkJ);
+                }
             }
 
             // The closure is now part of the readout, so it is republished from
@@ -139,6 +147,12 @@ namespace Amiss.Shell.Simulation
         }
 
         public const string TrackingLostAborted = "tracking_lost_aborted";
+
+        /// <summary>
+        /// True once the writer's measured tool effect reached the open contact.
+        /// The sandbag polls this to close its contact on the first absorption.
+        /// </summary>
+        public bool HasOpenContactHits => open?.Contacted == true;
 
         /// <summary>Semantic commits: one per contact closure, contacted or not.</summary>
         public int Revision { get; private set; }

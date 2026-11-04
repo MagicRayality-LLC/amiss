@@ -145,6 +145,19 @@ namespace Amiss.Shell.Simulation
                 KDriftJ, KHeldJ, ESandbagJ, contacts, SetupEnergyDiffFromSourceJ);
         }
 
+        /// <summary>
+        /// Adds measured sandbag absorption to the separate cumulative account.
+        /// The caller is the runtime at the sandbag contact's declared closure;
+        /// absorbed energy is never re-derived from panel values or chart state.
+        /// </summary>
+        public TemperatureEnergyLedger WithSandbagAbsorption(double joulesJ)
+        {
+            if (!double.IsFinite(joulesJ) || joulesJ < 0.0)
+                throw new ArgumentException("sandbag_absorption_invalid", nameof(joulesJ));
+            return new TemperatureEnergyLedger(InitialTotalKeJ, FreeTotalKeJ, KThermalJ,
+                KDriftJ, KHeldJ, ESandbagJ + joulesJ, Contacts, SetupEnergyDiffFromSourceJ);
+        }
+
         /// <summary>Moves the measured accounts to one published Tick's values.</summary>
         public TemperatureEnergyLedger WithState(double freeTotalKeJ, double kThermalJ,
             double kDriftJ, double kHeldJ) =>
