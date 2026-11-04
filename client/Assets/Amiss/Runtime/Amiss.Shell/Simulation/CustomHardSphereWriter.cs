@@ -33,7 +33,7 @@ namespace Amiss.Shell.Simulation
     /// tunnelling or rewriting energy.
     /// </summary>
     public sealed class CustomHardSphereWriter : IScientificWriter, IContactFactWriter,
-        ISweepEffectWriter, ISandbagEffectWriter
+        ISweepEffectWriter, ISandbagEffectWriter, IPalmCoolingWriter
     {
         public const string ConfigurationIdValue = "custom-hard-sphere-frozen-v3";
         public const string ContactOrdering = "ascending_entity_id_pair_enumeration";
@@ -90,6 +90,21 @@ namespace Amiss.Shell.Simulation
         double absorberDampingFactor = 1.0;
         bool absorberArmed;
         AppliedSweepHit[] lastAppliedDampings = Array.Empty<AppliedSweepHit>();
+
+        // Persistent hourglass cooling field between two open palms. While set,
+        // every free ball inside the tube (wide at the palms, pinched at the
+        // waist, like an optical trap for atoms) feels molasses drag
+        // F = -m*beta*v, applied as v *= exp(-beta*dt) each Tick. Unlike the
+        // one-shot sandbag, the field stays armed and cools every ball that
+        // passes through; the temperature readout follows the speed drop.
+        bool palmFieldSet;
+        Vector3 palmA;
+        Vector3 palmB;
+        float palmWaistRadiusM;
+        float palmMouthRadiusM;
+        double palmBetaPerS;
+        int lastPalmCooledCount;
+        double lastPalmAbsorbedJ;
 
         public CustomHardSphereWriter(int contactIterationBound)
         {
@@ -201,6 +216,108 @@ namespace Amiss.Shell.Simulation
         }
 
         public IReadOnlyList<AppliedSweepHit> LastAppliedDampings => lastAppliedDampings;
+
+        /// <summary>
+        /// Arms the persistent hourglass cooling field between two open palms.
+        /// Mouth radius is the field footprint at each palm, waist radius the
+        /// pinched middle, beta the molasses coefficient in 1/s. Mirrors the
+        /// headless oracle's set_palm_field; the field stays armed until
+        /// cleared and cools every ball inside each Tick.
+        /// </summary>
+        public void SetPalmField(Vector3 endpointA, Vector3 endpointB,
+            float waistRadiusM, float mouthRadiusM, double betaPerS)
+        {
+            if (!configured)
+                throw new InvalidOperationException("writer_not_setup");
+            if (!float.IsFinite(endpointA.x) || !float.IsFinite(endpointA.y) ||
+                !float.IsFinite(endpointA.z) || !float.IsFinite(endpointB.x) ||
+                !float.IsFinite(endpointB.y) || !float.IsFinite(endpointB.z))
+                throw new ArgumentException("palm_field_endpoint_invalid");
+            if (!float.IsFinite(waistRadiusM) || waistRadiusM <= 0f ||
+                !float.IsFinite(mouthRadiusM) || mouthRadiusM <= 0f)
+                throw new ArgumentException("palm_field_radius_invalid");
+            if (!double.IsFinite(betaPerS) || betaPerS < 0.0)
+                throw new ArgumentException("palm_field_beta_invalid");
+            if ((endpointB - endpointA).sqrMagnitude <= 0f)
+                throw new ArgumentException("palm_field_endpoints_coincide");
+            palmA = endpointA;
+            palmB = endpointB;
+            palmWaistRadiusM = waistRadiusM;
+            palmMouthRadiusM = mouthRadiusM;
+            palmBetaPerS = betaPerS;
+            palmFieldSet = true;
+        }
+
+        public void ClearPalmField()
+        {
+            palmFieldSet = false;
+            lastPalmCooledCount = 0;
+            lastPalmAbsorbedJ = 0.0;
+        }
+
+        public bool PalmFieldActive => palmFieldSet;
+
+        /// <summary>Free balls cooled on the most recent Tick.</summary>
+        public int LastPalmCooledCount => lastPalmCooledCount;
+
+        /// <summary>Measured kinetic energy removed by the field last Tick (J).</summary>
+        public double LastPalmAbsorbedJ => lastPalmAbsorbedJ;
+
+        /// <summary>
+        /// Applies molasses drag to every free ball inside the hourglass tube:
+        /// v *= exp(-beta*dt). Tube radius interpolates from the mouth at each
+        /// palm to the pinched waist in the middle as r(t) = waist +
+        /// (mouth-waist)*|2t-1|^1.5. Runs after pair contacts so the cooling
+        /// measurement sees the post-collision velocities, like the oracle.
+        /// </summary>
+        void ApplyPalmField(double deltaSeconds)
+        {
+            lastPalmCooledCount = 0;
+            lastPalmAbsorbedJ = 0.0;
+            if (!palmFieldSet || palmBetaPerS <= 0.0 || deltaSeconds <= 0.0)
+                return;
+            var axisX = (double)palmB.x - palmA.x;
+            var axisY = (double)palmB.y - palmA.y;
+            var axisZ = (double)palmB.z - palmA.z;
+            var lengthSq = axisX * axisX + axisY * axisY + axisZ * axisZ;
+            if (lengthSq <= 0.0)
+                return;
+            var factor = Math.Exp(-palmBetaPerS * deltaSeconds);
+            if (factor >= 1.0)
+                return;
+            for (var index = 0; index < order.Length; index++)
+            {
+                if (order[index].Membership != "free")
+                    continue;
+                var relX = px[index] - palmA.x;
+                var relY = py[index] - palmA.y;
+                var relZ = pz[index] - palmA.z;
+                var fraction = (relX * axisX + relY * axisY + relZ * axisZ) / lengthSq;
+                if (fraction < 0.0 || fraction > 1.0)
+                    continue;
+                var closestX = palmA.x + axisX * fraction;
+                var closestY = palmA.y + axisY * fraction;
+                var closestZ = palmA.z + axisZ * fraction;
+                var dx = px[index] - closestX;
+                var dy = py[index] - closestY;
+                var dz = pz[index] - closestZ;
+                var distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                var tubeR = palmWaistRadiusM + (palmMouthRadiusM - palmWaistRadiusM) *
+                    Math.Pow(Math.Abs(2.0 * fraction - 1.0), 1.5);
+                if (distance > tubeR + 0.5 * order[index].RadiusM)
+                    continue;
+                var mass = (double)order[index].MassKg;
+                var before = 0.5 * mass *
+                    (vx[index] * vx[index] + vy[index] * vy[index] + vz[index] * vz[index]);
+                vx[index] *= factor;
+                vy[index] *= factor;
+                vz[index] *= factor;
+                var after = 0.5 * mass *
+                    (vx[index] * vx[index] + vy[index] * vy[index] + vz[index] * vz[index]);
+                lastPalmCooledCount++;
+                lastPalmAbsorbedJ += before - after;
+            }
+        }
 
         /// <summary>
         /// Resolves the armed hover absorber after motion and contacts, in
@@ -506,6 +623,8 @@ namespace Amiss.Shell.Simulation
                 }
             }
 
+            ApplyPalmField(delta);
+
             ApplyHoverAbsorber();
 
             for (var index = 0; index < count; index++)
@@ -525,6 +644,9 @@ namespace Amiss.Shell.Simulation
             absorberArmed = false;
             absorberInteractionId = "";
             lastAppliedDampings = Array.Empty<AppliedSweepHit>();
+            palmFieldSet = false;
+            lastPalmCooledCount = 0;
+            lastPalmAbsorbedJ = 0.0;
             order = null;
             collision = null;
             configuration = null;

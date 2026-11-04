@@ -464,6 +464,12 @@ def kinetic_temperature(energies, unit_convention, statistical_minimum_free_coun
 class HeadlessBallWriter:
     writer_id = "headless-elastic-balls-v1"
 
+    def __init__(self):
+        # Persistent optical-trap-style cooling field between two palms.
+        # None when the field art is off; otherwise a dict with endpoints,
+        # waist/mouth radii, and the molasses damping coefficient beta (1/s).
+        self.palm_field = None
+
     def setup(self, streams, setup_parameters, collision):
         count = int(setup_parameters.get("ball_count", 8))
         if count < 0:
@@ -502,6 +508,76 @@ class HeadlessBallWriter:
         return 0.5 * ball["mass_kg"] * math.fsum(
             v * v for v in ball["velocity_m_per_s"]
         )
+
+    def set_palm_field(self, endpoint_a_m, endpoint_b_m, *, waist_radius_m,
+                       mouth_radius_m, beta_per_s):
+        """Arm the hourglass cooling field between two open palms.
+
+        The tube is wide at the palms (mouth_radius_m) and pinched at the
+        waist (waist_radius_m), like the optical trap used to cool atoms:
+        balls inside feel optical-molasses drag F = -m*beta*v. Beta is the
+        damping coefficient in 1/s; velocities scale by exp(-beta*dt).
+        """
+        for value in list(endpoint_a_m) + list(endpoint_b_m):
+            if not _finite_number(value):
+                raise RuntimeContractError("non_finite_input")
+        for value in (waist_radius_m, mouth_radius_m, beta_per_s):
+            if not _finite_number(value):
+                raise RuntimeContractError("non_finite_input")
+        if waist_radius_m <= 0.0 or mouth_radius_m <= 0.0 or beta_per_s < 0.0:
+            raise RuntimeContractError("invalid_palm_field")
+        separation = math.sqrt(math.fsum(
+            (endpoint_b_m[axis] - endpoint_a_m[axis]) ** 2 for axis in range(3)))
+        if not math.isfinite(separation) or separation <= 0.0:
+            raise RuntimeContractError("invalid_palm_field")
+        self.palm_field = {
+            "endpoint_a_m": [float(endpoint_a_m[axis]) for axis in range(3)],
+            "endpoint_b_m": [float(endpoint_b_m[axis]) for axis in range(3)],
+            "waist_radius_m": float(waist_radius_m),
+            "mouth_radius_m": float(mouth_radius_m),
+            "beta_per_s": float(beta_per_s),
+        }
+
+    def clear_palm_field(self):
+        self.palm_field = None
+
+    def _apply_palm_field(self, state, delta_s, facts):
+        field = self.palm_field
+        if field is None or field["beta_per_s"] <= 0.0 or delta_s <= 0.0:
+            return
+        axis = [field["endpoint_b_m"][i] - field["endpoint_a_m"][i] for i in range(3)]
+        length_sq = math.fsum(component * component for component in axis)
+        if length_sq <= 0.0:
+            return
+        factor = math.exp(-field["beta_per_s"] * delta_s)
+        if factor >= 1.0:
+            return
+        waist = field["waist_radius_m"]
+        mouth = field["mouth_radius_m"]
+        for entity_id in sorted(state["balls"]):
+            ball = state["balls"][entity_id]
+            if ball["membership"] != "free":
+                continue
+            relative = [ball["position_m"][i] - field["endpoint_a_m"][i] for i in range(3)]
+            fraction = math.fsum(relative[i] * axis[i] for i in range(3)) / length_sq
+            if fraction < 0.0 or fraction > 1.0:
+                continue
+            closest = [field["endpoint_a_m"][i] + axis[i] * fraction for i in range(3)]
+            distance = math.sqrt(math.fsum(
+                (ball["position_m"][i] - closest[i]) ** 2 for i in range(3)))
+            tube_radius = waist + (mouth - waist) * abs(2.0 * fraction - 1.0) ** 1.5
+            if distance > tube_radius + 0.5 * ball["radius_m"]:
+                continue
+            before = self._ball_energy(ball)
+            for i in range(3):
+                ball["velocity_m_per_s"][i] *= factor
+            facts["applied_effects"].append({
+                "effect_kind": "palm_cooling",
+                "entity_id": entity_id,
+                "energy_delta_j": self._ball_energy(ball) - before,
+            })
+            facts["palm_cooled_count"] = facts.get("palm_cooled_count", 0) + 1
+            facts["palm_absorbed_j"] = facts.get("palm_absorbed_j", 0.0) + (before - self._ball_energy(ball))
 
     def _apply_effect(self, state, effect, delta_s, facts):
         kind = effect.get("effect_kind")
@@ -740,6 +816,7 @@ class HeadlessBallWriter:
                     second["velocity_m_per_s"][axis] += component * first["mass_kg"]
                 resolutions += 1
                 facts["pair_contacts"] += 1
+        self._apply_palm_field(state, delta_s, facts)
         return facts
 
 

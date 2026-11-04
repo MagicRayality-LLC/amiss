@@ -13,7 +13,7 @@ namespace Amiss.Shell.Simulation
     /// writer only through a future validated command path.
     /// </summary>
     public sealed class DeviceSimulationRuntime : SimulationRuntimePort, IBatContactHost,
-        ISandbagContactHost
+        ISandbagContactHost, IPalmCoolingHost
     {
         sealed class LiveTrial
         {
@@ -193,6 +193,28 @@ namespace Amiss.Shell.Simulation
         {
             if (trial?.Writer is ISandbagEffectWriter dampingWriter)
                 dampingWriter.ClearHoverAbsorber();
+        }
+
+        // ---- IPalmCoolingHost: persistent field pose, no contact needed ----
+        bool IPalmCoolingHost.HasTrial => HasTrial;
+
+        bool IPalmCoolingHost.SupportsPalmCooling =>
+            trial?.Writer is IPalmCoolingWriter && trial.Temperature != null;
+
+        void IPalmCoolingHost.SubmitPalmField(Vector3 endpointA, Vector3 endpointB,
+            float waistRadiusM, float mouthRadiusM, double betaPerS)
+        {
+            RequireTrial();
+            if (trial.Writer is not IPalmCoolingWriter coolingWriter)
+                throw new InvalidOperationException("writer_has_no_tool_effect_face");
+            coolingWriter.SetPalmField(endpointA, endpointB,
+                waistRadiusM, mouthRadiusM, betaPerS);
+        }
+
+        void IPalmCoolingHost.ClearPalmField()
+        {
+            if (trial?.Writer is IPalmCoolingWriter coolingWriter)
+                coolingWriter.ClearPalmField();
         }
 
         /// <summary>

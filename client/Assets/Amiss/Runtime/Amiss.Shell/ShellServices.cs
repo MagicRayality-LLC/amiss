@@ -105,6 +105,13 @@ namespace Amiss.Shell
                 Bat.Initialize(toolAdapter, runtime);
             }
 
+            // The palm cooling field pushes its pose to the writer while both
+            // palms stay open and facing. The rig is added from the Tools menu
+            // (or the desktop test rig); binding here keeps the tool decoupled
+            // from the runtime's concrete type.
+            foreach (var cooling in GetComponentsInChildren<Cooling.PalmCoolingTool>(true))
+                cooling.Bind(runtime);
+
             BuildIdentity.Log();
         }
 
