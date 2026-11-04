@@ -25,21 +25,27 @@ namespace Amiss.Shell.Room
         public const string HighlightMaterialResource =
             "RoomHighlight/RoomHighlightTransparent";
 
-        /// <summary>
-        /// Opacity of every highlight, applied to each provenance colour.
-        /// The design requires passthrough to stay visible and a highlight
-        /// never to become a virtual wall, so this is a presentation value,
-        /// not a calibrated one: 0.3 reads as a tint through passthrough and
-        /// is not tuned on a device.
-        /// </summary>
+        /// <summary>Opacity of the scan and safety highlights.</summary>
         public const float PresentationAlpha = 0.3f;
+
+        /// <summary>Colour and opacity of the walls shown after room entry.</summary>
+        public static readonly Color VirtualWallColor = new Color(0.35f, 0.75f, 1f);
+        public const float VirtualWallAlpha = 0.5f;
+
+        enum PresentationMode
+        {
+            None,
+            ScanHighlights,
+            VirtualWalls,
+            SafetyHighlights
+        }
 
         readonly List<GameObject> visuals = new();
         ShellServices services;
         RoomDraft shownDraft;
-        bool safetyShown;
+        PresentationMode shownMode;
 
-        /// <summary>Number of highlight surfaces currently in the room.</summary>
+        /// <summary>Number of highlight or virtual-wall surfaces currently in the room.</summary>
         public int ShownSurfaceCount => visuals.Count;
 
         void Start()
@@ -53,66 +59,79 @@ namespace Amiss.Shell.Room
                 return;
             var room = services.Room;
             Sync(room.Preparation, room.Recovery,
-                room.Adapter == null || room.Adapter.WorldLockActive);
+                room.Adapter == null || room.Adapter.WorldLockActive,
+                room.VirtualWallsEnabled);
         }
 
         /// <summary>
-        /// Decides what the highlight layer shows. Highlights are cleared
-        /// once the room is confirmed, except during a safety hold. They are
-        /// also withheld while MRUK world lock is inactive: the draft poses
-        /// are frozen at load, so without a live lock they can sit at a
+        /// Shows provenance colours before confirmation and, when enabled,
+        /// light-blue, half-transparent virtual walls after confirmation. A
+        /// safety hold replaces either view with the red safety highlights.
+        /// Every view is withheld while MRUK world lock is inactive: the draft
+        /// poses are frozen at load, so without a live lock they can sit at a
         /// stale or offset place and enclose the wearer.
         /// </summary>
-        public void Sync(RoomPreparation preparation, ShellRecovery recovery, bool worldLockActive)
+        public void Sync(RoomPreparation preparation, ShellRecovery recovery, bool worldLockActive,
+            bool virtualWallsEnabled = true)
         {
             var draft = preparation != null ? preparation.Draft : null;
             var safety = recovery != null && recovery.SafetyHold;
-            var show = worldLockActive && draft != null &&
-                       (safety || preparation.Status == RoomPreparationStatus.AwaitingConfirmation);
-            if (!show)
+            var mode = PresentationMode.None;
+            if (worldLockActive && draft != null)
             {
-                if (shownDraft != null)
+                if (safety)
+                    mode = PresentationMode.SafetyHighlights;
+                else if (preparation.Status == RoomPreparationStatus.AwaitingConfirmation)
+                    mode = PresentationMode.ScanHighlights;
+                else if (virtualWallsEnabled && preparation.Status == RoomPreparationStatus.Confirmed)
+                    mode = PresentationMode.VirtualWalls;
+            }
+
+            if (mode == PresentationMode.None)
+            {
+                if (shownMode != PresentationMode.None)
                     Clear();
                 return;
             }
-            if (safety)
-            {
-                if (!safetyShown || shownDraft != draft)
-                    Show(draft, true);
-                return;
-            }
-            safetyShown = false;
-            if (shownDraft != draft)
-                Show(draft, false);
+            if (shownDraft != draft || shownMode != mode)
+                Show(draft, mode);
         }
 
-        void Show(RoomDraft draft, bool safety)
+        void Show(RoomDraft draft, PresentationMode mode)
         {
             Clear();
             shownDraft = draft;
-            safetyShown = safety;
-            if (draft == null)
-                return;
+            shownMode = mode;
             foreach (var surface in draft.Surfaces)
             {
+                if (mode == PresentationMode.VirtualWalls && surface.Role != CollisionSurfaceRole.Wall)
+                    continue;
                 var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                visual.name = "DerivedSurfaceHighlight";
+                visual.name = mode == PresentationMode.VirtualWalls
+                    ? "VirtualRoomWall"
+                    : "DerivedSurfaceHighlight";
                 var collider = visual.GetComponent<Collider>();
                 if (collider != null)
                     Remove(collider);
                 visual.transform.SetParent(transform, false);
                 visual.transform.SetPositionAndRotation(surface.Center, surface.Rotation);
                 visual.transform.localScale = surface.Size;
-                var color = safety
-                    ? new Color(0.95f, 0.12f, 0.08f)
-                    : surface.Provenance switch
+                var color = mode switch
+                {
+                    PresentationMode.SafetyHighlights => new Color(0.95f, 0.12f, 0.08f),
+                    PresentationMode.VirtualWalls => VirtualWallColor,
+                    _ => surface.Provenance switch
                     {
                         BoundaryProvenance.Scanned => new Color(0.08f, 0.65f, 0.35f),
                         BoundaryProvenance.VirtualSupplement => new Color(0.95f, 0.62f, 0.08f),
                         _ => new Color(0.58f, 0.22f, 0.82f)
-                    };
+                    }
+                };
+                var alpha = mode == PresentationMode.VirtualWalls
+                    ? VirtualWallAlpha
+                    : PresentationAlpha;
                 var renderer = visual.GetComponent<Renderer>();
-                renderer.sharedMaterial = CreateHighlightMaterial(color, renderer.sharedMaterial);
+                renderer.sharedMaterial = CreateHighlightMaterial(color, renderer.sharedMaterial, alpha);
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
                 visuals.Add(visual);
@@ -120,7 +139,7 @@ namespace Amiss.Shell.Room
         }
 
         /// <summary>
-        /// Builds one highlight material by cloning the shipped transparent
+        /// Builds one room-surface material by cloning the shipped transparent
         /// template, so the transparent fragment variant is the one the
         /// build kept. The surface is transparent, writes no depth, and
         /// draws after every opaque surface, so passthrough and the wearer's
@@ -129,7 +148,8 @@ namespace Amiss.Shell.Room
         /// and the primitive's own material is used so the scan stays
         /// visible rather than vanishing.
         /// </summary>
-        public static Material CreateHighlightMaterial(Color color, Material fallback = null)
+        public static Material CreateHighlightMaterial(Color color, Material fallback = null,
+            float alpha = PresentationAlpha)
         {
             var template = Resources.Load<Material>(HighlightMaterialResource);
             if (template == null)
@@ -145,7 +165,7 @@ namespace Amiss.Shell.Room
                 }
             }
 
-            color.a = PresentationAlpha;
+            color.a = alpha;
             var material = new Material(template);
             if (material.HasProperty("_BaseColor"))
                 material.SetColor("_BaseColor", color);
@@ -187,8 +207,8 @@ namespace Amiss.Shell.Room
                 material.SetFloat("_AlphaClip", 0f);
             // URP prefers premultiplied alpha when specular highlights are
             // preserved; that would override the straight SrcAlpha blend set
-            // above and enable _ALPHAPREMULTIPLY_ON. Straight alpha is what
-            // the presentation needs: one 0.3 tint over passthrough.
+            // above and enable _ALPHAPREMULTIPLY_ON. Straight alpha keeps the
+            // requested opacity over passthrough.
             if (material.HasProperty("_BlendModePreserveSpecular"))
                 material.SetFloat("_BlendModePreserveSpecular", 0f);
             material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
@@ -207,7 +227,7 @@ namespace Amiss.Shell.Room
                     Remove(visual);
             visuals.Clear();
             shownDraft = null;
-            safetyShown = false;
+            shownMode = PresentationMode.None;
         }
 
         static void Remove(Object target)

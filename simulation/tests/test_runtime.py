@@ -1379,7 +1379,7 @@ class HardSphereOracleParityTestCase(unittest.TestCase):
             )
         return CollisionRepresentation("parity", "1", "room-frame-v1", surfaces)
 
-    def run_case(self, balls, ticks):
+    def run_case(self, balls, ticks, extra_surfaces=()):
         state = {
             "balls": {
                 f"ball-{index + 1:04d}": {
@@ -1394,7 +1394,10 @@ class HardSphereOracleParityTestCase(unittest.TestCase):
             }
         }
         writer = HeadlessBallWriter()
-        collision = self.collision()
+        collision = CollisionRepresentation(
+            "parity", "1", "room-frame-v1",
+            self.collision().surfaces + list(extra_surfaces)
+        )
         streams = NamedRandomStreams(0)
         contacts = []
         for tick in range(1, ticks + 1):
@@ -1481,6 +1484,42 @@ class HardSphereOracleParityTestCase(unittest.TestCase):
         self.assertEqual(contacts, [(14, 0, 1)])
         self.assertEqual(state["ball-0001"]["velocity_m_per_s"], [1.0, 0.0, 0.0])
         self.assertAlmostEqual(state["ball-0001"]["position_m"][0], -0.12)
+
+    def test_large_boundary_overshoot_reflects_until_inside(self):
+        contacts, state = self.run_case(
+            [((-0.9, 1.0, 0.0), (100.0, 0.0, 0.0))], 1
+        )
+        self.assertEqual(contacts, [(1, 0, 2)])
+        self.assertEqual(state["ball-0001"]["velocity_m_per_s"], [100.0, 0.0, 0.0])
+        self.assertAlmostEqual(state["ball-0001"]["position_m"][0], 0.3)
+
+    def test_rotated_scanned_wall_reflects_inside_outer_bounds(self):
+        normal = [-(2 ** -0.5), 0.0, 2 ** -0.5]
+        offset = -1.2
+        wall = {
+            "surface_id": "wall-angled",
+            "primary_representation": "plane",
+            "provenance": "scanned_confirmed",
+            "plane": {"normal": normal, "offset": offset},
+        }
+        contacts, state = self.run_case(
+            [((-0.56, 1.0, 0.56), (-1.0, 0.0, 1.0))], 1, [wall]
+        )
+        self.assertEqual(contacts, [(1, 0, 1)])
+        ball = state["ball-0001"]
+        signed_offset = normal[0] * offset
+        final_distance = signed_offset - math.fsum(
+            normal[axis] * ball["position_m"][axis] for axis in range(3)
+        )
+        normal_velocity = math.fsum(
+            normal[axis] * ball["velocity_m_per_s"][axis] for axis in range(3)
+        )
+        self.assertGreaterEqual(final_distance, self.RADIUS)
+        self.assertLess(normal_velocity, 0.0)
+        self.assertAlmostEqual(
+            math.sqrt(math.fsum(v * v for v in ball["velocity_m_per_s"])),
+            math.sqrt(2.0),
+        )
 
     def test_short_multi_ball_run(self):
         contacts, state = self.run_case(

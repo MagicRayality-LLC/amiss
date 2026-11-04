@@ -14,6 +14,13 @@ namespace Amiss.Shell.Voice
         public Action Activated { get; set; } = () => { };
         public Action<string> PartialText { get; set; } = _ => { };
         public Action CaptureEnded { get; set; } = () => { };
+
+        /// <summary>
+        /// The platform request itself is finished. Unlike
+        /// <see cref="CaptureEnded"/>, no final text can still follow, so a
+        /// turn that reaches this without text is over, not transcribing.
+        /// </summary>
+        public Action RequestEnded { get; set; } = () => { };
         public Action<string> FinalText { get; set; } = _ => { };
         public Action<string> Failed { get; set; } = _ => { };
     }

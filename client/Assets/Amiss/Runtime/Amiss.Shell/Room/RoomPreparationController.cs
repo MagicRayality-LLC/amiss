@@ -20,6 +20,7 @@ namespace Amiss.Shell.Room
         public string EvidencePath { get; private set; } = "";
         public string StartBlock { get; private set; } = "";
         public bool SafetyCheckEnabled { get; private set; } = true;
+        public bool VirtualWallsEnabled { get; private set; } = true;
 
         void Awake()
         {
@@ -254,6 +255,8 @@ namespace Amiss.Shell.Room
         }
 
         public void SetSafetyCheck(bool enabled) => SafetyCheckEnabled = enabled;
+
+        public void SetVirtualWalls(bool enabled) => VirtualWallsEnabled = enabled;
 
         public void ConfirmRoom()
         {

@@ -293,8 +293,8 @@ namespace Amiss.Tests
         }
 
         static SimulationTrialSummary Summary() => new("trial-local-0001", 7930, 72,
-            "custom-hard-sphere-frozen-v2", "70d844987f7b3c1d9e5a", "unity",
-            "custom-hard-sphere-frozen-v2", false);
+            "custom-hard-sphere-frozen-v3", "70d844987f7b3c1d9e5a", "unity",
+            "custom-hard-sphere-frozen-v3", false);
 
         sealed class ScriptedRuntime : SimulationRuntimePort
         {

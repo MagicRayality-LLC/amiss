@@ -21,24 +21,25 @@ namespace Amiss.Shell.Simulation
     /// The step mirrors the approved headless oracle
     /// (<c>simulation/runtime.py</c>, <c>HeadlessBallWriter.advance</c>)
     /// operation for operation: advance every non-held ball by one fixed
-    /// <c>v * dt</c>, mirror an overshoot of the pinned region about the
-    /// boundary with the normal velocity sign flipped, then enumerate free
-    /// ball pairs in ascending entity-id order and resolve each overlapping
+    /// <c>v * dt</c>, reflect each axis overshoot about the pinned boundary
+    /// with the normal velocity sign flipped until the ball is inside, sweep
+    /// against each pinned wall plane in stable surface-id order, then enumerate
+    /// free ball pairs in ascending entity-id order and resolve each overlapping
     /// approaching pair with the perfectly elastic normal impulse
     /// <c>2 (v_rel . n) / m_sum * n</c> along the unit contact normal. Contacts
-    /// are counted per axis reflection and per applied pair impulse, the same
-    /// way the oracle counts them, and the declared contact-iteration bound
-    /// degrades the step into a reported numerical hold rather than tunnelling
-    /// or rewriting energy.
+    /// are counted per axis or plane reflection and per applied pair impulse,
+    /// the same way the oracle counts them, and the declared contact-iteration
+    /// bound degrades the step into a reported numerical hold rather than
+    /// tunnelling or rewriting energy.
     /// </summary>
     public sealed class CustomHardSphereWriter : IScientificWriter, IContactFactWriter,
         ISweepEffectWriter
     {
-        public const string ConfigurationIdValue = "custom-hard-sphere-frozen-v2";
+        public const string ConfigurationIdValue = "custom-hard-sphere-frozen-v3";
         public const string ContactOrdering = "ascending_entity_id_pair_enumeration";
-        public const string BoundaryOrdering = "ascending_entity_id_then_axis_xyz";
+        public const string BoundaryOrdering = "ascending_entity_id_axis_xyz_then_surface_id";
         public const string EqualTimeTieBreak = "stable_entity_id_ordinal";
-        public const string IntegrationId = "position_advance_then_contact_resolution";
+        public const string IntegrationId = "swept_static_boundary_then_contact_resolution";
         public const string SolverGateEvidence = "solver_gate_harness_record";
 
         readonly Func<int> iterationBound;
@@ -223,6 +224,91 @@ namespace Amiss.Shell.Simulation
                 : applied.ToArray();
         }
 
+        static double ReflectAxis(double position, ref double velocity, double lower,
+            double upper, ref int contacts, int bound, ref bool exhausted)
+        {
+            while (position < lower || position > upper)
+            {
+                if (contacts >= bound)
+                {
+                    exhausted = true;
+                    break;
+                }
+                if (position < lower)
+                {
+                    position = lower + (lower - position);
+                    velocity = Math.Abs(velocity);
+                }
+                else
+                {
+                    position = upper - (position - upper);
+                    velocity = -Math.Abs(velocity);
+                }
+                contacts++;
+            }
+            return position;
+        }
+
+        void SweepWallPlanes(int index, double radius, ref int contacts, int bound,
+            ref bool exhausted)
+        {
+            var previous = order[index].PositionM;
+            foreach (var surface in collision.Surfaces)
+            {
+                if (surface.Role != Room.CollisionSurfaceRole.Wall ||
+                    surface.Primary != Room.PrimaryRepresentation.Plane)
+                    continue;
+                var nx = (double)surface.Normal.x;
+                var ny = (double)surface.Normal.y;
+                var nz = (double)surface.Normal.z;
+                var offset = nx * surface.Center.x + ny * surface.Center.y +
+                             nz * surface.Center.z;
+                var startDistance = nx * previous.x + ny * previous.y +
+                                    nz * previous.z - offset;
+                var endDistance = nx * px[index] + ny * py[index] +
+                                  nz * pz[index] - offset;
+                if (endDistance >= radius || endDistance >= startDistance)
+                    continue;
+
+                var fraction = startDistance > radius
+                    ? (startDistance - radius) / (startDistance - endDistance)
+                    : 0.0;
+                var contactX = previous.x + (px[index] - previous.x) * fraction;
+                var contactY = previous.y + (py[index] - previous.y) * fraction;
+                var contactZ = previous.z + (pz[index] - previous.z) * fraction;
+                var local = Quaternion.Inverse(surface.Rotation) * new Vector3(
+                    (float)(contactX - surface.Center.x),
+                    (float)(contactY - surface.Center.y),
+                    (float)(contactZ - surface.Center.z));
+                if (Math.Abs(local.x) > surface.Size.x * 0.5f + 0.0001f ||
+                    Math.Abs(local.y) > surface.Size.y * 0.5f + 0.0001f)
+                    continue;
+                if (contacts >= bound)
+                {
+                    exhausted = true;
+                    return;
+                }
+
+                var remainingX = px[index] - contactX;
+                var remainingY = py[index] - contactY;
+                var remainingZ = pz[index] - contactZ;
+                var contactCorrection = radius -
+                    (nx * contactX + ny * contactY + nz * contactZ - offset);
+                contactX += nx * contactCorrection;
+                contactY += ny * contactCorrection;
+                contactZ += nz * contactCorrection;
+                var remainingNormal = nx * remainingX + ny * remainingY + nz * remainingZ;
+                px[index] = contactX + remainingX - 2.0 * remainingNormal * nx;
+                py[index] = contactY + remainingY - 2.0 * remainingNormal * ny;
+                pz[index] = contactZ + remainingZ - 2.0 * remainingNormal * nz;
+                var normalVelocity = nx * vx[index] + ny * vy[index] + nz * vz[index];
+                vx[index] -= 2.0 * normalVelocity * nx;
+                vy[index] -= 2.0 * normalVelocity * ny;
+                vz[index] -= 2.0 * normalVelocity * nz;
+                contacts++;
+            }
+        }
+
         /// <summary>
         /// One fixed Tick. The step arithmetic runs in double, in the oracle's
         /// operation order, over the writer-owned state; the resulting pose and
@@ -242,6 +328,8 @@ namespace Amiss.Shell.Simulation
             var maximum = collision.Region.max;
             var count = order.Length;
             var wallContacts = 0;
+            var bound = Math.Max(0, iterationBound());
+            var exhausted = false;
             ApplyQueuedSweeps(delta);
             for (var index = 0; index < count; index++)
             {
@@ -258,50 +346,13 @@ namespace Amiss.Shell.Simulation
                 if (ball.Membership == "held")
                     continue;
                 var radius = (double)ball.RadiusM;
-                var lowerX = minimum.x + radius;
-                var upperX = maximum.x - radius;
-                if (px[index] < lowerX)
-                {
-                    px[index] = lowerX + (lowerX - px[index]);
-                    vx[index] = Math.Abs(vx[index]);
-                    wallContacts++;
-                }
-                else if (px[index] > upperX)
-                {
-                    px[index] = upperX - (px[index] - upperX);
-                    vx[index] = -Math.Abs(vx[index]);
-                    wallContacts++;
-                }
-
-                var lowerY = minimum.y + radius;
-                var upperY = maximum.y - radius;
-                if (py[index] < lowerY)
-                {
-                    py[index] = lowerY + (lowerY - py[index]);
-                    vy[index] = Math.Abs(vy[index]);
-                    wallContacts++;
-                }
-                else if (py[index] > upperY)
-                {
-                    py[index] = upperY - (py[index] - upperY);
-                    vy[index] = -Math.Abs(vy[index]);
-                    wallContacts++;
-                }
-
-                var lowerZ = minimum.z + radius;
-                var upperZ = maximum.z - radius;
-                if (pz[index] < lowerZ)
-                {
-                    pz[index] = lowerZ + (lowerZ - pz[index]);
-                    vz[index] = Math.Abs(vz[index]);
-                    wallContacts++;
-                }
-                else if (pz[index] > upperZ)
-                {
-                    pz[index] = upperZ - (pz[index] - upperZ);
-                    vz[index] = -Math.Abs(vz[index]);
-                    wallContacts++;
-                }
+                px[index] = ReflectAxis(px[index], ref vx[index], minimum.x + radius,
+                    maximum.x - radius, ref wallContacts, bound, ref exhausted);
+                py[index] = ReflectAxis(py[index], ref vy[index], minimum.y + radius,
+                    maximum.y - radius, ref wallContacts, bound, ref exhausted);
+                pz[index] = ReflectAxis(pz[index], ref vz[index], minimum.z + radius,
+                    maximum.z - radius, ref wallContacts, bound, ref exhausted);
+                SweepWallPlanes(index, radius, ref wallContacts, bound, ref exhausted);
             }
 
             var freeCount = 0;
@@ -309,10 +360,8 @@ namespace Amiss.Shell.Simulation
                 if (order[index].Membership == "free")
                     freeOrder[freeCount++] = index;
 
-            var bound = Math.Max(0, iterationBound());
-            var resolutions = 0;
+            var resolutions = wallContacts;
             var pairContacts = 0;
-            var exhausted = false;
             for (var firstIndex = 0; firstIndex < freeCount; firstIndex++)
             {
                 var first = freeOrder[firstIndex];

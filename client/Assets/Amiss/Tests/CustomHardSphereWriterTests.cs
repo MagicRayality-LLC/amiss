@@ -28,17 +28,24 @@ namespace Amiss.Tests
     /// from the oracle by a single float32 rounding; the 60-Tick oblique case
     /// widens position and velocity tolerances to 1e-5 because float32 inputs,
     /// float32 boundary mirrors, and the second oblique contact accumulate
-    /// about 1e-6 of drift, while the symmetric 60-Tick head-on case and every
-    /// short run stay within 1e-7. Contact outcomes are compared exactly.
+    /// about 1e-6 of drift, while the symmetric 60-Tick head-on case and
+    /// single-reflection short runs stay within 1e-7. The two-reflection
+    /// high-speed case allows 2e-7 for its float32 input and readback rounding.
+    /// Contact outcomes are compared exactly.
     /// </summary>
     public class CustomHardSphereWriterTests
     {
         static (RoomPreparation room, CollisionPin pin, PinnedCollision pinned) AcceptedRoom(
-            Vector3 size, string trialId)
+            Vector3 size, string trialId, CollisionSurface additionalSurface = null)
         {
             var manual = RoomDraft.CreateManual(
                 new Bounds(new Vector3(0f, size.y * 0.5f, 0f), size), Vector3.zero,
                 Vector3.forward);
+            if (additionalSurface != null)
+                manual = new RoomDraft(manual.Region,
+                    manual.Surfaces.Concat(new[] { additionalSurface }).ToArray(),
+                    manual.ConfirmedUserPosition, manual.ConfirmedUserForward,
+                    manual.ClearSwingRadiusMeters);
             var room = new RoomPreparation();
             var id = room.Begin(1.0);
             room.RequestPermission(id);
@@ -182,6 +189,48 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void LargeBoundaryOvershootReflectsUntilTheBallIsInside()
+        {
+            var accepted = AcceptedRoom(new Vector3(2f, 2f, 2f), "parity-large-overshoot");
+            var balls = new[]
+            {
+                Ball(1, new Vector3(-0.9f, 1f, 0f), new Vector3(100f, 0f, 0f))
+            };
+            var (contacts, final) = Run(balls, accepted.pinned, 1);
+
+            AssertContactTicks(contacts, new[] { (1, 0, 2) });
+            AssertMatchesOracle(final, (0.3, 1.0, 0.0), (100.0, 0.0, 0.0),
+                "ball-0001", 2e-7);
+        }
+
+        [Test]
+        public void RotatedScannedWallReflectsABallInsideTheOuterRoomBounds()
+        {
+            var normal = new Vector3(1f, 0f, -1f).normalized;
+            var wall = new CollisionSurface("wall-angled", "WALL_FACE",
+                PrimaryRepresentation.Plane, BoundaryProvenance.Scanned,
+                CollisionSurfaceRole.Wall, new Vector3(-0.6f, 1f, 0.6f),
+                new Vector3(2f, 2f, 0.02f), Quaternion.LookRotation(normal, Vector3.up),
+                normal, "rotated scanned plane inside the world-aligned room bounds");
+            var accepted = AcceptedRoom(new Vector3(2f, 2f, 2f), "parity-rotated-wall", wall);
+            var balls = new[]
+            {
+                Ball(1, new Vector3(-0.56f, 1f, 0.56f), new Vector3(-1f, 0f, 1f))
+            };
+            var (contacts, final) = Run(balls, accepted.pinned, 1);
+
+            AssertContactTicks(contacts, new[] { (1, 0, 1) });
+            var ball = final["ball-0001"];
+            var offset = Vector3.Dot(wall.Center, normal);
+            Assert.GreaterOrEqual(Vector3.Dot(ball.PositionM, normal) - offset,
+                ball.RadiusM - 0.00001f, "the ball center stays inside the scanned wall");
+            Assert.Greater(Vector3.Dot(ball.VelocityMPerS, normal), 0f,
+                "the normal velocity points back into the room");
+            Assert.AreEqual(System.Math.Sqrt(2.0), ball.VelocityMPerS.magnitude, 1e-5,
+                "the static wall contact is perfectly elastic");
+        }
+
+        [Test]
         public void ShortMultiBallRunMatchesTheOracle()
         {
             var accepted = AcceptedRoom(new Vector3(2f, 2f, 2f), "parity-multi");
@@ -281,7 +330,8 @@ namespace Amiss.Tests
                 "a zero-resolution bound must hold the Trial, not tunnel through a contact");
             var tickAtHold = runtime.Tick;
             var viewAtHold = runtime.CurrentView;
-            Assert.GreaterOrEqual(tickAtHold, 1);
+            Assert.IsNotNull(viewAtHold);
+            Assert.AreEqual(tickAtHold, viewAtHold.Tick);
 
             runtime.RequestResume();
             var stillHeld = runtime.Step(2);

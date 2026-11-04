@@ -166,10 +166,9 @@ namespace Amiss.Tests
                 Assert.IsNotNull(material);
                 Assert.AreEqual(RoomHighlights.HighlightShaderName, material.shader.name);
 
-                // The design requires passthrough to stay visible and a
-                // highlight never to become a virtual wall, so every
-                // highlight is a transparent URP Lit surface. The material,
-                // not the cube, carries the blend state.
+                // Passthrough stays visible through every scan highlight and
+                // virtual wall. The material, not the cube, carries the blend
+                // state.
                 Assert.AreEqual(1f, material.GetFloat("_Surface"), 0.0001f,
                     "surface type must be Transparent");
                 Assert.IsTrue(material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"));

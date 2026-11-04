@@ -264,6 +264,7 @@ namespace Amiss.Shell.Voice
                 Activated = () => OnActivated(opened, opened.Epoch),
                 PartialText = text => OnPartialText(opened, opened.Epoch, text),
                 CaptureEnded = () => OnCaptureEnded(opened, opened.Epoch),
+                RequestEnded = () => OnRequestEnded(opened, opened.Epoch),
                 FinalText = text => OnFinalText(opened, opened.Epoch, text),
                 Failed = code => OnDictationFailed(opened, opened.Epoch, code)
             };
@@ -500,8 +501,33 @@ namespace Amiss.Shell.Voice
                 return;
             session = null;
             activationPending = false;
-            State = VoiceState.Transcribing;
             captureClosedAt = clock();
+            State = VoiceState.Transcribing;
+        }
+
+        /// <summary>
+        /// The platform request is over, so no final text can still arrive.
+        /// A turn that ends here with no speech recognized is not a user
+        /// utterance: it closes without a tutor call, without fabricated
+        /// text, and without waiting out the transcription deadline, then
+        /// rearms. Ignoring this event stranded the turn in Transcribing
+        /// whenever the request ended silently, and every later question
+        /// was then dropped as belonging to no open turn.
+        /// </summary>
+        void OnRequestEnded(VoiceTurn captured, int capturedEpoch)
+        {
+            if (!Matches(captured, capturedEpoch) || State != VoiceState.Transcribing)
+                return;
+            Debug.Log("[Amiss] voice request ended with no transcript turn=" + captured.TurnId);
+            session = null;
+            activationPending = false;
+            State = VoiceState.Closed;
+            LastCode = "voice_no_speech";
+            LastReadable = "No speech was recognized; listening again.";
+            rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
+            AdvanceEpoch();
+            if (rearmPending)
+                EnsureAutomaticCapture();
         }
 
         async void OnFinalText(VoiceTurn captured, int capturedEpoch, string text)
@@ -514,7 +540,7 @@ namespace Amiss.Shell.Voice
                 Debug.Log("[Amiss] voice final dropped: turn superseded");
                 return;
             }
-            if (State == VoiceState.Listening)
+            if (State == VoiceState.Listening || activationPending)
                 OnCaptureEnded(captured, capturedEpoch);
             if (State != VoiceState.Transcribing)
             {

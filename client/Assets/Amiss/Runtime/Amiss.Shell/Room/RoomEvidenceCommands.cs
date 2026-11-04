@@ -156,6 +156,20 @@ namespace Amiss.Shell.Room
                 case "wall_fixture":
                     ScannedWallFixture();
                     break;
+                case "toggle_walls":
+                    var episodeHub = FindFirstObjectByType<EpisodeHub>();
+                    var wallButton = episodeHub == null
+                        ? null
+                        : episodeHub.transform.Find("HubCanvas/Panel/Walls")?
+                            .GetComponent<UnityEngine.UI.Button>();
+                    if (wallButton == null)
+                    {
+                        Record("virtual_walls", "button_unavailable", true);
+                        break;
+                    }
+                    wallButton.onClick.Invoke();
+                    Record("virtual_walls", VirtualWallsEnabled ? "on" : "off", true);
+                    break;
                 case "remount_fixture":
                     RemountFixture();
                     break;

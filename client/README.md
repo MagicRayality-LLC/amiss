@@ -28,12 +28,14 @@ plays.
   on device, then the shell reloads and rechecks.
   Room confirmation and focus/safety recovery stay separate from Trial
   acceptance until the scan is clear. One LAUNCH press then confirms that
-  scan; the trial starts when the wearer closes the red knife switch on the
-  wall, or presses START TRIAL in the hub. Missing edges on the scan are
-  virtual walls. The hub does not offer a virtual room. A blocked swing
-  rechecks where the wearer is standing on the next launch press. The hub
-  SAFETY switch defaults on. Turning it off lets that launch press confirm
-  the room even when the swing is blocked. The knife switch is mounted on
+  scan and overlays its wall surfaces with light-blue, half-transparent
+  virtual walls; the trial starts when the wearer closes the red knife switch
+  on the wall, or presses START TRIAL in the hub. Missing edges on the scan are
+  virtual walls. The hub does not offer a virtual room. Its WALLS switch
+  defaults on and shows or hides the translucent wall overlay without changing
+  collision. A blocked swing rechecks where the wearer is standing on the next
+  launch press. The hub SAFETY switch defaults on. Turning it off lets that
+  launch press confirm the room even when the swing is blocked. The knife switch is mounted on
   the wall to the right of the display. A pinch closes it and starts the
   run when the room is confirmed and the run is not already going.
 - The remaining runtime responsibilities (on-device simulation writer, guide,

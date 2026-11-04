@@ -591,6 +591,62 @@ class HeadlessBallWriter:
                 }
             )
 
+    @staticmethod
+    def _sweep_planes(ball, start, collision, facts, resolutions, contact_iteration_bound):
+        radius = ball["radius_m"]
+        position = ball["position_m"]
+        velocity = ball["velocity_m_per_s"]
+        for surface in sorted(collision.surfaces, key=lambda item: item["surface_id"]):
+            if surface["primary_representation"] != "plane":
+                continue
+            normal = surface["plane"]["normal"]
+            geometry = surface["plane"]
+            dominant_axis = max(range(3), key=lambda axis: abs(normal[axis]))
+            signed_offset = normal[dominant_axis] * geometry["offset"]
+            start_distance = signed_offset - math.fsum(
+                normal[axis] * start[axis] for axis in range(3)
+            )
+            end_distance = signed_offset - math.fsum(
+                normal[axis] * position[axis] for axis in range(3)
+            )
+            if end_distance >= radius or end_distance >= start_distance:
+                continue
+            fraction = (
+                (start_distance - radius) / (start_distance - end_distance)
+                if start_distance > radius
+                else 0.0
+            )
+            contact = [
+                start[axis] + (position[axis] - start[axis]) * fraction
+                for axis in range(3)
+            ]
+            if resolutions >= contact_iteration_bound:
+                facts["iteration_bound_exhausted"] = True
+                return resolutions
+            remaining = [position[axis] - contact[axis] for axis in range(3)]
+            correction = radius - (
+                signed_offset
+                - math.fsum(normal[axis] * contact[axis] for axis in range(3))
+            )
+            for axis in range(3):
+                contact[axis] -= normal[axis] * correction
+            remaining_normal = math.fsum(
+                normal[axis] * remaining[axis] for axis in range(3)
+            )
+            normal_velocity = math.fsum(
+                normal[axis] * velocity[axis] for axis in range(3)
+            )
+            for axis in range(3):
+                position[axis] = (
+                    contact[axis]
+                    + remaining[axis]
+                    - 2.0 * remaining_normal * normal[axis]
+                )
+                velocity[axis] -= 2.0 * normal_velocity * normal[axis]
+            facts["wall_contacts"] += 1
+            resolutions += 1
+        return resolutions
+
     def advance(self, state, delta_s, collision, streams, effects, contact_iteration_bound):
         facts = {
             "wall_contacts": 0,
@@ -600,6 +656,10 @@ class HeadlessBallWriter:
         for effect in effects:
             self._apply_effect(state, effect, delta_s, facts)
         bounds = collision.bounds()
+        start_positions = {
+            entity_id: list(ball["position_m"])
+            for entity_id, ball in state["balls"].items()
+        }
         for entity_id in sorted(state["balls"]):
             ball = state["balls"][entity_id]
             if ball["membership"] == "held":
@@ -608,6 +668,7 @@ class HeadlessBallWriter:
                 ball["position_m"][axis] += (
                     ball["velocity_m_per_s"][axis] * delta_s
                 )
+        resolutions = 0
         for entity_id in sorted(state["balls"]):
             ball = state["balls"][entity_id]
             if ball["membership"] == "held":
@@ -616,28 +677,35 @@ class HeadlessBallWriter:
             for axis in range(3):
                 lower = bounds["min"][axis] + radius
                 upper = bounds["max"][axis] - radius
-                if ball["position_m"][axis] < lower:
-                    ball["position_m"][axis] = lower + (
-                        lower - ball["position_m"][axis]
-                    )
-                    ball["velocity_m_per_s"][axis] = abs(
-                        ball["velocity_m_per_s"][axis]
-                    )
+                while not lower <= ball["position_m"][axis] <= upper:
+                    if resolutions >= contact_iteration_bound:
+                        facts["iteration_bound_exhausted"] = True
+                        break
+                    if ball["position_m"][axis] < lower:
+                        ball["position_m"][axis] = lower + (
+                            lower - ball["position_m"][axis]
+                        )
+                        ball["velocity_m_per_s"][axis] = abs(
+                            ball["velocity_m_per_s"][axis]
+                        )
+                    else:
+                        ball["position_m"][axis] = upper - (
+                            ball["position_m"][axis] - upper
+                        )
+                        ball["velocity_m_per_s"][axis] = -abs(
+                            ball["velocity_m_per_s"][axis]
+                        )
                     facts["wall_contacts"] += 1
-                elif ball["position_m"][axis] > upper:
-                    ball["position_m"][axis] = upper - (
-                        ball["position_m"][axis] - upper
-                    )
-                    ball["velocity_m_per_s"][axis] = -abs(
-                        ball["velocity_m_per_s"][axis]
-                    )
-                    facts["wall_contacts"] += 1
+                    resolutions += 1
+            resolutions = self._sweep_planes(
+                ball, start_positions[entity_id], collision, facts,
+                resolutions, contact_iteration_bound
+            )
         free_ids = sorted(
             entity_id
             for entity_id, ball in state["balls"].items()
             if ball["membership"] == "free"
         )
-        resolutions = 0
         for first_index in range(len(free_ids)):
             for second_index in range(first_index + 1, len(free_ids)):
                 first = state["balls"][free_ids[first_index]]

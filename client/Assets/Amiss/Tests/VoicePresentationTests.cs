@@ -175,6 +175,40 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void AecMicReportsTheWitTransmissionEncoding()
+        {
+            var root = new GameObject("VoiceAecEncodingTest");
+            try
+            {
+                var mic = root.AddComponent<AndroidAecMic>();
+
+                Assert.AreEqual(16000, mic.AudioEncoding.samplerate,
+                    "Wit transmission runs at 16 kHz; reporting the 48 kHz capture " +
+                    "rate makes the SDK resampler emit near-silent audio");
+                Assert.AreEqual(1, mic.AudioEncoding.numChannels);
+                StringAssert.Contains("rate=16k", mic.AudioEncoding.ToString());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void DictationAdapterHandlesEveryTerminalSdkEvent()
+        {
+            var source = System.IO.File.ReadAllText(
+                "Assets/Amiss/Runtime/Amiss.Shell/Voice/WitDictationAdapter.cs");
+
+            StringAssert.Contains("OnComplete", source,
+                "a request that completes with no transcript must end the turn");
+            StringAssert.Contains("OnStoppedListeningDueToInactivity", source,
+                "the 2 s silence / 20 s maximum endpoint must end the turn");
+            StringAssert.Contains("OnCanceled", source,
+                "a cancelled request must end the turn instead of stranding it");
+        }
+
+        [Test]
         public void RuntimeDictationDoesNotClaimPlatformOrAecSupportInEditor()
         {
             var tokens = new WitTokenStore("amiss.test.voice_token_" + Guid.NewGuid().ToString("N"));

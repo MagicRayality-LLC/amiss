@@ -103,6 +103,8 @@ namespace Amiss.Tests
                     callbacks.CaptureEnded();
                 }
 
+                public void RequestEnded() => callbacks.RequestEnded();
+
                 public void Deliver(string text) => callbacks.FinalText(text);
 
                 public void Fail(string code) => callbacks.Failed(code);
@@ -335,6 +337,29 @@ namespace Amiss.Tests
             Assert.AreEqual(2, harness.Tutor.Calls,
                 "the second question must reach the model, not be dropped");
             Assert.AreEqual("And the humidity?", harness.Tutor.Utterance);
+        }
+
+        [Test]
+        public void ReArmedFinalTextBeforeActivationStillReachesTheTutor()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver("Should I start with a small group?");
+            Assert.AreEqual(1, harness.Tutor.Calls);
+            Assert.AreEqual(2, harness.Dictation.Begins);
+
+            harness.Speech.CompleteLast();
+            Assert.AreEqual(VoiceState.Closed, harness.Controller.State,
+                "playback completed while the next capture was still activating");
+            harness.Dictation.Last.Deliver("Yes.");
+
+            Assert.AreEqual(2, harness.Tutor.Calls,
+                "a current-turn final transcript is valid before the activation callback");
+            Assert.AreEqual("Yes.", harness.Tutor.Utterance);
+            Assert.AreEqual(3, harness.Dictation.Begins,
+                "the admitted follow-up answer rearms capture normally");
         }
 
         [Test]
@@ -777,6 +802,49 @@ namespace Amiss.Tests
             Assert.AreEqual(1, harness.Dictation.Last.Cancels,
                 "a failed window cannot keep the microphone open");
             Assert.AreEqual(0, harness.Tutor.Calls);
+        }
+
+        [Test]
+        public void CaptureEndWithoutAnyTranscriptEndsTheTurnAndRearms()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var window = harness.Dictation.Last;
+
+            window.Endpoint();
+            window.RequestEnded();
+
+            harness.Controller.Tick();
+
+            Assert.AreEqual(0, harness.Tutor.Calls,
+                "a silent endpoint sends no fabricated text to the tutor");
+            Assert.AreNotEqual(VoiceState.Transcribing, harness.Controller.State,
+                "a request that ended with no transcript must not wait forever");
+            Assert.AreEqual(2, harness.Dictation.Begins,
+                "the silent turn ends and exactly one fresh capture opens");
+            Assert.AreEqual(DictationActivationMode.Automatic, harness.Dictation.Last.Mode);
+
+            harness.Dictation.Last.Activate();
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver("How warm is the room?");
+            Assert.AreEqual(1, harness.Tutor.Calls,
+                "speech after the silent turn still reaches the tutor");
+            Assert.AreEqual("How warm is the room?", harness.Tutor.Utterance);
+        }
+
+        [Test]
+        public void LateCaptureEndAfterFinalTextDoesNotStrandTheReply()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+
+            harness.Dictation.Last.Deliver("How warm is the room?");
+            harness.Dictation.Last.Endpoint();
+
+            Assert.AreEqual(1, harness.Tutor.Calls);
+            Assert.AreEqual("How warm is the room?", harness.Tutor.Utterance);
         }
 
         [Test]

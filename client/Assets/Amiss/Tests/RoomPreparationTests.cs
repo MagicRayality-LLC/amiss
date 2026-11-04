@@ -583,19 +583,65 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void ConfirmingTheRoomClearsTheHighlights()
+        public void ConfirmingTheRoomShowsOnlyLightBlueHalfTransparentWalls()
         {
             var host = new GameObject("RoomHighlightConfirmTest");
             var highlights = host.AddComponent<RoomHighlights>();
             try
             {
                 var recovery = new ShellRecovery();
-                highlights.Sync(RoomTestFixtures.Prepared(), recovery, worldLockActive: true);
+                var prepared = RoomTestFixtures.Prepared();
+                highlights.Sync(prepared, recovery, worldLockActive: true);
                 Assert.Greater(highlights.ShownSurfaceCount, 0);
 
-                highlights.Sync(RoomTestFixtures.Confirmed(), recovery, worldLockActive: true);
-                Assert.AreEqual(0, highlights.ShownSurfaceCount,
-                    "the confirmation view ends when the room is confirmed");
+                Assert.IsTrue(prepared.Confirm(prepared.PreparationId));
+                highlights.Sync(prepared, recovery, worldLockActive: true);
+                var walls = prepared.Draft.Surfaces.Count(s => s.Role == CollisionSurfaceRole.Wall);
+                Assert.AreEqual(walls, highlights.ShownSurfaceCount,
+                    "the confirmed room shows its walls without covering the floor or ceiling");
+                foreach (var renderer in host.GetComponentsInChildren<Renderer>())
+                {
+                    var color = renderer.sharedMaterial.GetColor("_BaseColor");
+                    Assert.AreEqual(RoomHighlights.VirtualWallColor.r, color.r, 0.001f);
+                    Assert.AreEqual(RoomHighlights.VirtualWallColor.g, color.g, 0.001f);
+                    Assert.AreEqual(RoomHighlights.VirtualWallColor.b, color.b, 0.001f);
+                    Assert.AreEqual(RoomHighlights.VirtualWallAlpha, color.a, 0.001f);
+                    Assert.IsNull(renderer.GetComponent<Collider>(),
+                        "the virtual wall is visual only and does not change collision geometry");
+                }
+            }
+            finally
+            {
+                highlights.Sync(null, null, true);
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void WallSwitchHidesAndRestoresOnlyTheConfirmedVirtualWalls()
+        {
+            var host = new GameObject("RoomHighlightWallSwitchTest");
+            var highlights = host.AddComponent<RoomHighlights>();
+            try
+            {
+                var recovery = new ShellRecovery();
+                var prepared = RoomTestFixtures.Confirmed();
+                highlights.Sync(prepared, recovery, worldLockActive: true);
+                Assert.Greater(highlights.ShownSurfaceCount, 0);
+
+                highlights.Sync(prepared, recovery, worldLockActive: true,
+                    virtualWallsEnabled: false);
+                Assert.AreEqual(0, highlights.ShownSurfaceCount);
+
+                highlights.Sync(prepared, recovery, worldLockActive: true,
+                    virtualWallsEnabled: true);
+                Assert.Greater(highlights.ShownSurfaceCount, 0);
+
+                recovery.InvalidateSafety();
+                highlights.Sync(prepared, recovery, worldLockActive: true,
+                    virtualWallsEnabled: false);
+                Assert.Greater(highlights.ShownSurfaceCount, 0,
+                    "the wall switch does not suppress safety highlights");
             }
             finally
             {

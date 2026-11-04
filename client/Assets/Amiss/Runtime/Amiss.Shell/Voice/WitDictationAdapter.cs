@@ -158,6 +158,15 @@ namespace Amiss.Shell.Voice
                 service.DictationEvents.OnPartialTranscription.AddListener(OnPlatformPartialTranscription);
                 service.DictationEvents.OnStoppedListening.AddListener(OnPlatformCaptureEnded);
                 service.DictationEvents.OnFullTranscription.AddListener(OnPlatformTranscription);
+                // Terminal events: the request itself is finished, so no
+                // final text can still follow. Without these, a request
+                // that ends silently (the 2 s silence endpoint, the 20 s
+                // maximum, an abort) leaves the controller waiting for a
+                // transcript that can never arrive.
+                service.DictationEvents.OnComplete.AddListener(_ => OnPlatformRequestEnded("complete"));
+                service.DictationEvents.OnStoppedListeningDueToInactivity.AddListener(
+                    () => OnPlatformRequestEnded("inactivity"));
+                service.DictationEvents.OnCanceled.AddListener(_ => OnPlatformRequestEnded("cancelled"));
                 service.DictationEvents.OnError.AddListener(OnPlatformError);
                 host.SetActive(true);
                 Debug.Log("[Amiss] dictation input platform=" +
@@ -199,6 +208,13 @@ namespace Amiss.Shell.Voice
                 Debug.Log("[Amiss] dictation transcript dropped: no open window \"" +
                     (text ?? "") + "\"");
             window?.Deliver(text);
+        }
+
+        void OnPlatformRequestEnded(string reason)
+        {
+            Debug.Log("[Amiss] dictation request ended reason=" + reason +
+                " window=" + (window != null ? window.TurnId : "none"));
+            window?.RequestEnded();
         }
 
         void OnPlatformError(string error, string message)
@@ -275,6 +291,14 @@ namespace Amiss.Shell.Voice
             {
                 if (!cancelled)
                     callbacks.CaptureEnded?.Invoke();
+            }
+
+            internal void RequestEnded()
+            {
+                if (cancelled)
+                    return;
+                adapter.window = null;
+                callbacks.RequestEnded?.Invoke();
             }
 
             internal void Deliver(string text)

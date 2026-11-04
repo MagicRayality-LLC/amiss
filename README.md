@@ -47,8 +47,9 @@ without a resolved target.
 ## Playing the evaluation build
 
 Open the app; the episode hub appears. Run or accept the room scan, then
-press LAUNCH. That press loads the room saved on this headset and confirms
-it. The wall display, the PA speaker above it, and the red knife switch to
+press LAUNCH. That press loads the room saved on this headset, confirms it,
+and overlays its wall surfaces with light-blue, half-transparent virtual
+walls. The wall display, the PA speaker above it, and the red knife switch to
 its right then appear on the nearest usable wall, and the trial has not
 started yet.
 
@@ -63,8 +64,10 @@ temperature of the ball group in kelvin, Celsius, and Fahrenheit, with a graph
 of that temperature over time. Hitting balls with the bat does work on them,
 and the temperature follows their speed.
 
-The hub (menu button, or palm up and pinch) holds the settings. The live
-instructor needs a Meta Model API key, and voice also needs a Wit Client
+The hub (menu button, or palm up and pinch) holds the settings. WALLS turns
+the translucent confirmed-room walls on or off without changing room
+collision or the trial. The live instructor needs a Meta Model API key, and
+voice also needs a Wit Client
 Access Token (create a free app at wit.ai and copy its Client Access Token).
 The easiest way to enter both is from the PC that installed the build:
 `client/tools/build-install-debug.sh` offers it after install, or run

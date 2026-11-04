@@ -12,7 +12,7 @@ namespace Amiss.Shell
     /// <summary>
     /// The episode hub. It is a separate world-fixed surface from the wall TV.
     /// It chooses the experiment and holds audio, tips, the microphone,
-    /// the safety switch, and exit.
+    /// the virtual-wall and safety switches, and exit.
     /// The row matches the sci-fi episode select reference: the first episode
     /// can launch once a room scan has loaded, and every other episode
     /// displays locked. The panel is one cylinder, with the center farther
@@ -54,6 +54,7 @@ namespace Amiss.Shell
         TMP_Text audioText;
         TMP_Text tipsText;
         TMP_Text micText;
+        TMP_Text wallsText;
         TMP_Text safetyText;
         TMP_Text launchLabel;
         TMP_Text statusText;
@@ -289,6 +290,12 @@ namespace Amiss.Shell
                 safetyText.color = safetyOn
                     ? EpisodeSelectBoard.Accent
                     : new Color(0.98f, 0.78f, 0.42f, 1f);
+            }
+            if (wallsText != null)
+            {
+                var wallsOn = services == null || services.Room == null || services.Room.VirtualWallsEnabled;
+                wallsText.text = wallsOn ? "WALLS ON" : "WALLS OFF";
+                wallsText.color = wallsOn ? EpisodeSelectBoard.Accent : EpisodeSelectBoard.Muted;
             }
             var panel = services != null ? services.Panel : null;
             if (panel == null)
@@ -628,6 +635,9 @@ namespace Amiss.Shell
         void BuildSettings(Transform panel)
         {
             var setting = new Color(0.07f, 0.09f, 0.12f, 0.95f);
+            wallsText = SettingButton(panel, "Walls", new Vector2(-500f, -330f), new Vector2(230f, 64f),
+                setting, ToggleVirtualWalls);
+            wallsText.text = "WALLS ON";
             audioText = SettingButton(panel, "Audio", new Vector2(-250f, -330f), new Vector2(230f, 64f),
                 setting, () => services.Panel?.Apply(new PanelCommand(PanelCommandKind.ToggleAudio)));
             tipsText = SettingButton(panel, "Tips", new Vector2(0f, -330f), new Vector2(230f, 64f),
@@ -904,6 +914,15 @@ namespace Amiss.Shell
                 return;
             services.Room.SetSafetyCheck(!services.Room.SafetyCheckEnabled);
             Debug.Log("[Amiss] safety check " + (services.Room.SafetyCheckEnabled ? "on" : "off"));
+            RefreshLabels();
+        }
+
+        void ToggleVirtualWalls()
+        {
+            if (services == null || services.Room == null)
+                return;
+            services.Room.SetVirtualWalls(!services.Room.VirtualWallsEnabled);
+            Debug.Log("[Amiss] virtual walls " + (services.Room.VirtualWallsEnabled ? "on" : "off"));
             RefreshLabels();
         }
 

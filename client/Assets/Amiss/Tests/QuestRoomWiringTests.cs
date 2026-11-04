@@ -279,6 +279,10 @@ namespace Amiss.Tests
             var pokeObject = GameObject.Find("HubISDK_PokeCanvasInteraction");
             Assert.IsNotNull(rayObject);
             Assert.IsNotNull(pokeObject);
+            var walls = hub.transform.Find("HubCanvas/Panel/Walls");
+            Assert.IsNotNull(walls);
+            Assert.IsNotNull(walls.GetComponent<Button>());
+            Assert.AreEqual("WALLS ON", walls.GetComponentInChildren<TMP_Text>().text);
             var surface = rayObject.GetComponent<RayInteractable>().Surface as ClippedCylinderSurface;
             Assert.IsNotNull(surface);
             Assert.AreSame(surface, pokeObject.GetComponent<PokeInteractable>().SurfacePatch);

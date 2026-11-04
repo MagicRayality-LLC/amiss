@@ -9,6 +9,12 @@ namespace Amiss.Shell.Voice
     public sealed class AndroidAecMic : MicBase, IAudioInputSource
     {
         const int CaptureSampleRate = 48000;
+
+        /// <summary>
+        /// The rate Wit speech transmission uses. Captured frames are
+        /// decimated to this rate before they are handed to the SDK.
+        /// </summary>
+        public const int TransmissionSampleRate = 16000;
         const int VoiceCommunicationSource = 7;
         const int MonoChannel = 16;
         const int Pcm16Encoding = 2;
@@ -52,7 +58,13 @@ namespace Amiss.Shell.Voice
         void Awake()
         {
             capabilityClip = AudioClip.Create("android-aec-input", 1, 1, CaptureSampleRate, false);
-            AudioEncoding.samplerate = CaptureSampleRate;
+            // Wit transmission runs at 16 kHz. AudioBuffer resamples the
+            // incoming frames from the rate this encoding reports, so it
+            // must stay at the transmission rate even though Android
+            // captures at 48 kHz; reporting the capture rate makes the
+            // resampler stretch every frame 3x and drop the level below
+            // the wake threshold, so no audio is ever sent.
+            AudioEncoding.samplerate = TransmissionSampleRate;
         }
 
         public override string GetMicName() => "android-aec-input";
@@ -72,6 +84,9 @@ namespace Amiss.Shell.Voice
                 return;
             }
             recording = true;
+            // MicBase.StartRecording starts the ReadRawAudio coroutine only
+            // for clip-based mics; this class overrides that coroutine, so
+            // base.StartRecording is what runs the Android capture loop.
             base.StartRecording(sampleDurationMS);
         }
 
@@ -96,7 +111,11 @@ namespace Amiss.Shell.Voice
             started?.Invoke();
             var chunkSamples = CaptureSampleRate * Math.Max(10, sampleDurationMS) / 1000;
             var pcm = new short[chunkSamples];
-            var samples = new float[chunkSamples];
+            // AudioBuffer forwards the whole array it is handed, so the
+            // frames delivered here must already be at the 16 kHz
+            // transmission rate: every third 48 kHz sample is kept.
+            var step = CaptureSampleRate / TransmissionSampleRate;
+            var samples = new float[chunkSamples / step + 1];
             var sequence = 0;
             while (recording)
             {
@@ -104,15 +123,18 @@ namespace Amiss.Shell.Voice
                 if (count > 0)
                 {
                     var levelMax = 0f;
-                    for (var index = 0; index < count; index++)
+                    var delivered = 0;
+                    for (var index = 0; index < count; index += step)
                     {
                         var value = pcm[index] / 32768f;
-                        samples[index] = value;
+                        samples[delivered++] = value;
                         var peak = value * value;
                         if (peak > levelMax)
                             levelMax = peak;
                     }
-                    sampleReady?.Invoke(++sequence, samples, levelMax);
+                    var frame = new float[delivered];
+                    Array.Copy(samples, frame, delivered);
+                    sampleReady?.Invoke(++sequence, frame, levelMax);
                 }
                 yield return null;
             }
