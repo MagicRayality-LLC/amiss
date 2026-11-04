@@ -83,9 +83,20 @@ class PackLoadTest(unittest.TestCase):
         again = assemble_system(self.pack.instructor)
         self.assertEqual(self.pack.system, again)
         first = self.pack.system.index("Instructions:")
-        for later in ("Series rules:", "Episode rules:", "Stages:",
-                      "Allowed actions:", "Reply classification:", "Wording:"):
+        for later in ("Series rules:", "Episode rules:", "Tools and controls:",
+                      "Stages:", "Allowed actions:", "Reply classification:",
+                      "Wording:"):
             self.assertLess(first, self.pack.system.index(later), later)
+
+    def test_the_system_carries_the_complete_tool_catalogue(self):
+        # Founder requirement (2026-11-04): the teacher knows every tool and
+        # control the person can use, and how to use it.
+        self.assertIn("Tools and controls:", self.pack.system)
+        for tool_id in ("bat", "fist", "cloth_bag", "palm_field", "knife_switch",
+                        "wall_tv", "episode_hub"):
+            self.assertIn(tool_id + " (", self.pack.system, tool_id)
+        self.assertIn("Swing the barrel through the balls", self.pack.system)
+        self.assertIn("Open both palms", self.pack.system)
 
     def test_the_supply_names_every_stage_and_no_forbidden_stage(self):
         stage_ids = [node["stage_id"] for node in
@@ -219,6 +230,24 @@ class NoFallbackTest(unittest.TestCase):
             value["mistake_classification"]["categories"][0]["wording_id"] = "absent"
         self.rewrite("instructor-policy.json", mutate)
         self.assert_refused("undefined wording ids")
+
+    def test_a_tool_entry_without_usage_is_refused(self):
+        def mutate(value):
+            value["tool_catalogue"][0]["usage"] = ""
+        self.rewrite("instructor-policy.json", mutate)
+        self.assert_refused("a tool entry is missing usage")
+
+    def test_a_duplicate_tool_id_is_refused(self):
+        def mutate(value):
+            value["tool_catalogue"][1]["tool_id"] = value["tool_catalogue"][0]["tool_id"]
+        self.rewrite("instructor-policy.json", mutate)
+        self.assert_refused("duplicate tool id")
+
+    def test_an_empty_tool_catalogue_is_refused(self):
+        def mutate(value):
+            value["tool_catalogue"] = []
+        self.rewrite("instructor-policy.json", mutate)
+        self.assert_refused("tool catalogue is absent or empty")
 
     def test_a_question_pointing_at_an_unknown_stage_is_refused(self):
         def mutate(value):

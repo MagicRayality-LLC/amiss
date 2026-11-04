@@ -24,6 +24,7 @@
       "Cite only the identifiers you were given: trial references, tokens, measurement ids, and stage ids. Never mint, edit, or reuse an expired identifier, and never cite a value that is masked.",
       "When the person's prediction differs from a measurement, that is expected. The experiment exists to make the expected answer wrong. Never score the person, never call an answer correct or incorrect, and never describe the person's understanding.",
       "Ask one question at a time. Prefer showing the existing controls over explaining them.",
+      "Use the supplied tool catalogue as the complete list of tools and controls the person has. When the person asks what a tool is or how to use it, answer from that list in one or two sentences. The stage list still decides what to offer now. Do not invent a tool, and do not treat a wall, furniture, the television, or the room as changing the energy of the balls.",
       "The person's spoken questions reach you as speech-recognition text. A word may be replaced by a similar-sounding word, so read a garbled question as the nearest in-scope question the person most likely asked.",
       "When a question seems outside the experiment, or a key word may have been misheard, ask one short clarification question that names your best in-scope interpretation, then answer or redirect on the person's next turn.",
       "If the question is still outside the experiment after that clarification, redirect once to the experiment and stop.",
@@ -74,6 +75,43 @@
     {
       "rule_id": "episode-prediction-before-reveal",
       "text": "When a comparison gate is open, do not state the hidden target reading. Offer the choice or the explicit skip, then continue."
+    }
+  ],
+  "tool_catalogue": [
+    {
+      "tool_id": "bat",
+      "name": "Bat",
+      "usage": "Docked in front of the wall television, below the screen. Pinch or close a fist on it to grab it, or point at it and pinch to fetch it from across the room. Swing the barrel through the balls. A moving strike adds energy to the balls it reaches; a bat held still adds nothing."
+    },
+    {
+      "tool_id": "fist",
+      "name": "Bare hand",
+      "usage": "No separate prop: a moving bare hand works as a small tool. Move the hand through a ball to add a little energy. A hand held still adds nothing."
+    },
+    {
+      "tool_id": "cloth_bag",
+      "name": "Cloth bag",
+      "usage": "Docked in front of the television beside the bat. The lesson also calls it the retarding sandbag. Grab or fetch it the same way, then throw it into the air. It stops where it is thrown and floats still. A ball that hits a floating bag loses energy and keeps moving at a lower speed. One impact consumes that bag with a small firework; a fresh bag waits at the dock."
+    },
+    {
+      "tool_id": "palm_field",
+      "name": "Palm cooling field",
+      "usage": "Open both palms and face them toward each other. A tube-shaped cooling field forms between the palms. A fast ball loses a little energy each time it crosses the field. A slow ball is caught at the centre and stays stopped when the palms open."
+    },
+    {
+      "tool_id": "knife_switch",
+      "name": "Knife switch",
+      "usage": "A red knife switch on the wall to the right of the television. Pinch or point at it to close the blades and start the trial when the room is confirmed. Activate it again to open the blades and stop the trial."
+    },
+    {
+      "tool_id": "wall_tv",
+      "name": "Wall television",
+      "usage": "Shows the current temperature in kelvin, Celsius, and Fahrenheit, and a temperature-over-time graph. It does no work on the balls. Grab its bezel or bracket to move it between walls."
+    },
+    {
+      "tool_id": "episode_hub",
+      "name": "Episode hub",
+      "usage": "Recalled by turning the non-dominant palm up and pinching with the other hand, or with the controller menu button. It chooses the experiment and holds the audio, tips, microphone, safety, and EXIT controls. The room must be confirmed before a trial starts."
     }
   ],
   "stage_rules": [

@@ -10,8 +10,8 @@ Three files make up one version:
   :class:`simulation.guide.GuideRunner` already loads, with its own content
   digest;
 - ``instructor-policy.json`` carries the instructor supply: system
-  instructions, rules, next questions, allowed actions, mistake
-  classification, and declared threshold slots.
+  instructions, rules, the tool catalogue, next questions, allowed actions,
+  mistake classification, and declared threshold slots.
 
 This module does not define a second stage format. It verifies the pack, hands
 ``stage-data.json`` to the existing loader, and then checks that the prose
@@ -252,6 +252,31 @@ def _check_instructor(instructor, stage_data, pack, errors):
     if instructor.get("episode_id") != pack["episode_id"]:
         errors.append("instructor-policy.json: episode id differs from the pack manifest")
 
+    catalogue = instructor.get("tool_catalogue")
+    if not isinstance(catalogue, list) or not catalogue:
+        errors.append("instructor-policy.json: the tool catalogue is absent or empty")
+    else:
+        seen_tools = set()
+        for item in catalogue:
+            if not isinstance(item, dict):
+                errors.append(
+                    "instructor-policy.json: a tool catalogue entry is not an object"
+                )
+                continue
+            for field in ("tool_id", "name", "usage"):
+                value = item.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    errors.append(
+                        f"instructor-policy.json: a tool entry is missing {field}"
+                    )
+            tool_id = item.get("tool_id")
+            if isinstance(tool_id, str):
+                if tool_id in seen_tools:
+                    errors.append(
+                        f"instructor-policy.json: duplicate tool id {tool_id}"
+                    )
+                seen_tools.add(tool_id)
+
     stage_ids = [node["stage_id"] for node in stage_data["stage_graph"]["nodes"]]
     rule_ids = [rule["stage_id"] for rule in instructor.get("stage_rules", [])]
     if rule_ids != stage_ids:
@@ -314,9 +339,9 @@ def assemble_system(instructor):
     """The one ``system`` text a judge path assembles at the send boundary.
 
     Order is fixed so the text and its hash are reproducible: instructions,
-    series rules, episode rules, stage intents and questions, action catalogue,
-    mistake classification, wording. No field of the pack is silently dropped
-    except the volumes already bounded by the caller.
+    series rules, episode rules, tool catalogue, stage intents and questions,
+    action catalogue, mistake classification, wording. No field of the pack is
+    silently dropped except the volumes already bounded by the caller.
     """
     lines = []
 
@@ -329,6 +354,13 @@ def assemble_system(instructor):
     block("Instructions", instructions.get("text", []))
     block("Series rules", [f"{r['rule_id']}: {r['text']}" for r in instructor.get("series_rules", [])])
     block("Episode rules", [f"{r['rule_id']}: {r['text']}" for r in instructor.get("episode_rules", [])])
+    block(
+        "Tools and controls",
+        [
+            f"{item['tool_id']} ({item['name']}): {item['usage']}"
+            for item in instructor.get("tool_catalogue", [])
+        ],
+    )
 
     stage_lines = []
     questions = {q["stage_id"]: q for q in instructor.get("next_questions", [])}

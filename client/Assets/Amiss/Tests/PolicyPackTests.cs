@@ -76,6 +76,23 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void TheSystemCarriesTheCompleteToolCatalogue()
+        {
+            // Founder requirement (2026-11-04): the teacher knows every tool
+            // and control the person can use, and how to use it.
+            var system = LoadShipped().System;
+            StringAssert.Contains("Tools and controls:", system);
+            foreach (var toolId in new[]
+                     {
+                         "bat", "fist", "cloth_bag", "palm_field", "knife_switch",
+                         "wall_tv", "episode_hub"
+                     })
+                StringAssert.Contains(toolId + " (", system);
+            StringAssert.Contains("Swing the barrel through the balls", system);
+            StringAssert.Contains("Open both palms", system);
+        }
+
+        [Test]
         public void TheStageGraphIsTheP0RouteWithNoP1Stage()
         {
             var pack = LoadShipped();

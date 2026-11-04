@@ -10,7 +10,7 @@ content, not contracts: `../schema/` still holds every mechanical envelope, and
 |---|---|
 | `pack.json` | The pack manifest: format version, pack id, policy version, the file inventory with one SHA-256 per file, and the pack integrity digest. |
 | `stage-data.json` | The mechanical `StageDataEnvelope` the existing `GuideRunner` loads: stage graph, evidence flags and pairs, and the allowed-action ids. |
-| `instructor-policy.json` | The instructor supply: system instructions, series and episode rules, per-stage intent and next questions, the allowed-action catalogue, mistake classification, wording, and declared threshold slots. |
+| `instructor-policy.json` | The instructor supply: system instructions, series and episode rules, the complete tool catalogue with usage, per-stage intent and next questions, the allowed-action catalogue, mistake classification, wording, and declared threshold slots. |
 
 ## Versioning
 

@@ -6,7 +6,7 @@
   "episode_id": "what_is_temperature",
   "stage_data_format_version": "1.0.0",
   "stage_data_digest": "1326ef9154199aba5445cbd5c3cf3bfd7ce099e92d82cb2aa8ac6e782fb14f21",
-  "pack_digest": "6d3e2db6a84f7cbf7a6a557b5f567c549ce8499cec9670288805f2798d716d7c",
+  "pack_digest": "700987aef57ebb3d8f651dadcad1c915c07ca296c6fd6641cc5835e1d9219d53",
   "file_digests": [
     {
       "path": "stage-data.json",
@@ -14,11 +14,11 @@
     },
     {
       "path": "instructor-policy.json",
-      "sha256": "e44500d83f5d7947bad44dcd1c38566a0ce05bbd152cbd6214058f1805386e44"
+      "sha256": "70c90821e4bb8b2f89e8e6e6026dd24cf28e2b685aaebb622c336a3bafa9a53f"
     }
   ],
-  "system_bytes": 10236,
-  "system_sha256": "28766d130a1523cd1f96a7acf109cee8d051213a459fca5fbee4670baba3738a",
+  "system_bytes": 12483,
+  "system_sha256": "02957eef8bbae4d6c04002ab1c42f0cd20ff6ca1a229d6fd101b239a5b337d4e",
   "stage_ids": [
     "stage-0-entry",
     "stage-1-track-one",

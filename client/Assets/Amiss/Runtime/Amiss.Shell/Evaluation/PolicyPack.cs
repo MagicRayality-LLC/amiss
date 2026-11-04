@@ -259,6 +259,26 @@ namespace Amiss.Shell.Evaluation
                 errors.Add(InstructorFile +
                            ": the allowed-action catalogue differs from the envelope");
 
+            var catalogue = List(instructor, "tool_catalogue");
+            if (catalogue.Count == 0)
+                errors.Add(InstructorFile + ": the tool catalogue is absent or empty");
+            var toolIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var entry in catalogue)
+            {
+                if (entry is not IReadOnlyDictionary<string, object> tool)
+                {
+                    errors.Add(InstructorFile +
+                               ": a tool catalogue entry is not an object");
+                    continue;
+                }
+                foreach (var field in new[] { "tool_id", "name", "usage" })
+                    if (string.IsNullOrWhiteSpace(Text(tool, field)))
+                        errors.Add(InstructorFile + ": a tool entry is missing " + field);
+                var toolId = Text(tool, "tool_id");
+                if (!toolIds.Add(toolId))
+                    errors.Add(InstructorFile + ": duplicate tool id " + toolId);
+            }
+
             var wordingIds = List(instructor, "wording")
                 .Cast<IReadOnlyDictionary<string, object>>()
                 .Select(item => Text(item, "wording_id"))
@@ -307,6 +327,10 @@ namespace Amiss.Shell.Evaluation
             Block("Instructions", Strings(Map(instructor, "system_instructions"), "text"));
             Block("Series rules", Rules(instructor, "series_rules"));
             Block("Episode rules", Rules(instructor, "episode_rules"));
+            Block("Tools and controls", List(instructor, "tool_catalogue")
+                .Cast<IReadOnlyDictionary<string, object>>()
+                .Select(item => Text(item, "tool_id") + " (" + Text(item, "name") +
+                                "): " + Text(item, "usage")));
 
             var questions = List(instructor, "next_questions")
                 .Cast<IReadOnlyDictionary<string, object>>()
