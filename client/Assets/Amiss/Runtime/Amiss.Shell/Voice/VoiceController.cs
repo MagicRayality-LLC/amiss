@@ -39,6 +39,14 @@ namespace Amiss.Shell.Voice
         /// <summary>08/06 section 7: transcription after capture close.</summary>
         public const double TranscriptionDeadlineSeconds = 10.0;
 
+        /// <summary>
+        /// The platform must confirm an opened window within this long. Without
+        /// it a turn whose start-listening event never arrives sits in
+        /// activation forever: no timeout fires, no rearm follows, and every
+        /// later question is dropped as belonging to no open turn.
+        /// </summary>
+        public const double ActivationDeadlineSeconds = 10.0;
+
         /// <summary>08 section 4.1: the bounded current utterance.</summary>
         public const int MaxUtteranceBytes = 8 * 1024;
 
@@ -50,6 +58,8 @@ namespace Amiss.Shell.Voice
         VoiceTurn turn;
         IDictationSession session;
         bool activationPending;
+        double activationStartedAt;
+        bool captureEnded;
         bool noticeShown;
         double captureClosedAt;
         int sequence;
@@ -274,6 +284,7 @@ namespace Amiss.Shell.Voice
             // inside Begin, and OnActivated drops that event when the flag is
             // not yet set, leaving the turn permanently pending.
             activationPending = true;
+            activationStartedAt = clock();
             IDictationSession started;
             try
             {
@@ -285,6 +296,7 @@ namespace Amiss.Shell.Voice
             }
 
             rearmPending = false;
+            captureEnded = false;
             if (started == null)
             {
                 session = null;
@@ -405,7 +417,7 @@ namespace Amiss.Shell.Voice
                 State = VoiceState.Closed;
         }
 
-        /// <summary>Drives the local 10-second transcription deadline.</summary>
+        /// <summary>Drives the local transcription and activation deadlines.</summary>
         public VoiceOutcome Tick()
         {
             var outcome = VoiceOutcome.Accept("", "");
@@ -414,6 +426,21 @@ namespace Amiss.Shell.Voice
             {
                 outcome = FailTranscription("No transcript arrived within 10 seconds of capture close; " +
                     "no text is fabricated. The panel path continues.");
+            }
+
+            if (activationPending &&
+                clock() - activationStartedAt > ActivationDeadlineSeconds)
+            {
+                Debug.Log("[Amiss] voice activation timed out; reopening capture");
+                var open = session;
+                session = null;
+                activationPending = false;
+                SafeCancel(open);
+                State = VoiceState.Closed;
+                LastCode = "voice_activation_timeout";
+                LastReadable = "The microphone did not start in time; listening again.";
+                rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
+                AdvanceEpoch();
             }
 
             if (rearmPending && session == null && !activationPending &&
@@ -501,22 +528,37 @@ namespace Amiss.Shell.Voice
                 return;
             session = null;
             activationPending = false;
+            captureEnded = true;
             captureClosedAt = clock();
             State = VoiceState.Transcribing;
         }
 
         /// <summary>
-        /// The platform request is over, so no final text can still arrive.
-        /// A turn that ends here with no speech recognized is not a user
-        /// utterance: it closes without a tutor call, without fabricated
+        /// The platform request is over, so no final text can still arrive
+        /// for the previous capture. When capture already ended this is the
+        /// silent turn: it closes without a tutor call, without fabricated
         /// text, and without waiting out the transcription deadline, then
-        /// rearms. Ignoring this event stranded the turn in Transcribing
-        /// whenever the request ended silently, and every later question
-        /// was then dropped as belonging to no open turn.
+        /// rearms on a later frame. When capture is still open, the terminal
+        /// arrived early (reordered platform events, or a stale terminal from
+        /// the previous request landing on this window): the microphone stops
+        /// and the turn waits for the transcript under the deadline instead
+        /// of stranding listening on a dead request. A transcript that still
+        /// arrives answers; otherwise the deadline rearms. Either way capture
+        /// never strands listening on a dead request.
         /// </summary>
         void OnRequestEnded(VoiceTurn captured, int capturedEpoch)
         {
-            if (!Matches(captured, capturedEpoch) || State != VoiceState.Transcribing)
+            if (!Matches(captured, capturedEpoch))
+                return;
+            if (!captureEnded)
+            {
+                if (State != VoiceState.Listening && !activationPending)
+                    return;
+                Debug.Log("[Amiss] voice request ended during capture turn=" + captured.TurnId);
+                OnCaptureEnded(captured, capturedEpoch);
+                return;
+            }
+            if (State != VoiceState.Transcribing)
                 return;
             Debug.Log("[Amiss] voice request ended with no transcript turn=" + captured.TurnId);
             session = null;
@@ -526,8 +568,6 @@ namespace Amiss.Shell.Voice
             LastReadable = "No speech was recognized; listening again.";
             rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
             AdvanceEpoch();
-            if (rearmPending)
-                EnsureAutomaticCapture();
         }
 
         async void OnFinalText(VoiceTurn captured, int capturedEpoch, string text)

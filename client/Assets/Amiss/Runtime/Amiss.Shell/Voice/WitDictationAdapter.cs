@@ -21,6 +21,14 @@ namespace Amiss.Shell.Voice
         readonly WitVoiceSetup setup;
         readonly Transform parent;
 
+        /// <summary>
+        /// The custom capture stays out until it proves nonzero audio: the
+        /// platform zeroed every AudioRecord frame on all tried sources, so
+        /// dictation uses the default microphone path the SDK owns. The
+        /// custom class remains compiled but uninstalled.
+        /// </summary>
+        const bool UseCustomAecMic = false;
+
         AppDictationExperience service;
         AndroidAecMic aecMic;
         Window window;
@@ -147,8 +155,23 @@ namespace Amiss.Shell.Voice
                 service.RuntimeDictationConfiguration = runtime;
                 service.UsePlatformIntegrations = false;
 #if UNITY_ANDROID && !UNITY_EDITOR
-                aecMic = host.AddComponent<AndroidAecMic>();
-                AudioBuffer.Instance.MicInput = aecMic;
+                if (UseCustomAecMic)
+                {
+                    aecMic = host.AddComponent<AndroidAecMic>();
+                    // The buffer singleton may not exist yet on this frame; a
+                    // missing buffer must not fail the dictation service, which
+                    // then falls back to the default microphone.
+                    var buffer = AudioBuffer.Instance;
+                    if (buffer != null)
+                        buffer.MicInput = aecMic;
+                    else
+                        Debug.LogWarning("[Amiss] dictation audio buffer unavailable; " +
+                            "using the default microphone");
+                }
+                else
+                {
+                    Debug.Log("[Amiss] dictation uses the default microphone");
+                }
 #endif
 
                 // The platform requests the microphone on enable, so this

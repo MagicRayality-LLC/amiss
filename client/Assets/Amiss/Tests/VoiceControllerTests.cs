@@ -834,6 +834,93 @@ namespace Amiss.Tests
         }
 
         [Test]
+        public void SilentRequestEndRearmsOnTickNotInsideTheCallback()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var window = harness.Dictation.Last;
+
+            window.Endpoint();
+            window.RequestEnded();
+
+            Assert.AreEqual(1, harness.Dictation.Begins,
+                "the rearm must wait for a later frame, never open reentrantly " +
+                "inside the platform completion callback");
+            Assert.AreEqual(VoiceState.Closed, harness.Controller.State);
+
+            harness.Controller.Tick();
+
+            Assert.AreEqual(2, harness.Dictation.Begins,
+                "the next frame reopens exactly one fresh capture");
+            Assert.AreEqual(DictationActivationMode.Automatic, harness.Dictation.Last.Mode);
+        }
+
+        [Test]
+        public void RequestEndedWhileListeningWaitsForTheTranscript()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var window = harness.Dictation.Last;
+
+            window.RequestEnded();
+
+            Assert.AreEqual(VoiceState.Transcribing, harness.Controller.State,
+                "a terminal that lands on an open window must wait for the " +
+                "transcript, never strand listening on a dead request");
+            Assert.AreEqual(1, harness.Dictation.Begins);
+
+            window.Deliver("How warm is the room?");
+            Assert.AreEqual(1, harness.Tutor.Calls,
+                "the late transcript still answers");
+            Assert.AreEqual("How warm is the room?", harness.Tutor.Utterance);
+        }
+
+        [Test]
+        public void DuplicateTerminalEventsEndTheSilentTurnOnce()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var window = harness.Dictation.Last;
+
+            window.Endpoint();
+            window.RequestEnded();
+            window.RequestEnded();
+
+            harness.Controller.Tick();
+
+            Assert.AreEqual(2, harness.Dictation.Begins,
+                "paired terminal events open exactly one fresh capture");
+            Assert.AreEqual(0, harness.Tutor.Calls);
+        }
+
+        [Test]
+        public void ActivationTimeoutCancelsTheStalledWindowAndRearms()
+        {
+            var harness = new Harness();
+            harness.Controller.StartTrialEpisode("Explore temperature.");
+            harness.Speech.CompleteLast();
+            var stalled = harness.Dictation.Last;
+
+            harness.Now = VoiceController.ActivationDeadlineSeconds + 0.5;
+            harness.Controller.Tick();
+
+            Assert.AreEqual(1, stalled.Cancels,
+                "a window the platform never confirms cannot keep the microphone");
+            Assert.AreEqual(2, harness.Dictation.Begins,
+                "the timed-out activation reopens capture");
+            Assert.AreEqual(VoiceState.Closed, harness.Controller.State);
+
+            harness.Dictation.Last.Activate();
+            harness.Dictation.Last.Endpoint();
+            harness.Dictation.Last.Deliver("How warm is the room?");
+            Assert.AreEqual(1, harness.Tutor.Calls,
+                "speech after the timed-out activation still reaches the tutor");
+        }
+
+        [Test]
         public void LateCaptureEndAfterFinalTextDoesNotStrandTheReply()
         {
             var harness = new Harness();
