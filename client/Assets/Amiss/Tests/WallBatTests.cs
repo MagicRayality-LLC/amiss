@@ -251,6 +251,10 @@ namespace Amiss.Tests
         public void BatDocksUnderTheTelevisionUntilGrabbed()
         {
             var bat = BuildShownBat(out var host, out var television);
+            var grabbed = 0;
+            var released = 0;
+            bat.Grabbed += () => grabbed++;
+            bat.Released += () => released++;
             try
             {
                 Assert.AreEqual(WallBatState.Docked, bat.State);
@@ -264,8 +268,10 @@ namespace Amiss.Tests
                     "pinch at the grip");
                 Assert.AreEqual(WallBatState.Held, bat.State);
                 Assert.IsFalse(bat.IsDocked);
+                Assert.AreEqual(1, grabbed, "the grab is reported once");
 
                 bat.ReleaseHold();
+                Assert.AreEqual(1, released, "the release is reported once");
                 Assert.AreEqual(WallBatState.Resting, bat.State);
                 var dropped = host.transform.position;
                 bat.Follow(television.transform);

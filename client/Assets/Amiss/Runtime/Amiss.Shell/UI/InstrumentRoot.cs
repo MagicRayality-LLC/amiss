@@ -45,9 +45,33 @@ namespace Amiss.Shell
         {
             services = FindFirstObjectByType<ShellServices>();
             BuildTv();
+            WireUserActions();
             ApplyPanel(services != null && services.Room != null ? services.Room.Recovery.Panel : null);
             Debug.Log("[Amiss] panel built t=" + Time.realtimeSinceStartup.ToString("F3") +
                       " graphics=" + GetComponentsInChildren<UnityEngine.UI.Graphic>(true).Length);
+        }
+
+        /// <summary>
+        /// Reports the prop grabs and releases the wearer performs to the
+        /// session memory the teacher reads. Only local action facts are
+        /// recorded; the visual props still own no Trial state.
+        /// </summary>
+        void WireUserActions()
+        {
+            if (services == null)
+                return;
+            if (wallBat != null)
+            {
+                wallBat.Grabbed += () => services.RecordUserAction("bat_grabbed");
+                wallBat.Released += () => services.RecordUserAction("bat_released");
+            }
+            if (clothBags != null)
+            {
+                clothBags.BagGrabbed += () =>
+                    services.RecordUserAction("cloth_bag_grabbed");
+                clothBags.BagReleased += () =>
+                    services.RecordUserAction("cloth_bag_released");
+            }
         }
 
         public static void PlaceInitialPanel(Transform panel, Vector3 eyePosition, Vector3 eyeForward)

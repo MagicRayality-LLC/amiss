@@ -12,7 +12,7 @@ namespace Amiss.Contracts
         public const string ToolSchema = "1.0.0";
         public const string SaveFormat = "1.0.0";
         public const string StageDataFormat = "1.0.0";
-        public const string ContextPayload = "1.1.0";
+        public const string ContextPayload = "1.2.0";
         public const string FixtureFormat = "1.0.0";
         public const string ProvenanceContract = "1.0.0";
     }

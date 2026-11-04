@@ -118,7 +118,8 @@ namespace Amiss.Shell.Voice
     /// </summary>
     public interface ITutorTurnPort
     {
-        Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance);
+        Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance,
+            System.Threading.CancellationToken cancellation = default);
     }
 
     public readonly struct TutorTurnOutcome

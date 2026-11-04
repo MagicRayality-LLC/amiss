@@ -30,21 +30,23 @@ namespace Amiss.Tests
         };
 
         [Test]
-        public void MemoryEvictsOldestRecordsAndRetentionClearsOnlyDialogue()
+        public void MemoryRetainsTheWholeSessionAndOnlyHitsItsSafetyCeiling()
         {
             var memory = new SessionMemory();
-            for (var index = 0; index < 6; index++)
+            var total = SessionMemory.MaxRecentExchanges + 2;
+            for (var index = 0; index < total; index++)
                 memory.RecordExchange("turn-" + index, "question " + index,
                     new[] { "answer " + index }, new[] { Ref() }, "stage-a", "policy-a");
-            for (var index = 0; index < 18; index++)
+            for (var index = 0; index < SessionMemory.MaxSessionEvents + 2; index++)
                 memory.RecordEvent("effective_action", index, "trial-live", 1);
 
             Assert.AreEqual(SessionMemory.MaxRecentExchanges, memory.RecentExchanges.Count);
             Assert.AreEqual("turn-2", memory.RecentExchanges.First().TurnId);
-            Assert.AreEqual("turn-5", memory.RecentExchanges.Last().TurnId);
+            Assert.AreEqual("turn-" + (total - 1), memory.RecentExchanges.Last().TurnId);
             Assert.AreEqual(SessionMemory.MaxSessionEvents, memory.SessionEvents.Count);
             Assert.AreEqual("event-000003", memory.SessionEvents.First().EventId);
-            Assert.AreEqual("event-000018", memory.SessionEvents.Last().EventId);
+            Assert.AreEqual("event-" + (SessionMemory.MaxSessionEvents + 2).ToString("D6"),
+                memory.SessionEvents.Last().EventId);
 
             memory.SetTranscriptRetention(false);
             Assert.IsEmpty(memory.RecentExchanges);
@@ -58,15 +60,43 @@ namespace Amiss.Tests
         }
 
         [Test]
-        public void PayloadOmitsStaleMemoryAndKeepsCurrentEvents()
+        public void PayloadKeepsTheSessionChatAcrossContactRevisions()
+        {
+            var memory = new SessionMemory();
+            memory.RecordExchange("turn-earlier", "an earlier question",
+                new[] { "an earlier answer" }, new[] { Ref(1) }, "stage-a", "policy-a");
+            memory.RecordExchange("turn-later", "a later question",
+                new[] { "a later answer" }, new[] { Ref(9) }, "stage-a", "policy-a");
+            memory.RecordEvent("trial_started", 0, "trial-live", 1);
+            memory.RecordEvent("effective_action", 2, "trial-live", 9);
+
+            var payload = ContextPayloadBuilder.Build(Source(memory));
+            var context = (IReadOnlyDictionary<string, object>)payload["compressed_session_context"];
+            var exchanges = ((IEnumerable<object>)context["recent_exchanges"]).Cast<
+                IReadOnlyDictionary<string, object>>().ToArray();
+            var events = ((IEnumerable<object>)context["session_events"]).Cast<
+                IReadOnlyDictionary<string, object>>().ToArray();
+
+            // A contact commit advances the Trial revision during one
+            // conversation; that must not erase what was said before it.
+            Assert.AreEqual(2, exchanges.Length);
+            Assert.AreEqual("turn-earlier", exchanges[0]["turn_id"]);
+            Assert.AreEqual("turn-later", exchanges[1]["turn_id"]);
+            Assert.AreEqual(2, events.Length);
+            Assert.AreEqual("trial_started", events[0]["kind"]);
+            Assert.AreEqual("effective_action", events[1]["kind"]);
+        }
+
+        [Test]
+        public void PayloadOmitsMemoryFromAnotherTrial()
         {
             var memory = new SessionMemory();
             memory.RecordExchange("turn-current", "current question", new[] { "current answer" },
                 new[] { Ref() }, "stage-a", "policy-a");
-            memory.RecordExchange("turn-stale", "stale question", new[] { "stale answer" },
-                new[] { Ref(2) }, "stage-a", "policy-a");
+            memory.RecordExchange("turn-other", "other question", new[] { "other answer" },
+                new[] { new TrialReference("trial-other", 2) }, "stage-a", "policy-a");
             memory.RecordEvent("trial_started", 0, "trial-live", 1);
-            memory.RecordEvent("effective_action", 2, "trial-live", 2);
+            memory.RecordEvent("effective_action", 2, "trial-other", 2);
 
             var payload = ContextPayloadBuilder.Build(Source(memory));
             var context = (IReadOnlyDictionary<string, object>)payload["compressed_session_context"];
@@ -79,16 +109,17 @@ namespace Amiss.Tests
             Assert.AreEqual("turn-current", exchanges[0]["turn_id"]);
             Assert.AreEqual(1, events.Length);
             Assert.AreEqual("trial_started", events[0]["kind"]);
-            StringAssert.DoesNotContain("stale answer", CanonicalJson.Text(payload));
+            StringAssert.DoesNotContain("other answer", CanonicalJson.Text(payload));
         }
 
         [Test]
         public void PayloadEvictsWholeExchangesToMeetTheCompressedBound()
         {
             var memory = new SessionMemory();
+            const int recorded = 8;
             var userText = new string('u', ContextPayloadBuilder.MaxUtteranceBytes);
             var agentText = new string('a', 4 * 1024);
-            for (var index = 0; index < SessionMemory.MaxRecentExchanges; index++)
+            for (var index = 0; index < recorded; index++)
                 memory.RecordExchange("turn-" + index, userText, new[] { agentText, agentText },
                     new[] { Ref() }, "stage-a", "policy-a");
 
@@ -100,8 +131,8 @@ namespace Amiss.Tests
             Assert.LessOrEqual(CanonicalJson.Bytes(context).Length,
                 ContextPayloadBuilder.MaxCompressedContextBytes);
             Assert.Greater(exchanges.Length, 0);
-            Assert.Less(exchanges.Length, SessionMemory.MaxRecentExchanges);
-            Assert.AreEqual("turn-3", exchanges.Last()["turn_id"]);
+            Assert.Less(exchanges.Length, recorded);
+            Assert.AreEqual("turn-" + (recorded - 1), exchanges.Last()["turn_id"]);
         }
 
         [Test]

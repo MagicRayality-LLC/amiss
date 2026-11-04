@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -25,6 +26,12 @@ namespace Amiss.Shell
         Transform dockedTo;
         bool shown;
         bool capLogged;
+
+        /// <summary>Fired once when any cloth bag passes into a hold.</summary>
+        public event Action BagGrabbed;
+
+        /// <summary>Fired once when any held cloth bag is let go.</summary>
+        public event Action BagReleased;
 
         public IReadOnlyList<WallClothBag> Bags => bags;
 
@@ -175,7 +182,12 @@ namespace Amiss.Shell
             host.transform.SetParent(transform, false);
             var bag = host.AddComponent<WallClothBag>();
             bags.Add(bag);
-            bag.Grabbed += () => EnsureDockedBag();
+            bag.Grabbed += () =>
+            {
+                BagGrabbed?.Invoke();
+                EnsureDockedBag();
+            };
+            bag.Released += () => BagReleased?.Invoke();
             bag.Build();
             bag.Follow(dockedTo);
             bag.SetVisible(true);
@@ -209,9 +221,9 @@ namespace Amiss.Shell
             if (bag == null)
                 return;
             if (Application.isPlaying)
-                Object.Destroy(bag);
+                UnityEngine.Object.Destroy(bag);
             else
-                Object.DestroyImmediate(bag);
+                UnityEngine.Object.DestroyImmediate(bag);
         }
     }
 }

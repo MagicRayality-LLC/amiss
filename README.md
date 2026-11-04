@@ -80,8 +80,11 @@ accept it and grant the app microphone access. Trial start then speaks the
 episode's fixed local goal through Wit without a model request. Automatic
 listening continues during answers; speak to interrupt playback immediately,
 without pressing MIC. MIC remains an explicit interruption fallback and global
-voice off control. The instructor receives at most four recent completed exchanges
-and sixteen mechanical Trial events, held only for the current session. On Quest
+voice off control. The instructor receives the current session's completed
+conversation and its mechanical Trial events within the 32 KiB compressed-context
+bound, held only for that session. After 15 quiet seconds it continues the lesson
+from that conversation, the recorded actions, and the current reading; a local
+line is the fallback when no model reply is available. On Quest
 Pro, Android voice-communication capture uses acoustic echo cancellation; wearer
 speech and echo behavior still need wearer-led verification. Keys and tokens are
 stored only on the device and are never

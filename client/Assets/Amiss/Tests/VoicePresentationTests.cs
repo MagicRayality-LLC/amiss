@@ -307,7 +307,8 @@ namespace Amiss.Tests
 
         sealed class StubTutor : ITutorTurnPort
         {
-            public Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance) =>
+            public Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance,
+                System.Threading.CancellationToken cancellation = default) =>
                 Task.FromResult(TutorTurnOutcome.Silent("not_used"));
         }
     }

@@ -40,9 +40,16 @@ namespace Amiss.Tests
             {
                 var first = supply.DockedBag;
                 Assert.IsNotNull(first, "the supply starts with a docked bag");
+                var grabbed = 0;
+                var released = 0;
+                supply.BagGrabbed += () => grabbed++;
+                supply.BagReleased += () => released++;
 
                 Assert.IsTrue(first.TryCloseGrab(first.transform.position));
                 Assert.AreEqual(ClothBagState.Held, first.State);
+                Assert.AreEqual(1, grabbed, "the supply reports the grab once");
+                first.ReleaseHold();
+                Assert.AreEqual(1, released, "the supply reports the release once");
 
                 Assert.AreEqual(2, supply.Count, "the grab respawns one bag");
                 var second = supply.DockedBag;

@@ -1,5 +1,7 @@
 using System;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Amiss.Shell.Voice
@@ -50,10 +52,35 @@ namespace Amiss.Shell.Voice
         /// <summary>08 section 4.1: the bounded current utterance.</summary>
         public const int MaxUtteranceBytes = 8 * 1024;
 
+        /// <summary>
+        /// Founder requirement (2026-11-04): when the wearer has said nothing
+        /// and the teacher has been idle for this long, the teacher speaks one
+        /// short local check-in. These lines make no measurement claim, so
+        /// they need no model, guide token, or policy candidate.
+        /// </summary>
+        public const double IdlePromptSeconds = 15.0;
+
+        /// <summary>The tutor origin of a check-in the teacher starts itself.</summary>
+        public const string ProactiveOrigin = "proactive";
+
+        /// <summary>
+        /// The last-resort lines when no model reply is available. The normal
+        /// check-in is a proactive model request whose wording uses the
+        /// session history, recent actions, and current measurement.
+        /// </summary>
+        static readonly string[] IdlePromptLines =
+        {
+            "Take your time. What do you notice about the balls right now?",
+            "When you are ready, try one of the tools in front of the television.",
+            "You can ask me about the balls or about the number on the screen."
+        };
+
         readonly IDictationPort dictation;
         readonly ISpeechSynthesisPort speech;
         readonly ITutorTurnPort tutor;
         readonly Func<double> clock;
+        readonly Func<bool> tipsEnabled;
+        readonly Func<string> idleFallback;
 
         VoiceTurn turn;
         IDictationSession session;
@@ -77,6 +104,10 @@ namespace Amiss.Shell.Voice
         double? acceptedAt;
         double? revokedAt;
         PermissionRequestProgress permissionRequest;
+        double idleSince;
+        int idlePromptSequence;
+        CancellationTokenSource idleRequest;
+        bool idleRequestInFlight;
 
         enum PermissionRequestProgress
         {
@@ -87,7 +118,8 @@ namespace Amiss.Shell.Voice
 
         public VoiceController(IDictationPort dictation, ISpeechSynthesisPort speech,
             ITutorTurnPort tutor, VoiceConsentStatus consent = VoiceConsentStatus.Absent,
-            Func<double> clock = null)
+            Func<double> clock = null, Func<bool> tipsEnabled = null,
+            Func<string> idleFallback = null)
         {
             this.dictation = dictation ?? throw new ArgumentNullException(nameof(dictation));
             this.speech = speech ?? throw new ArgumentNullException(nameof(speech));
@@ -95,6 +127,9 @@ namespace Amiss.Shell.Voice
             consentStatus = consent;
             voiceEnabled = ConsentAccepted;
             this.clock = clock ?? (() => 0.0);
+            this.tipsEnabled = tipsEnabled;
+            this.idleFallback = idleFallback;
+            idleSince = this.clock();
         }
 
         public VoiceState State { get; private set; } = VoiceState.Closed;
@@ -171,6 +206,7 @@ namespace Amiss.Shell.Voice
             trialActive = true;
             lifecycleBlocked = false;
             rearmPending = false;
+            idleSince = clock();
             CancelEverything(VoiceUnitCompletion.Interrupted);
             AdvanceEpoch();
             State = VoiceState.Closed;
@@ -446,7 +482,110 @@ namespace Amiss.Shell.Voice
             if (rearmPending && session == null && !activationPending &&
                 State != VoiceState.Transcribing && State != VoiceState.WaitingModel)
                 EnsureAutomaticCapture();
+            PromptIfIdle();
             return outcome;
+        }
+
+        /// <summary>
+        /// Founder requirement (2026-11-04): after 15 quiet seconds the teacher
+        /// says something that follows the session. The normal path is one
+        /// proactive model request; its context carries the full conversation,
+        /// the recorded user actions, and the current statistics, so the reply
+        /// can continue the temperature lesson. Mute, tips-off, or an active
+        /// question/answer suppress it, and it never fabricates a user utterance.
+        /// </summary>
+        void PromptIfIdle()
+        {
+            if (!trialActive || !voiceEnabled || lifecycleBlocked || muted)
+                return;
+            if (!speech.Configured)
+                return;
+            if (tipsEnabled != null && !tipsEnabled())
+                return;
+            if (activationPending || session == null || State != VoiceState.Listening)
+                return;
+            if (active != null || pending != null)
+                return;
+            if (idleRequestInFlight)
+                return;
+            if (clock() - idleSince < IdlePromptSeconds)
+                return;
+
+            idleSince = clock();
+            idleRequestInFlight = true;
+            _ = RunIdlePrompt();
+        }
+
+        /// <summary>
+        /// One proactive tutor turn: no user utterance is invented, the capture
+        /// window stays open, and a user turn cancels the pending request and
+        /// keeps priority. A rejected or silent reply falls back to the
+        /// data-aware local line supplied by the shell.
+        /// </summary>
+        async Task RunIdlePrompt()
+        {
+            var turnId = "idle-" + (++idlePromptSequence).ToString("D4");
+            var cancellation = new CancellationTokenSource();
+            idleRequest = cancellation;
+            TutorTurnOutcome outcome;
+            try
+            {
+                outcome = await tutor.Ask(ProactiveOrigin, turnId, "", cancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                outcome = TutorTurnOutcome.Silent("cancelled");
+            }
+            catch (Exception error)
+            {
+                Debug.Log("[Amiss] idle check-in failed " + error.GetType().Name);
+                outcome = TutorTurnOutcome.Silent("model_unavailable");
+            }
+
+            var cancelled = cancellation.IsCancellationRequested;
+            if (ReferenceEquals(idleRequest, cancellation))
+                idleRequest = null;
+            idleRequestInFlight = false;
+            cancellation.Dispose();
+            if (cancelled || !trialActive || !voiceEnabled || lifecycleBlocked || muted)
+                return;
+            if (active != null || pending != null)
+                return;
+
+            if (outcome.Admitted && outcome.AcceptedSpeech != null &&
+                outcome.AcceptedSpeech.Count > 0)
+            {
+                for (var index = 0; index < outcome.AcceptedSpeech.Count; index++)
+                    EnqueueValidatedSpeech(
+                        "idle-" + turnId + "-" + (index + 1).ToString("D2"),
+                        outcome.AcceptedSpeech[index], VoiceUnitKind.Proactive, turnId);
+                LastCode = "voice_idle_prompt";
+                LastReadable = "The teacher continued the lesson after a quiet interval.";
+                return;
+            }
+
+            var fallback = idleFallback != null ? idleFallback() : "";
+            if (string.IsNullOrEmpty(fallback))
+                fallback = IdlePromptLines[idlePromptSequence % IdlePromptLines.Length];
+            EnqueueValidatedSpeech("idle-" + turnId, fallback, VoiceUnitKind.Proactive);
+            LastCode = "voice_idle_prompt";
+            LastReadable = "No model reply was available; the teacher used a local check-in.";
+        }
+
+        /// <summary>Cancels a check-in the user has superseded by speaking.</summary>
+        void CancelIdleRequest()
+        {
+            var request = idleRequest;
+            idleRequest = null;
+            if (request == null)
+                return;
+            try
+            {
+                request.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         /// <summary>
@@ -512,12 +651,20 @@ namespace Amiss.Shell.Voice
         {
             if (!Matches(captured, capturedEpoch) || State != VoiceState.Listening ||
                 active == null)
+            {
+                // Even an unfinished fragment cancels a teacher-started
+                // check-in, because the wearer is already speaking.
+                if (Matches(captured, capturedEpoch))
+                    CancelIdleRequest();
                 return;
+            }
             if (!HasCompleteWord(text))
             {
+                CancelIdleRequest();
                 Debug.Log("[Amiss] voice partial ignored: no complete word");
                 return;
             }
+            CancelIdleRequest();
             StopPlayback(VoiceUnitCompletion.Interrupted, "voice_interrupted");
         }
 
@@ -575,6 +722,10 @@ namespace Amiss.Shell.Voice
             Debug.Log("[Amiss] voice final text enter turn=" +
                 (captured != null ? captured.TurnId : "null") + " epoch=" + capturedEpoch +
                 " state=" + State + " text=\"" + (text ?? "") + "\"");
+            // A user turn always supersedes a teacher-started check-in.
+            CancelIdleRequest();
+            for (var wait = 0; wait < 60 && idleRequestInFlight; wait++)
+                await Task.Yield();
             if (!Matches(captured, capturedEpoch))
             {
                 Debug.Log("[Amiss] voice final dropped: turn superseded");
@@ -606,19 +757,13 @@ namespace Amiss.Shell.Voice
                 return;
             }
 
+            idleSince = clock();
+            if (active != null || pending != null)
+                StopForCapture();
             State = VoiceState.WaitingModel;
             Debug.Log("[Amiss] voice transcript turn=" + captured.TurnId +
                 " text=\"" + utterance + "\"");
-            TutorTurnOutcome outcome;
-            try
-            {
-                outcome = await tutor.Ask(AnswerOrigin, captured.TurnId, utterance);
-            }
-            catch (Exception error)
-            {
-                Debug.Log("[Amiss] tutor ask exception " + error.GetType().Name);
-                outcome = TutorTurnOutcome.Silent("model_unavailable");
-            }
+            var outcome = await AskAnswer(captured.TurnId, utterance);
 
             // A lifecycle closure, consent withdrawal, or a newer capture
             // supersedes this turn while the request is in flight, so its reply
@@ -661,6 +806,34 @@ namespace Amiss.Shell.Voice
                 State = VoiceState.Closed;
                 rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
             }
+        }
+
+        /// <summary>
+        /// Sends the user's answer turn. A cancelled check-in may still hold
+        /// the transport for one frame, so a refusal for an in-flight request
+        /// is retried briefly instead of losing the wearer's question.
+        /// </summary>
+        async Task<TutorTurnOutcome> AskAnswer(string turnId, string utterance)
+        {
+            var outcome = TutorTurnOutcome.Silent("model_unavailable");
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    outcome = await tutor.Ask(AnswerOrigin, turnId, utterance);
+                }
+                catch (Exception error)
+                {
+                    Debug.Log("[Amiss] tutor ask exception " + error.GetType().Name);
+                    return TutorTurnOutcome.Silent("model_unavailable");
+                }
+
+                if (outcome.Admitted || outcome.FailureCode != "request_in_flight")
+                    return outcome;
+                await Task.Delay(150);
+            }
+
+            return outcome;
         }
 
         void OnDictationFailed(VoiceTurn captured, int capturedEpoch, string code)
@@ -739,6 +912,9 @@ namespace Amiss.Shell.Voice
                     ? VoiceState.Listening
                     : VoiceState.Closed;
                 rearmPending = voiceEnabled && trialActive && !lifecycleBlocked;
+                // The quiet interval starts when the teacher stops speaking,
+                // so the next check-in is 15 seconds after the last exchange.
+                idleSince = clock();
                 return;
             }
 
@@ -788,6 +964,7 @@ namespace Amiss.Shell.Voice
 
         void CancelEverything(VoiceUnitCompletion completion)
         {
+            CancelIdleRequest();
             var cancelled = session;
             session = null;
             activationPending = false;

@@ -62,8 +62,17 @@ namespace Amiss.Shell.Tutor
 
     public sealed class SessionMemory
     {
-        public const int MaxRecentExchanges = 4;
-        public const int MaxSessionEvents = 16;
+        /// <summary>
+        /// The whole admitted conversation of one session is retained (founder
+        /// requirement, 2026-11-04). This count is a memory-safety ceiling far
+        /// beyond a real session; the encoded 32 KiB compressed-context bound
+        /// in <see cref="ContextPayloadBuilder"/> is the effective transport
+        /// limit and evicts the oldest whole exchange first.
+        /// </summary>
+        public const int MaxRecentExchanges = 256;
+
+        /// <summary>The mechanical session events retained alongside the chat.</summary>
+        public const int MaxSessionEvents = 64;
 
         readonly List<RecentExchange> recentExchanges = new();
         readonly List<SessionEvent> sessionEvents = new();

@@ -92,9 +92,11 @@ namespace Amiss.Shell.Voice
             this.showSubtitle = showSubtitle;
         }
 
-        public async Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance)
+        public async Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance,
+            System.Threading.CancellationToken cancellation = default)
         {
-            var admission = await conversation.Ask(origin, "utterance-" + (turnId ?? ""), utterance);
+            var admission = await conversation.Ask(origin, "utterance-" + (turnId ?? ""), utterance,
+                cancellation);
             if (!admission.Admitted)
                 return TutorTurnOutcome.Silent(
                     admission.Failure != null ? admission.Failure.ReasonCode : "model_unavailable");

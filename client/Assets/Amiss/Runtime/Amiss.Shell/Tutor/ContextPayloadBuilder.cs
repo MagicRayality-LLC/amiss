@@ -194,19 +194,26 @@ namespace Amiss.Shell.Tutor
             if (memory == null)
                 return context;
 
+            // Dialogue and mechanical events belong to the session's Trial
+            // identity, not to one contact-commit revision. Founder
+            // requirement (2026-11-04): the teacher keeps the whole session's
+            // conversation. The trial_id freshness check still drops records
+            // from another Trial; the serialized ref carries the current
+            // revision so the payload stays within the public contract.
             var current = Ref(source.TrialId, source.TrialRevision);
+            var currentRefs = new List<object> { current };
             var recent = new List<object>();
             if (memory.TranscriptRetentionEnabled)
                 foreach (var exchange in memory.RecentExchanges)
                 {
-                    if (!CurrentRefs(exchange.Refs, current))
+                    if (!SameTrial(exchange.Refs, source.TrialId))
                         continue;
                     recent.Add(new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["turn_id"] = exchange.TurnId,
                         ["user_text"] = exchange.UserText,
                         ["agent_speech"] = exchange.AgentSpeech.ToArray(),
-                        ["refs"] = Refs(exchange.Refs),
+                        ["refs"] = currentRefs,
                         ["stage_id"] = exchange.StageId,
                         ["policy_version"] = exchange.PolicyVersion
                     });
@@ -215,14 +222,14 @@ namespace Amiss.Shell.Tutor
             var events = new List<object>();
             foreach (var item in memory.SessionEvents)
             {
-                if (!CurrentRefs(item.Refs, current))
+                if (!SameTrial(item.Refs, source.TrialId))
                     continue;
                 events.Add(new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["event_id"] = item.EventId,
                     ["kind"] = item.Kind,
                     ["tick"] = item.Tick,
-                    ["refs"] = Refs(item.Refs)
+                    ["refs"] = currentRefs
                 });
             }
 
@@ -243,22 +250,22 @@ namespace Amiss.Shell.Tutor
             return context;
         }
 
-        static bool CurrentRefs(IEnumerable<TrialReference> remembered,
-            Dictionary<string, object> current)
+        /// <summary>
+        /// A remembered record belongs to the current Trial when every Trial it
+        /// names is that same Trial. The revision label is not compared: an
+        /// effective-action contact commit advances it during one conversation.
+        /// </summary>
+        static bool SameTrial(IEnumerable<TrialReference> remembered, string trialId)
         {
             var any = false;
             foreach (var reference in remembered ?? Enumerable.Empty<TrialReference>())
             {
                 any = true;
-                if (reference.TrialId != (string)current["trial_id"] ||
-                    reference.Revision != (int)current["trial_revision"])
+                if (reference.TrialId != trialId)
                     return false;
             }
             return any;
         }
-
-        static List<object> Refs(IEnumerable<TrialReference> refs) =>
-            refs.Select(item => (object)Ref(item.TrialId, item.Revision)).ToList();
 
         /// <summary>
         /// One bounded projection of the committed current Trial. The groups

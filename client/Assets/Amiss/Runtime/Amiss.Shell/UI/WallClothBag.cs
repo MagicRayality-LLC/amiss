@@ -231,6 +231,9 @@ namespace Amiss.Shell
         /// <summary>Fired once when the bag passes into a hold (grab or fetch arrival).</summary>
         public event Action Grabbed;
 
+        /// <summary>Fired once when a held bag is let go.</summary>
+        public event Action Released;
+
         void Awake()
         {
             Build();
@@ -578,6 +581,7 @@ namespace Amiss.Shell
             held = false;
             holdSide = -1;
             docked = false;
+            Released?.Invoke();
             var velocity = ClothBagPose.IsFinite(heldVelocity)
                 ? ClothBagPose.ClampThrowVelocity(heldVelocity)
                 : Vector3.zero;

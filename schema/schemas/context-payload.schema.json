@@ -60,7 +60,7 @@
         },
         "recent_exchanges": {
           "type": "array",
-          "maxItems": 4,
+          "maxItems": 256,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -87,7 +87,7 @@
         },
         "session_events": {
           "type": "array",
-          "maxItems": 16,
+          "maxItems": 64,
           "items": {
             "type": "object",
             "additionalProperties": false,

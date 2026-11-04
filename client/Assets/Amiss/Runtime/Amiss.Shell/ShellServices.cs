@@ -85,7 +85,8 @@ namespace Amiss.Shell
             VoiceStore = new Voice.PlayerPrefsVoiceConsentStore();
             VoiceControl = new Voice.VoiceController(VoiceRig.Dictation, VoiceRig.Speech,
                 new Voice.TutorTurnAdapter(TutorConversation, text => Panel?.ShowSubtitle(text)),
-                VoiceStore.Load(), () => Time.realtimeSinceStartupAsDouble);
+                VoiceStore.Load(), () => Time.realtimeSinceStartupAsDouble,
+                () => Panel == null || !Panel.TipsOff, IdleFallbackLine);
             Panel = new UI.CorePanelController(SimulationRuntime, GuideRunner, Room, VoiceControl);
             gameObject.AddComponent<Voice.VoiceLoop>().Initialize(VoiceControl, VoiceStore,
                 () => Room != null && Room.Recovery != null && Room.Recovery.SafetyHold,
@@ -200,6 +201,70 @@ namespace Amiss.Shell
                 Amiss.Shell.Tutor.TutorConversation.LocalOrigin);
             Panel?.ShowSubtitle(TutorConversation.LastSubtitle);
             return admission;
+        }
+
+        /// <summary>
+        /// Records one major local wearer action for the teacher's session
+        /// memory: a prop grab or release. The event carries the current Trial
+        /// identity and Tick; the visual prop never writes Trial state.
+        /// </summary>
+        public void RecordUserAction(string kind)
+        {
+            if (SessionMemory == null || string.IsNullOrEmpty(kind))
+                return;
+            var summary = SimulationRuntime != null ? SimulationRuntime.TrialSummary : null;
+            if (summary == null || string.IsNullOrEmpty(summary.TrialId))
+                return;
+            var revision = 1 + (SimulationRuntime.Readout != null
+                ? SimulationRuntime.Readout.ContactCommits
+                : 0);
+            SessionMemory.RecordEvent(kind, summary.Tick, summary.TrialId, revision);
+        }
+
+        /// <summary>
+        /// The local check-in used only when no proactive model reply is
+        /// available. It names the latest recorded action and the current
+        /// reading when the producer has one, so the fallback still follows
+        /// the session instead of repeating one fixed sentence.
+        /// </summary>
+        public string IdleFallbackLine()
+        {
+            var summary = SimulationRuntime != null ? SimulationRuntime.TrialSummary : null;
+            if (summary == null)
+                return "";
+            var measurement = SimulationRuntime.Readout != null
+                ? SimulationRuntime.Readout.Measurement
+                : null;
+            var reading = measurement != null && measurement.Applicable &&
+                          measurement.Display != null
+                ? measurement.Display.Kelvin + " K"
+                : "";
+            var lastKind = SessionMemory != null && SessionMemory.SessionEvents.Count > 0
+                ? SessionMemory.SessionEvents[SessionMemory.SessionEvents.Count - 1].Kind
+                : "";
+            switch (lastKind)
+            {
+                case "bat_grabbed":
+                case "bat_released":
+                    return reading.Length > 0
+                        ? "You have the bat. The reading is " + reading +
+                          ". Swing it through the balls and watch what happens."
+                        : "You have the bat. Swing it through the balls and watch the number.";
+                case "cloth_bag_grabbed":
+                case "cloth_bag_released":
+                    return "You have the cloth bag. A ball that hits it loses energy, " +
+                           "so watch the reading.";
+                case "effective_action":
+                    return reading.Length > 0
+                        ? "That hit changed the energy in the room. The reading is " +
+                          reading + ". What do you notice now?"
+                        : "That hit changed the energy in the room. What do you notice now?";
+                default:
+                    return reading.Length > 0
+                        ? "The reading is " + reading +
+                          ". What do you notice about how the balls move?"
+                        : "Look at the number on the screen. What do you notice about the balls?";
+            }
         }
 
         /// <summary>

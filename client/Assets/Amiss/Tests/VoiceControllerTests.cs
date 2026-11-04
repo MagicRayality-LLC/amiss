@@ -154,7 +154,8 @@ namespace Amiss.Tests
             public string Utterance = "";
             public TutorTurnOutcome Next = TutorTurnOutcome.Spoken(OneLine);
 
-            public Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance)
+            public Task<TutorTurnOutcome> Ask(string origin, string turnId, string utterance,
+                System.Threading.CancellationToken cancellation = default)
             {
                 Calls++;
                 Origin = origin;
@@ -173,11 +174,13 @@ namespace Amiss.Tests
             public double Now;
             public VoiceController Controller;
 
-            public Harness(VoiceConsentStatus consent = VoiceConsentStatus.Accepted)
+            public Harness(VoiceConsentStatus consent = VoiceConsentStatus.Accepted,
+                Func<bool> tipsEnabled = null, Func<string> idleFallback = null)
             {
                 Dictation = new FakeDictation(Log);
                 Speech = new FakeSpeech(Log);
-                Controller = new VoiceController(Dictation, Speech, Tutor, consent, () => Now);
+                Controller = new VoiceController(Dictation, Speech, Tutor, consent, () => Now,
+                    tipsEnabled, idleFallback);
             }
 
             public void StartTrial(string goal = "Explore temperature.")
@@ -946,6 +949,71 @@ namespace Amiss.Tests
             Assert.AreEqual("voice_capture_failed", outcome.Code);
             Assert.AreEqual(VoiceState.Closed, harness.Controller.State);
             Assert.AreEqual(VoiceConsentStatus.Accepted, harness.Controller.Consent);
+        }
+
+        [Test]
+        public void FifteenQuietSecondsMakeTheTeacherContinueTheLesson()
+        {
+            var harness = new Harness();
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var openingCount = harness.Speech.Spoken.Count;
+
+            harness.Now = VoiceController.IdlePromptSeconds - 1.0;
+            harness.Controller.Tick();
+            Assert.AreEqual(openingCount, harness.Speech.Spoken.Count,
+                "nothing is said before the quiet interval elapses");
+            Assert.AreEqual(0, harness.Tutor.Calls);
+
+            harness.Now = VoiceController.IdlePromptSeconds;
+            harness.Controller.Tick();
+
+            Assert.AreEqual(openingCount + 1, harness.Speech.Spoken.Count);
+            Assert.AreEqual(VoiceUnitKind.Proactive, harness.Controller.ActiveUnit.Kind);
+            Assert.AreEqual(1, harness.Tutor.Calls, "the check-in is a proactive model turn");
+            Assert.AreEqual(VoiceController.ProactiveOrigin, harness.Tutor.Origin);
+            Assert.AreEqual("", harness.Tutor.Utterance,
+                "silence is never fabricated as user speech");
+            Assert.AreEqual(OneLine[0], harness.Speech.Spoken[^1]);
+        }
+
+        [Test]
+        public void TheLocalCheckInFallbackUsesTheSuppliedSessionLine()
+        {
+            var harness = new Harness(idleFallback:
+                () => "The reading is 250 K. What do you notice about how the balls move?");
+            harness.Tutor.Next = TutorTurnOutcome.Silent("model_unavailable");
+            harness.StartTrial();
+            harness.Speech.CompleteLast();
+            var openingCount = harness.Speech.Spoken.Count;
+
+            harness.Now = VoiceController.IdlePromptSeconds;
+            harness.Controller.Tick();
+
+            Assert.AreEqual(openingCount + 1, harness.Speech.Spoken.Count);
+            StringAssert.Contains("250 K", harness.Speech.Spoken[^1]);
+            Assert.AreEqual(1, harness.Tutor.Calls);
+        }
+
+        [Test]
+        public void TipsOffOrMuteSuppressesTheQuietCheckIn()
+        {
+            var tipsOff = new Harness(tipsEnabled: () => false);
+            tipsOff.StartTrial();
+            tipsOff.Speech.CompleteLast();
+            var silentCount = tipsOff.Speech.Spoken.Count;
+            tipsOff.Now = VoiceController.IdlePromptSeconds;
+            tipsOff.Controller.Tick();
+            Assert.AreEqual(silentCount, tipsOff.Speech.Spoken.Count);
+
+            var muted = new Harness();
+            muted.StartTrial();
+            muted.Speech.CompleteLast();
+            var mutedCount = muted.Speech.Spoken.Count;
+            muted.Controller.SetMuted(true);
+            muted.Now = VoiceController.IdlePromptSeconds;
+            muted.Controller.Tick();
+            Assert.AreEqual(mutedCount, muted.Speech.Spoken.Count);
         }
     }
 }

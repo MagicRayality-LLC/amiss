@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -246,6 +247,13 @@ namespace Amiss.Shell
         int flySide = -1;
         float lastPinchTime;
         readonly Vector3[] lastAcross = { Vector3.right, Vector3.right };
+
+        /// <summary>Fired once when the bat passes into a hold (grab or fetch arrival).</summary>
+        public event Action Grabbed;
+
+        /// <summary>Fired once when a held bat is let go.</summary>
+        public event Action Released;
+
         Transform trackingSpace;
         Vector3 flyFrom;
         float flyT;
@@ -573,6 +581,7 @@ namespace Amiss.Shell
 
         public void ReleaseHold()
         {
+            var wasHeld = held;
             held = false;
             holdSide = -1;
             docked = false;
@@ -580,6 +589,8 @@ namespace Amiss.Shell
             drifting = driftVelocity.magnitude >= WallBatPose.ReleaseStopSpeedMeters;
             lastHoldVelocity = Vector3.zero;
             Debug.Log("[Amiss] bat released drift=" + driftVelocity.magnitude.ToString("F2"));
+            if (wasHeld)
+                Released?.Invoke();
         }
 
         public void FlyTick(Pose pointer, float deltaTime)
@@ -642,6 +653,7 @@ namespace Amiss.Shell
             lastHoldVelocity = Vector3.zero;
             lastPinchTime = Time.time;
             Debug.Log("[Amiss] bat grabbed");
+            Grabbed?.Invoke();
             return true;
         }
 
