@@ -52,6 +52,7 @@ namespace Amiss.Tests
             Assert.AreEqual(WallBatPose.DockLocalPosition.x, local.x, 0.0001f);
             Assert.AreEqual(WallBatPose.DockLocalPosition.y, local.y, 0.0001f);
             Assert.AreEqual(WallBatPose.DockLocalPosition.z, local.z, 0.0001f);
+            Assert.Less(local.z, 0f, "in front of the set, on the room side");
             Assert.Less(dock.position.y, television.position.y - 0.4f, "below the glass");
             Assert.Greater(dock.position.y, 0.3f, "above the floor");
         }

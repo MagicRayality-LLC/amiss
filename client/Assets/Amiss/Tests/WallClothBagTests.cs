@@ -36,6 +36,9 @@ namespace Amiss.Tests
                     television.transform.rotation));
                 Assert.Less(Vector3.Distance(expected.position, bag.transform.position),
                     0.0001f);
+                var local = Quaternion.Inverse(television.transform.rotation) *
+                            (bag.transform.position - television.transform.position);
+                Assert.Less(local.z, 0f, "in front of the set, on the room side");
                 Assert.IsTrue(bag.IsDocked);
 
                 Assert.IsTrue(bag.TryCloseGrab(bag.transform.position + Vector3.up * 0.02f),

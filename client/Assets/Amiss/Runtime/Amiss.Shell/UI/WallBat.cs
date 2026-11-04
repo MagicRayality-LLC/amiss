@@ -19,8 +19,12 @@ namespace Amiss.Shell
     /// </summary>
     public static class WallBatPose
     {
-        /// <summary>Grip position under the TV in TV-local space.</summary>
-        public static readonly Vector3 DockLocalPosition = new Vector3(0.30f, -0.50f, 0.06f);
+        /// <summary>
+        /// Grip position in TV-local space, beside the bag in front of the
+        /// set. The glass faces local -Z, so a negative Z keeps the bat on
+        /// the room side where the wearer can see and reach it.
+        /// </summary>
+        public static readonly Vector3 DockLocalPosition = new Vector3(0.30f, -0.50f, -0.14f);
 
         /// <summary>
         /// Barrel-down lean: 180 about X hangs the barrel straight down, plus

@@ -21,8 +21,12 @@ namespace Amiss.Shell
     /// </summary>
     public static class ClothBagPose
     {
-        /// <summary>Bag centre in TV-local space, beside the bat under the set.</summary>
-        public static readonly Vector3 DockLocalPosition = new Vector3(-0.30f, -0.52f, 0.10f);
+        /// <summary>
+        /// Bag centre in TV-local space, beside the bat in front of the set.
+        /// The glass faces local -Z, so a negative Z keeps the bag on the
+        /// room side where the wearer can see and reach it.
+        /// </summary>
+        public static readonly Vector3 DockLocalPosition = new Vector3(-0.30f, -0.52f, -0.14f);
 
         /// <summary>Upright dock orientation, only turned by the television's own pose.</summary>
         public static readonly Vector3 DockLocalEuler = new Vector3(0f, 0f, 0f);
