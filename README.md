@@ -14,7 +14,6 @@ This repository contains the headset client, the local simulation, the tool sche
 | `simulation/` | The headless Python kernel, the deterministic runtime, the proposal validator, and the evaluation transport mechanics. It is the contract oracle. |
 | `schema/` | The JSON Schema contracts, synthetic fixtures, and the shared cross-language vectors. No teaching text lives here. |
 | `policy/` | The public instructor supply: system instructions, rules, next questions, allowed actions, mistake classification, and the mechanical stage data. `policy/README.md` documents its versioning and integrity scheme. |
-| `.env.example` | Blank environment assignments with comments. The recorded path needs none of them. |
 
 The build copies `policy/` into the bundle at setup and build time, changes no
 bytes, and verifies the pack digests on the device. A missing, edited, or
@@ -69,7 +68,7 @@ the translucent confirmed-room walls on or off without changing room
 collision or the trial. The live instructor needs a Meta Model API key, and
 voice also needs a Wit Client
 Access Token (create a free app at wit.ai and copy its Client Access Token).
-The easiest way to enter both is from the PC that installed the build:
+Add both keys at the first install from the PC that installed the build:
 `client/tools/build-install-debug.sh` offers it after install, or run
 `client/tools/set-keys.sh` at any time. Paste each value at the hidden
 prompt; the hub status then reads "keys imported from PC", and each saved

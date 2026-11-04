@@ -25,7 +25,6 @@ PRODUCED = (
     "policy/stage-data.json",
     "policy/instructor-policy.json",
     "policy/README.md",
-    ".env.example",
 )
 
 # The suites that must inject the sentinel to prove it is absent elsewhere.
@@ -35,7 +34,7 @@ INJECTING = (
 )
 
 PUBLIC_TREE = ("simulation", "schema", "policy")
-PUBLIC_FILES = (".env.example",)
+PUBLIC_FILES: tuple[str, ...] = ()
 
 # Negative fixtures exist to prove a forbidden field is rejected, so they hold
 # the forbidden field on purpose. They are not produced artifacts.
@@ -54,7 +53,7 @@ def files_under(*roots):
 
 
 def public_files():
-    """Every text artifact a judge receives: the trees plus the two root files."""
+    """Every text artifact a judge receives: the public trees."""
     for path in files_under(*PUBLIC_TREE):
         yield path
     for name in PUBLIC_FILES:
@@ -103,24 +102,6 @@ class SentinelAbsenceTest(unittest.TestCase):
             self.assertIsNone(credential.search(text), relative)
             self.assertIsNone(fleet.search(text), relative)
             self.assertIsNone(cjk.search(text), relative)
-
-    def test_the_env_template_holds_only_blank_assignments(self):
-        """Design 10 section 1: `.env.example` documents blank shapes only."""
-        text = (ROOT / ".env.example").read_text(encoding="utf-8")
-        assignments = [
-            line.strip()
-            for line in text.splitlines()
-            if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=", line)
-        ]
-        self.assertTrue(assignments, ".env.example must document at least one variable")
-        for line in assignments:
-            self.assertTrue(line.endswith("="), f"assigned a value: {line}")
-        # The fleet-address target is assembled so this file never itself
-        # contains an address; the check below is unchanged.
-        fleet_prefix = ".".join(("10", "0", "0")) + "."
-        for forbidden in ("http://", "https://", "api.meta.ai", "Bearer", "sk-",
-                          "password", fleet_prefix, "gitea"):
-            self.assertNotIn(forbidden, text, forbidden)
 
     def test_the_policy_pack_holds_no_secret_or_private_reference(self):
         for path in files_under("policy"):

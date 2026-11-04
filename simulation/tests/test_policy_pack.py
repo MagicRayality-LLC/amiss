@@ -408,7 +408,6 @@ class CleanPublicTreeTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, directory, True)
         for name in ("simulation", "schema", "policy"):
             shutil.copytree(ROOT / name, directory / name)
-        shutil.copy2(ROOT / ".env.example", directory / ".env.example")
         self.assertFalse((directory / "private").exists())
 
         script = (
