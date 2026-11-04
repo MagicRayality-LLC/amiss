@@ -13,7 +13,7 @@ namespace Amiss.Tests
     /// <summary>
     /// The P0 sandbag slice: one floating bag absorbs the first ball that
     /// reaches it, exactly once, into the ledger's sandbag account, then
-    /// disperses with soft particles only. 07 section 4.2 and SRD TEMP-TOOL
+    /// celebrates with the reference firework. 07 section 4.2 and SRD TEMP-TOOL
     /// own the mechanic; these tests pin the device mirror of the headless
     /// oracle's <c>register_prop</c> / <c>prop_trigger</c> / <c>record_facts</c>
     /// one-shot lifecycle.
@@ -329,9 +329,7 @@ namespace Amiss.Tests
             Assert.AreEqual(0.0, bag.AbsorbedTotalJ);
         }
 
-        // ---- presentation: dispersal is soft particles only ----
-
-        static bool IsHot(Color color) => color.r > 0.9f && color.b < 0.5f;
+        // ---- presentation: the celebratory reference firework ----
 
         [Test]
         public void DispersalCarriesNoPhysicsAndStaysInBudget()
@@ -349,22 +347,17 @@ namespace Amiss.Tests
                 Assert.IsTrue(root.GetComponentsInChildren<Light>(true).Length == 0,
                     "dispersal uses no hot light");
                 var systems = root.GetComponentsInChildren<ParticleSystem>(true);
-                Assert.GreaterOrEqual(systems.Length, 2,
-                    "stardust plus the expanding glow disc");
+                Assert.GreaterOrEqual(systems.Length, 3,
+                    "burst plus flash plus falling glitter or confetti");
                 var budget = 0;
                 foreach (var system in systems)
                 {
                     budget += system.main.maxParticles;
-                    var start = system.main.startColor;
-                    if (start.mode == ParticleSystemGradientMode.Color)
-                        Assert.IsFalse(IsHot(start.color),
-                            "no hot start color; the bag never reads as fire");
-                    var overLifetime = system.colorOverLifetime;
-                    if (overLifetime.enabled &&
-                        overLifetime.color.mode == ParticleSystemGradientMode.Gradient)
-                        foreach (var key in overLifetime.color.gradient.colorKeys)
-                            Assert.IsFalse(IsHot(key.color),
-                                "no hot gradient key; soft pastel dispersal only");
+                    var renderMode = system.GetComponent<ParticleSystemRenderer>().renderMode;
+                    Assert.IsTrue(
+                        renderMode == ParticleSystemRenderMode.Billboard ||
+                        renderMode == ParticleSystemRenderMode.Stretch,
+                        "every firework system is a sprite system, never a mesh");
                 }
                 Assert.LessOrEqual(budget, SandbagModel.DispersalParticleBudget);
             }

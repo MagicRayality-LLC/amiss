@@ -25,7 +25,11 @@ namespace Amiss.Shell
     /// The bag floats: it has no collider and no rigidbody, so nothing about
     /// it can fall, collide, or push. The scientific writer owns the hover
     /// absorber region and the one absorption; this visual only hovers where
-    /// the tool placed it and disperses where the tool absorbed.
+    /// the tool placed it and celebrates where the tool absorbed.
+    ///
+    /// Dispersal is the reference celebratory firework by founder decision
+    /// 2026-11-04 (recorded in `private/design/next.md`): fun, not a
+    /// temperature reading.
     /// </summary>
     public static class SandbagModel
     {
@@ -40,7 +44,7 @@ namespace Amiss.Shell
         public const double ReferenceAbsorptionJ = 0.375;
 
         /// <summary>All dispersal systems together never exceed this many live particles.</summary>
-        public const int DispersalParticleBudget = 160;
+        public const int DispersalParticleBudget = 280;
 
         /// <summary>SRD 07 section 4.2 dispersal palette: soft pastel only, never fire or hot glow.</summary>
         public static readonly Color PastelTeal = new(0.36f, 0.88f, 0.90f);
@@ -80,10 +84,13 @@ namespace Amiss.Shell
         }
 
         /// <summary>
-        /// Soft dispersal at the absorption point: pastel stardust plus one
-        /// expanding glow disc, intensity-scaled by the measured absorbed
-        /// joules. No fire, no hot glow, no colliders, no impulse — pure
-        /// presentation, cleaned up a few seconds later.
+        /// Celebratory firework at the absorption point: a chrysanthemum
+        /// burst with trails, a core flash, falling glitter, and pastel
+        /// confetti, reusing the reference firework arts and scaled by the
+        /// measured absorbed joules. Founder decision 2026-11-04 (recorded
+        /// in `private/design/next.md`): this is for fun and does not claim
+        /// the bag measures temperature. Pure presentation: no colliders, no
+        /// impulse, cleaned up a few seconds later.
         /// </summary>
         public static void TriggerDispersal(Vector3 positionM, double absorbedJ)
         {
@@ -95,38 +102,46 @@ namespace Amiss.Shell
 
             var root = new GameObject("SandbagDispersal");
             root.transform.position = positionM;
-            BuildStardust(root.transform, intensity);
-            BuildGlowDisc(root.transform, intensity);
-            DestroyObject(root, 2.6f);
+            BuildBurst(root.transform, intensity);
+            BuildCoreFlash(root.transform, intensity);
+            BuildGlitter(root.transform, intensity);
+            BuildConfetti(root.transform, intensity);
+            DestroyObject(root, 3.5f);
         }
 
-        static void BuildStardust(Transform parent, float intensity)
+        /// <summary>Main chrysanthemum burst with per-particle trails.</summary>
+        static void BuildBurst(Transform parent, float intensity)
         {
-            var go = new GameObject("Stardust");
+            var go = new GameObject("Burst");
             go.transform.SetParent(parent, false);
             var burst = go.AddComponent<ParticleSystem>();
             var main = burst.main;
             main.playOnAwake = false;
             main.loop = false;
-            main.duration = 0.5f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(1.2f, 2.0f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 0.5f + 1.5f * intensity);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.015f, 0.04f);
-            main.startColor = PastelTeal;
-            main.gravityModifier = 0.35f;
-            main.maxParticles = 110;
+            main.duration = 0.4f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.8f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.6f, 4.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.012f, 0.035f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(1f, 0.82f, 0.35f, 1f),
+                new Color(1f, 0.55f, 0.18f, 1f));
+            main.gravityModifier = 0.45f;
+            main.maxParticles = 170;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
             var emission = burst.emission;
             emission.rateOverTime = 0f;
             emission.SetBursts(new[]
             {
-                new ParticleSystem.Burst(0f, (short)(24 + 86 * intensity))
+                new ParticleSystem.Burst(0f, (short)(36 + 64 * intensity)),
+                new ParticleSystem.Burst(0.04f, (short)(18 + 27 * intensity)),
+                new ParticleSystem.Burst(0.1f, (short)(9 + 16 * intensity))
             });
 
             var shape = burst.shape;
             shape.shapeType = ParticleSystemShapeType.Sphere;
-            shape.radius = 0.02f;
+            shape.radius = 0.015f;
+            shape.radiusThickness = 1f;
 
             var overLifetime = burst.colorOverLifetime;
             overLifetime.enabled = true;
@@ -134,87 +149,238 @@ namespace Amiss.Shell
             gradient.SetKeys(
                 new[]
                 {
-                    new GradientColorKey(new Color(1f, 1f, 1f), 0f),
-                    new GradientColorKey(PastelTeal, 0.35f),
-                    new GradientColorKey(PastelPink, 0.7f),
+                    new GradientColorKey(new Color(1f, 0.95f, 0.75f), 0f),
+                    new GradientColorKey(new Color(1f, 0.72f, 0.28f), 0.22f),
+                    new GradientColorKey(PastelTeal, 0.55f),
+                    new GradientColorKey(PastelPink, 0.78f),
+                    new GradientColorKey(PastelLilac, 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.95f, 0.25f),
+                    new GradientAlphaKey(0.55f, 0.65f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            overLifetime.color = gradient;
+
+            var size = burst.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f,
+                AnimationCurve.EaseInOut(0f, 1f, 1f, 0.05f));
+
+            var trails = burst.trails;
+            trails.enabled = true;
+            trails.mode = ParticleSystemTrailMode.PerParticle;
+            trails.lifetime = 0.22f;
+            trails.ratio = 0.85f;
+            trails.minVertexDistance = 0.012f;
+            trails.dieWithParticles = true;
+            trails.widthOverTrail = new ParticleSystem.MinMaxCurve(1f,
+                AnimationCurve.Linear(0f, 1f, 1f, 0f));
+            trails.colorOverLifetime = new ParticleSystem.MinMaxGradient(gradient);
+            trails.colorOverTrail = new ParticleSystem.MinMaxGradient(
+                new Color(1f, 0.85f, 0.4f, 0.9f),
+                PastelTeal);
+
+            var noise = burst.noise;
+            noise.enabled = true;
+            noise.strength = 0.22f;
+            noise.frequency = 0.45f;
+            noise.scrollSpeed = 0.2f;
+
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Stretch;
+            renderer.lengthScale = 2.8f;
+            renderer.velocityScale = 0.12f;
+            renderer.cameraVelocityScale = 0f;
+            renderer.alignment = ParticleSystemRenderSpace.View;
+            var material = AdditiveSprite(LoadTex("Spark_Sprite") ?? LoadTex("Streak_Sprite"));
+            if (material != null)
+            {
+                renderer.material = material;
+                renderer.trailMaterial = material;
+            }
+            if (Application.isPlaying)
+                burst.Play(true);
+        }
+
+        /// <summary>Soft white-gold core flash at ignition.</summary>
+        static void BuildCoreFlash(Transform parent, float intensity)
+        {
+            var go = new GameObject("CoreFlash");
+            go.transform.SetParent(parent, false);
+            var flash = go.AddComponent<ParticleSystem>();
+            var main = flash.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.25f;
+            main.startLifetime = 0.35f;
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(
+                0.14f + 0.08f * intensity, 0.22f + 0.12f * intensity);
+            main.startColor = new Color(1f, 0.92f, 0.7f, 0.95f);
+            main.gravityModifier = 0f;
+            main.maxParticles = 4;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = flash.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)2) });
+
+            var overLifetime = flash.colorOverLifetime;
+            overLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.95f, 0.8f), 0f),
+                    new GradientColorKey(new Color(1f, 0.7f, 0.3f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            overLifetime.color = gradient;
+
+            var size = flash.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f,
+                AnimationCurve.EaseInOut(0f, 0.6f, 1f, 1.8f));
+
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            var material = AdditiveSprite(LoadTex("Glow_Sprite"));
+            if (material != null)
+                renderer.material = material;
+            if (Application.isPlaying)
+                flash.Play(true);
+        }
+
+        /// <summary>Falling glitter twinkles that outlive the burst.</summary>
+        static void BuildGlitter(Transform parent, float intensity)
+        {
+            var go = new GameObject("Glitter");
+            go.transform.SetParent(parent, false);
+            var glitter = go.AddComponent<ParticleSystem>();
+            var main = glitter.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.5f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.8f, 2.8f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.006f, 0.016f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(1f, 0.9f, 0.5f, 1f),
+                PastelTeal);
+            main.gravityModifier = 0.7f;
+            main.maxParticles = 60;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = glitter.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[]
+            {
+                new ParticleSystem.Burst(0.05f, (short)(13 + 17 * intensity)),
+                new ParticleSystem.Burst(0.2f, (short)(9 + 11 * intensity)),
+                new ParticleSystem.Burst(0.35f, (short)(5 + 5 * intensity))
+            });
+
+            var shape = glitter.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.08f;
+
+            var overLifetime = glitter.colorOverLifetime;
+            overLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.95f, 0.7f), 0f),
+                    new GradientColorKey(PastelPink, 0.5f),
                     new GradientColorKey(PastelLilac, 1f)
                 },
                 new[]
                 {
                     new GradientAlphaKey(0f, 0f),
-                    new GradientAlphaKey(1f, 0.12f),
-                    new GradientAlphaKey(0.8f, 0.55f),
+                    new GradientAlphaKey(1f, 0.15f),
+                    new GradientAlphaKey(0.8f, 0.5f),
                     new GradientAlphaKey(0f, 1f)
                 });
             overLifetime.color = gradient;
 
+            var size = glitter.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0.2f),
+                new Keyframe(0.2f, 1f),
+                new Keyframe(0.4f, 0.3f),
+                new Keyframe(0.6f, 1f),
+                new Keyframe(1f, 0f)));
+
             var renderer = go.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
-            var material = AdditiveSprite(LoadTex("Star_Sprite") ?? LoadTex("Confetti_Sprite"));
+            var material = AdditiveSprite(LoadTex("Star_Sprite"));
             if (material != null)
                 renderer.material = material;
             if (Application.isPlaying)
-                burst.Play(true);
+                glitter.Play(true);
         }
 
-        static void BuildGlowDisc(Transform parent, float intensity)
+        /// <summary>Pastel confetti fanning out on a cone.</summary>
+        static void BuildConfetti(Transform parent, float intensity)
         {
-            var go = new GameObject("GlowDisc");
+            var go = new GameObject("Confetti");
             go.transform.SetParent(parent, false);
-            var disc = go.AddComponent<ParticleSystem>();
-            var main = disc.main;
+            var confetti = go.AddComponent<ParticleSystem>();
+            var main = confetti.main;
             main.playOnAwake = false;
             main.loop = false;
-            main.duration = 0.6f;
-            main.startLifetime = 0.6f;
-            main.startSpeed = 0f;
-            main.startSize = new ParticleSystem.MinMaxCurve(0.10f + 0.08f * intensity,
-                0.16f + 0.12f * intensity);
-            main.startColor = new Color(0.75f, 0.95f, 1f, 0.45f);
-            main.gravityModifier = 0f;
-            main.maxParticles = 2;
+            main.duration = 0.35f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.5f, 2.4f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.045f);
+            main.startColor = new ParticleSystem.MinMaxGradient(PastelTeal, PastelPink);
+            main.gravityModifier = 0.85f;
+            main.maxParticles = 14;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
-            var emission = disc.emission;
+            var emission = confetti.emission;
             emission.rateOverTime = 0f;
-            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)1) });
+            emission.SetBursts(new[]
+                { new ParticleSystem.Burst(0.02f, (short)(5 + 9 * intensity)) });
 
-            var size = disc.sizeOverLifetime;
-            size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f,
-                AnimationCurve.EaseInOut(0f, 0.4f, 1f, 2.6f));
+            var shape = confetti.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 50f;
+            shape.radius = 0.02f;
 
-            var overLifetime = disc.colorOverLifetime;
+            var overLifetime = confetti.colorOverLifetime;
             overLifetime.enabled = true;
             var gradient = new Gradient();
             gradient.SetKeys(
-                new[] { new GradientColorKey(PastelTeal, 0f) },
                 new[]
                 {
-                    new GradientAlphaKey(0.45f, 0f),
+                    new GradientColorKey(new Color(1f, 0.85f, 0.45f), 0f),
+                    new GradientColorKey(PastelTeal, 0.4f),
+                    new GradientColorKey(PastelLilac, 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.7f, 0.6f),
                     new GradientAlphaKey(0f, 1f)
                 });
             overLifetime.color = gradient;
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
-            var sprite = LoadTex("Glow_Sprite");
-            var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
-                         ?? Shader.Find("Particles/Standard Unlit")
-                         ?? Shader.Find("Sprites/Default");
-            if (shader != null && sprite != null)
-            {
-                var material = new Material(shader);
-                if (material.HasProperty("_BaseMap"))
-                    material.SetTexture("_BaseMap", sprite);
-                if (material.HasProperty("_MainTex"))
-                    material.SetTexture("_MainTex", sprite);
-                material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            var material = AdditiveSprite(LoadTex("Confetti_Sprite"));
+            if (material != null)
                 renderer.material = material;
-            }
             if (Application.isPlaying)
-                disc.Play(true);
+                confetti.Play(true);
         }
 
         static Material AdditiveSprite(Texture2D sprite)
