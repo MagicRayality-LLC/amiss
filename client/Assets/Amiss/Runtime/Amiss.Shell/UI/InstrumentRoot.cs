@@ -33,7 +33,7 @@ namespace Amiss.Shell
         bool dashboardVisible = true;
         WallKnifeSwitch wallSwitch;
         WallBat wallBat;
-        WallClothBag wallClothBag;
+        ClothBagSupply clothBags;
 
         public const int LibraryPlaceFrameBudget = 120;
         public const float TrackedEyeHeightMeters = 0.5f;
@@ -94,8 +94,8 @@ namespace Amiss.Shell
                 wallSwitch.Follow(transform, appliedMode == PanelMountMode.WallMounted);
             if (wallBat != null)
                 wallBat.Follow(transform);
-            if (wallClothBag != null)
-                wallClothBag.Follow(transform);
+            if (clothBags != null)
+                clothBags.Follow(transform);
         }
 
         void NoteOverlayVisibility()
@@ -219,7 +219,7 @@ namespace Amiss.Shell
             if (chromeRoot != null) chromeRoot.SetActive(visible);
             if (wallSwitch != null) wallSwitch.SetVisible(visible);
             if (wallBat != null) wallBat.SetVisible(visible);
-            if (wallClothBag != null) wallClothBag.SetVisible(visible);
+            if (clothBags != null) clothBags.SetVisible(visible);
             RefreshPlacementLabel();
             Debug.Log("[Amiss] panel chromeVisible=" + visible +
                       " t=" + Time.realtimeSinceStartup.ToString("F3"));
@@ -292,12 +292,13 @@ namespace Amiss.Shell
 
         void BuildWallClothBag()
         {
-            if (wallClothBag != null)
+            if (clothBags != null)
                 return;
-            var host = new GameObject("WallClothBag");
+            var host = new GameObject("ClothBagSupply");
             if (transform.parent != null)
                 host.transform.SetParent(transform.parent, false);
-            wallClothBag = host.AddComponent<WallClothBag>();
+            clothBags = host.AddComponent<ClothBagSupply>();
+            clothBags.Build(transform);
         }
 
         void BuildPrimitiveChrome()

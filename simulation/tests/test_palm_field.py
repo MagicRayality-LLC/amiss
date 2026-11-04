@@ -173,7 +173,7 @@ class PalmFieldTestCase(unittest.TestCase):
         self.assertEqual(facts.get("palm_cooled_count"), 1)
         self.assertEqual(facts.get("palm_trapped_count", 0), 0)
 
-    def test_clearing_the_field_releases_the_trapped_ball(self):
+    def test_clearing_the_field_releases_the_trapped_ball_at_rest(self):
         writer = HeadlessBallWriter()
         state, collision, streams = make_state(
             writer, velocity=[0.4, 0.0, 0.0])
@@ -187,13 +187,41 @@ class PalmFieldTestCase(unittest.TestCase):
         self.assertEqual(ball["membership"], "held")
 
         writer.clear_palm_field()
-        writer.advance(state, 0.05, collision, streams, [], 4096)
+        facts = writer.advance(state, 0.05, collision, streams, [], 4096)
         self.assertEqual(ball["membership"], "free")
         self.assertAlmostEqual(
             math.sqrt(sum(v * v for v in ball["velocity_m_per_s"])),
-            0.4,
+            0.0,
             places=12,
+            msg="the trap releases a cooled ball, not the speed it caught",
         )
+        self.assertEqual(facts.get("palm_released_count"), 1)
+        # The captured kinetic energy is measured into the absorbed account.
+        self.assertAlmostEqual(
+            facts.get("palm_absorbed_j", 0.0), 0.5 * 0.4 ** 2, places=12)
+
+    def test_released_ball_keeps_no_drift_on_later_ticks(self):
+        writer = HeadlessBallWriter()
+        state, collision, streams = make_state(
+            writer, velocity=[0.4, 0.0, 0.0])
+        writer.set_palm_field(
+            [1.0, 2.0, 2.0], [3.0, 2.0, 2.0],
+            waist_radius_m=0.30, mouth_radius_m=0.30,
+            capture_speed_m_per_s=0.5,
+        )
+        writer.advance(state, 0.05, collision, streams, [], 4096)
+        writer.clear_palm_field()
+        writer.advance(state, 0.05, collision, streams, [], 4096)
+        ball = state["balls"]["ball-0001"]
+        position = list(ball["position_m"])
+        for _ in range(3):
+            writer.advance(state, 0.05, collision, streams, [], 4096)
+            self.assertAlmostEqual(
+                math.sqrt(sum(v * v for v in ball["velocity_m_per_s"])),
+                0.0,
+                places=12,
+            )
+            self.assertEqual(ball["position_m"], position)
 
 
 if __name__ == "__main__":

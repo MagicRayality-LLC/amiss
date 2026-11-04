@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -64,6 +65,13 @@ namespace Amiss.Shell
 
         /// <summary>A pinch dropout shorter than this keeps the hold.</summary>
         public const float PinchGraceSeconds = 0.08f;
+
+        /// <summary>
+        /// A freshly spawned bag ignores the live hand for this long, so the
+        /// replacement created by a grab cannot be grabbed by the same closed
+        /// hand in the same frame and cascade into another replacement.
+        /// </summary>
+        public const float SpawnGrabDelaySeconds = 0.25f;
 
         public static Pose DockPose(Pose television) => new Pose(
             television.position + television.rotation * DockLocalPosition,
@@ -148,8 +156,9 @@ namespace Amiss.Shell
     /// The visual owns no physics and writes no Trial state. The bag center is
     /// the hover anchor the sandbag tool arms once it floats; the scientific
     /// writer still applies and measures the one absorption of 07 section 4.2.
-    /// After that absorption the bag is consumed with the reference firework and
-    /// a fresh bag respawns under the television with no inventory or cooldown.
+    /// A <see cref="ClothBagSupply"/> keeps the dock stocked: a grab spawns a
+    /// fresh docked bag, up to 100 bags in the room, and a consumed bag is
+    /// removed with the reference firework.
     /// </summary>
     public sealed class WallClothBag : MonoBehaviour
     {
@@ -175,11 +184,19 @@ namespace Amiss.Shell
         Vector3 heldVelocity;
         Vector3 floatingPosition;
         int floatSerial;
+        float floatTime;
+        float grabAllowedTime;
+        static OVRHand[] cachedHands;
+        static int cachedHandsFrame = -1;
         readonly Dictionary<int, bool> wasGripping = new();
+
+        /// <summary>Fired once when the bag passes into a hold (grab or fetch arrival).</summary>
+        public event Action Grabbed;
 
         void Awake()
         {
             Build();
+            grabAllowedTime = Time.time + ClothBagPose.SpawnGrabDelaySeconds;
             gameObject.SetActive(false);
             shown = false;
         }
@@ -188,7 +205,7 @@ namespace Amiss.Shell
         {
             if (!shown || !built)
                 return;
-            var hands = FindObjectsByType<OVRHand>(FindObjectsInactive.Exclude);
+            var hands = TrackedHands();
             for (var i = 0; i < hands.Length; i++)
             {
                 var hand = hands[i];
@@ -241,7 +258,8 @@ namespace Amiss.Shell
                     else if (!gripping)
                         CancelFetch();
                 }
-                else if (!held && !fetching && edge)
+                else if (!held && !fetching && edge &&
+                         Time.time >= grabAllowedTime)
                 {
                     if ((hasFrame || pointerValid) && TryCloseGrab(grabPoint))
                     {
@@ -260,6 +278,20 @@ namespace Amiss.Shell
                 ThrowTick(Time.deltaTime);
             else if (gliding)
                 GlideTick(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// One hand lookup per frame for every bag in the supply. A room at the
+        /// 100-bag cap would otherwise search the scene 100 times a frame.
+        /// </summary>
+        static OVRHand[] TrackedHands()
+        {
+            if (cachedHands == null || cachedHandsFrame != Time.frameCount)
+            {
+                cachedHands = FindObjectsByType<OVRHand>(FindObjectsInactive.Exclude);
+                cachedHandsFrame = Time.frameCount;
+            }
+            return cachedHands;
         }
 
         /// <summary>
@@ -359,6 +391,9 @@ namespace Amiss.Shell
         /// controller arms the hover region exactly once per float.
         /// </summary>
         public int FloatSerial => floatSerial;
+
+        /// <summary>When this bag settled to its most recent float, across all bags.</summary>
+        public float FloatTime => floatTime;
 
         public void SetVisible(bool visible)
         {
@@ -553,6 +588,7 @@ namespace Amiss.Shell
             throwVelocity = Vector3.zero;
             glideVelocity = Vector3.zero;
             floatSerial++;
+            floatTime = Time.realtimeSinceStartup;
             Debug.Log("[Amiss] cloth bag floating t=" +
                       Time.realtimeSinceStartup.ToString("F2") + " pos=" +
                       floatingPosition.ToString("F2"));
@@ -574,9 +610,9 @@ namespace Amiss.Shell
         }
 
         /// <summary>
-        /// Restocks the bag under the television. Consumption calls it after
-        /// the reference firework, so replenishment has no inventory, cooldown,
-        /// or score (07 section 4.2). A bag in the wearer's hand is left there.
+        /// Restocks this bag under the television. The supply's consume path
+        /// uses it only when no supply owns the bag, so replenishment has no
+        /// inventory, cooldown, or score (07 section 4.2).
         /// </summary>
         public void RespawnToDock()
         {
@@ -611,6 +647,7 @@ namespace Amiss.Shell
             heldVelocity = Vector3.zero;
             lastGripTime = Time.time;
             Debug.Log("[Amiss] cloth bag grabbed");
+            Grabbed?.Invoke();
             return true;
         }
 

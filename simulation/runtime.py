@@ -565,8 +565,10 @@ class HeadlessBallWriter:
         ball crossing the tube loses one declared energy unit on each new
         pass, clamped to its own kinetic energy. A ball slower than
         capture_speed_m_per_s is trapped instead: it leaves the free set and
-        is held at the field centre until the field clears, keeping the
-        velocity it had so the held account owns its energy.
+        is held at the field centre with its captured velocity until the
+        field clears, then rejoins the free set at rest (the founder's
+        2026-11-04 release requirement), so the trap cools the ball it lets
+        go.
         """
         for value in list(endpoint_a_m) + list(endpoint_b_m):
             if not _finite_number(value):
@@ -601,11 +603,27 @@ class HeadlessBallWriter:
         if field is None:
             if self._palm_trapped:
                 # The palms dropped the field: release the trapped balls as
-                # free, at rest at the centre with their captured velocity.
+                # free and at rest, so the trap hands back a cooled ball and
+                # not the speed it caught. The removed kinetic energy is
+                # measured into the field's absorbed account.
                 for entity_id in sorted(self._palm_trapped):
                     ball = state["balls"].get(entity_id)
-                    if ball is not None and ball["membership"] == "held":
-                        ball["membership"] = "free"
+                    if ball is None or ball["membership"] != "held":
+                        continue
+                    released = self._ball_energy(ball)
+                    for axis in range(3):
+                        ball["velocity_m_per_s"][axis] = 0.0
+                    ball["membership"] = "free"
+                    facts["applied_effects"].append({
+                        "effect_kind": "palm_release",
+                        "entity_id": entity_id,
+                        "energy_delta_j": -released,
+                    })
+                    facts["palm_released_count"] = facts.get("palm_released_count", 0) + 1
+                    if released > 0.0:
+                        facts["palm_absorbed_j"] = (
+                            facts.get("palm_absorbed_j", 0.0) + released
+                        )
                 self._palm_trapped.clear()
             return
         if delta_s <= 0.0:
@@ -624,7 +642,8 @@ class HeadlessBallWriter:
         mouth = field["mouth_radius_m"]
 
         # A trapped ball rides the moving field centre and keeps the velocity
-        # it had at capture, so the held account owns its energy.
+        # it had at capture until release; the held account owns its energy
+        # while it is pinned.
         for entity_id in sorted(self._palm_trapped):
             ball = state["balls"].get(entity_id)
             if ball is None or ball["membership"] != "held":

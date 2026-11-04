@@ -246,7 +246,8 @@ namespace Amiss.Shell.Simulation
         /// middle, passEnergy the one balance unit a ball loses on each new
         /// pass through the tube, and captureSpeed the founder's trap
         /// threshold: a ball slower than it is held at the field centre until
-        /// the field clears. Mirrors the headless oracle's set_palm_field.
+        /// the field clears, then released at rest. Mirrors the headless
+        /// oracle's set_palm_field.
         /// </summary>
         public void SetPalmField(Vector3 endpointA, Vector3 endpointB,
             float waistRadiusM, float mouthRadiusM, double passEnergyDeltaJ,
@@ -280,15 +281,20 @@ namespace Amiss.Shell.Simulation
         {
             if (palmTrapped != null)
             {
-                // Release every held ball at the centre, keeping the velocity
-                // it had when the trap caught it. The trap stores no energy.
+                // Release every held ball at rest: the trap has cooled it, so
+                // dropping the field must not hand back the speed it caught.
                 for (var index = 0; index < palmTrapped.Length; index++)
                 {
                     if (!palmTrapped[index])
                         continue;
                     palmTrapped[index] = false;
-                    if (order[index].Membership == "held")
-                        order[index].Membership = "free";
+                    if (order[index].Membership != "held")
+                        continue;
+                    order[index].Membership = "free";
+                    vx[index] = 0.0;
+                    vy[index] = 0.0;
+                    vz[index] = 0.0;
+                    order[index].VelocityMPerS = Vector3.zero;
                 }
             }
             if (palmInside != null)
@@ -338,8 +344,8 @@ namespace Amiss.Shell.Simulation
             var centerY = 0.5 * ((double)palmA.y + palmB.y);
             var centerZ = 0.5 * ((double)palmA.z + palmB.z);
             // A trapped ball rides the moving field centre. It keeps the
-            // velocity it had at capture, so the held account owns its energy
-            // and releasing the field restores its free motion.
+            // velocity it had at capture while pinned, and the field's clear
+            // path releases it at rest so the trap always cools its catch.
             for (var index = 0; index < order.Length; index++)
             {
                 if (!palmTrapped[index])

@@ -4,10 +4,10 @@ using UnityEngine;
 namespace Amiss.Shell.Simulation
 {
     /// <summary>
-    /// The one bridge from the loose cloth bag to the P0 sandbag tool. It owns
+    /// The one bridge from the loose cloth bags to the P0 sandbag tool. It owns
     /// a <see cref="SandbagTool"/> on the runtime host, polls it after the
     /// runtime steps, and turns the tool's measured absorption into the
-    /// approved celebratory dispersal and a fresh docked bag.
+    /// approved celebratory dispersal and a removed bag.
     ///
     /// The wearer's thrown bag is the placement path: the visual floats still
     /// where the throw stopped itself, and the controller arms the hover
@@ -16,16 +16,22 @@ namespace Amiss.Shell.Simulation
     /// sandbag anchor on the trial-start request still floats one bag there
     /// once per Trial. Without a visual the manual <see cref="PlaceBag"/> call
     /// stays available for tests and later placement UX.
+    ///
+    /// The writer exposes one hover absorber and one open contact, so the
+    /// controller arms the most recent float only. A newer float takes over
+    /// when the armed bag moves or is consumed.
     /// </summary>
     public sealed class SandbagToolController : MonoBehaviour
     {
         DeviceSimulationRuntime runtime;
         SandbagTool bag;
         WallClothBag bagVisual;
+        ClothBagSupply supply;
         int nextVisualSearch;
         string currentTrialId = "";
         string placedTrialId = "";
         int armedSerial;
+        WallClothBag armedVisual;
 
         public SandbagTool Bag => bag;
         public SandbagState State => bag?.State ?? SandbagState.Ready;
@@ -41,10 +47,12 @@ namespace Amiss.Shell.Simulation
                 bag.Absorbed -= OnAbsorbed;
             runtime = deviceRuntime;
             bagVisual = visual;
+            supply = null;
             nextVisualSearch = 0;
             currentTrialId = "";
             placedTrialId = "";
             armedSerial = 0;
+            armedVisual = null;
             bag = runtime != null ? new SandbagTool(runtime) : null;
             if (bag != null)
                 bag.Absorbed += OnAbsorbed;
@@ -77,6 +85,7 @@ namespace Amiss.Shell.Simulation
             currentTrialId = trialId;
             placedTrialId = "";
             armedSerial = 0;
+            armedVisual = null;
             if (string.IsNullOrEmpty(trialId))
                 bag?.Withdraw("trial_ended");
         }
@@ -88,7 +97,7 @@ namespace Amiss.Shell.Simulation
         /// </summary>
         public void FloatOrderedBag()
         {
-            if (bag == null || runtime == null || bag.State != SandbagState.Ready)
+            if (!CanPlaceBag() || runtime == null)
                 return;
             var anchor = runtime.LiveSandbagAnchor;
             var trialId = runtime.LiveTrialId;
@@ -104,18 +113,22 @@ namespace Amiss.Shell.Simulation
 
         /// <summary>
         /// Arms the hover region exactly once for each still float the wearer
-        /// produced by throwing or releasing the bag.
+        /// produced by throwing or releasing the bag. The most recent float
+        /// wins because the writer owns one hover absorber.
         /// </summary>
         public void ArmFloatingBag()
         {
-            if (bag == null || runtime == null || !runtime.HasTrial ||
-                bag.State != SandbagState.Ready)
+            if (!CanPlaceBag() || runtime == null || !runtime.HasTrial)
                 return;
-            var visual = FindBagVisual();
-            if (visual == null || !visual.IsFloating || visual.FloatSerial == armedSerial)
+            var visual = FindFloatingBag();
+            if (visual == null ||
+                (visual == armedVisual && visual.FloatSerial == armedSerial))
                 return;
             if (PlaceBag(visual.FloatingPosition).WasPlaced)
+            {
+                armedVisual = visual;
                 armedSerial = visual.FloatSerial;
+            }
         }
 
         /// <summary>
@@ -127,7 +140,7 @@ namespace Amiss.Shell.Simulation
         {
             if (bag == null || bag.State != SandbagState.Placed)
                 return;
-            var visual = FindBagVisual();
+            var visual = armedVisual != null ? armedVisual : FindBagVisual();
             if (visual == null)
                 return;
             if (!visual.IsFloating ||
@@ -135,6 +148,7 @@ namespace Amiss.Shell.Simulation
             {
                 bag.Withdraw("bag_moved");
                 armedSerial = 0;
+                armedVisual = null;
             }
         }
 
@@ -153,18 +167,53 @@ namespace Amiss.Shell.Simulation
                 : new SandbagPlaceResult(SandbagPlaceOutcome.NotAccepted, 0,
                     "tool_not_bound", "");
 
+        bool CanPlaceBag() =>
+            bag != null && (bag.State == SandbagState.Ready || bag.State == SandbagState.Consumed);
+
         void OnAbsorbed(Vector3 centerM, double joulesJ)
         {
             SandbagModel.TriggerDispersal(centerM, joulesJ);
-            FindBagVisual()?.RespawnToDock();
+            var consumed = armedVisual != null ? armedVisual : FindBagVisual();
+            armedVisual = null;
             armedSerial = 0;
+            if (consumed == null)
+                return;
+            var owner = Supply;
+            if (owner != null)
+                owner.Consume(consumed);
+            else
+                consumed.RespawnToDock();
+        }
+
+        ClothBagSupply Supply
+        {
+            get
+            {
+                if (supply == null)
+                    supply = FindFirstObjectByType<ClothBagSupply>(
+                        FindObjectsInactive.Include);
+                return supply;
+            }
         }
 
         WallClothBag FindBagVisual()
         {
-            // The bag is created with the wall set and hidden while the set is
-            // not shown, so include inactive objects and retry at a bounded
-            // rate. A successful lookup is cached for the session.
+            if (bagVisual != null)
+                return bagVisual;
+            var owner = Supply;
+            if (owner != null)
+            {
+                var docked = owner.DockedBag;
+                if (docked != null)
+                    return docked;
+                var floating = owner.NewestFloatingBag;
+                if (floating != null)
+                    return floating;
+                return owner.Count > 0 ? owner.Bags[0] : null;
+            }
+            // A scene without a supply keeps the original single-bag search.
+            // Include inactive objects and retry at a bounded rate; a
+            // successful lookup is cached for the session.
             if (bagVisual == null && Time.frameCount >= nextVisualSearch)
             {
                 bagVisual = FindFirstObjectByType<WallClothBag>(
@@ -172,6 +221,24 @@ namespace Amiss.Shell.Simulation
                 nextVisualSearch = Time.frameCount + 30;
             }
             return bagVisual;
+        }
+
+        WallClothBag FindFloatingBag()
+        {
+            var owner = Supply;
+            if (owner != null)
+                return owner.NewestFloatingBag;
+            WallClothBag newest = null;
+            var bags = FindObjectsByType<WallClothBag>(FindObjectsInactive.Include);
+            for (var index = 0; index < bags.Length; index++)
+            {
+                var visual = bags[index];
+                if (visual == null || !visual.IsFloating)
+                    continue;
+                if (newest == null || visual.FloatTime >= newest.FloatTime)
+                    newest = visual;
+            }
+            return newest;
         }
     }
 }

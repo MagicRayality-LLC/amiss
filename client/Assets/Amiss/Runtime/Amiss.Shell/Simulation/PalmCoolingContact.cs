@@ -8,8 +8,8 @@ namespace Amiss.Shell.Simulation
     /// the palms, pinched at the waist, like an optical trap for atoms): every
     /// free ball inside loses one declared energy unit on each new pass, and a
     /// ball slower than the capture speed is held at the field centre until the
-    /// field clears. It mirrors the headless oracle's set_palm_field /
-    /// clear_palm_field.
+    /// field clears, when it is released at rest. It mirrors the headless
+    /// oracle's set_palm_field / clear_palm_field.
     /// </summary>
     public interface IPalmCoolingWriter
     {

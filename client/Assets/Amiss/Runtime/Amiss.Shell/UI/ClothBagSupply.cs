@@ -1,0 +1,171 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Amiss.Shell
+{
+    /// <summary>
+    /// Keeps the loose cloth bags stocked under the television. A grab spawns
+    /// a fresh docked bag, so the wearer can keep taking bags without an
+    /// inventory or cooldown, and the room holds at most
+    /// <see cref="MaxBagsInRoom"/> bags at once (founder requirement
+    /// 2026-11-04). A consumed bag is removed; when the dock is empty the
+    /// supply refills it.
+    ///
+    /// The supply is presentation only: it never touches the Trial, the hover
+    /// region, or the writer-measured absorption. The tool controller still
+    /// arms one region at a time, as the writer exposes one hover absorber.
+    /// </summary>
+    public sealed class ClothBagSupply : MonoBehaviour
+    {
+        /// <summary>Most bags this room may hold, docked, held, thrown, or floating.</summary>
+        public const int MaxBagsInRoom = 100;
+
+        readonly List<WallClothBag> bags = new();
+        Transform dockedTo;
+        bool shown;
+        bool capLogged;
+
+        public IReadOnlyList<WallClothBag> Bags => bags;
+
+        public int Count => bags.Count;
+
+        public bool IsFull => bags.Count >= MaxBagsInRoom;
+
+        /// <summary>The bag waiting under the television, or null.</summary>
+        public WallClothBag DockedBag
+        {
+            get
+            {
+                for (var index = 0; index < bags.Count; index++)
+                    if (bags[index] != null && bags[index].IsDocked)
+                        return bags[index];
+                return null;
+            }
+        }
+
+        /// <summary>The most recent still float, so the tool arms its region.</summary>
+        public WallClothBag NewestFloatingBag
+        {
+            get
+            {
+                WallClothBag newest = null;
+                for (var index = 0; index < bags.Count; index++)
+                {
+                    var bag = bags[index];
+                    if (bag == null || !bag.IsFloating)
+                        continue;
+                    if (newest == null || bag.FloatTime >= newest.FloatTime)
+                        newest = bag;
+                }
+                return newest;
+            }
+        }
+
+        public void Build(Transform television = null)
+        {
+            if (television != null)
+                dockedTo = television;
+        }
+
+        public void Follow(Transform television)
+        {
+            if (television != null)
+                dockedTo = television;
+            for (var index = bags.Count - 1; index >= 0; index--)
+            {
+                var bag = bags[index];
+                if (bag == null)
+                {
+                    bags.RemoveAt(index);
+                    continue;
+                }
+                bag.Follow(television);
+            }
+        }
+
+        /// <summary>
+        /// Shows the docked bags, or removes every bag with the wall set. A
+        /// hidden set is not a bag state: showing it again starts with one
+        /// fresh docked bag rather than a pile of stale floats.
+        /// </summary>
+        public void SetVisible(bool visible)
+        {
+            shown = visible;
+            if (!visible)
+            {
+                Clear();
+                return;
+            }
+            EnsureDockedBag();
+            for (var index = 0; index < bags.Count; index++)
+                if (bags[index] != null)
+                    bags[index].SetVisible(true);
+        }
+
+        /// <summary>Returns the waiting bag, spawning one when the dock is empty.</summary>
+        public WallClothBag EnsureDockedBag()
+        {
+            if (!shown)
+                return null;
+            var docked = DockedBag;
+            return docked != null ? docked : SpawnDocked();
+        }
+
+        public WallClothBag SpawnDocked()
+        {
+            if (!shown)
+                return null;
+            if (IsFull)
+            {
+                if (!capLogged)
+                {
+                    capLogged = true;
+                    Debug.Log("[Amiss] cloth bag limit reached count=" + bags.Count);
+                }
+                return null;
+            }
+
+            var host = new GameObject("WallClothBag");
+            host.transform.SetParent(transform, false);
+            var bag = host.AddComponent<WallClothBag>();
+            bags.Add(bag);
+            bag.Grabbed += () => EnsureDockedBag();
+            bag.Build();
+            bag.Follow(dockedTo);
+            bag.SetVisible(true);
+            return bag;
+        }
+
+        /// <summary>
+        /// Removes a consumed bag and refills the dock when it is empty. The
+        /// absorption already happened in the writer; this only changes what
+        /// the wearer sees.
+        /// </summary>
+        public bool Consume(WallClothBag bag)
+        {
+            if (bag == null || !bags.Remove(bag))
+                return false;
+            DestroyBag(bag.gameObject);
+            EnsureDockedBag();
+            return true;
+        }
+
+        public void Clear()
+        {
+            for (var index = 0; index < bags.Count; index++)
+                if (bags[index] != null)
+                    DestroyBag(bags[index].gameObject);
+            bags.Clear();
+        }
+
+        static void DestroyBag(GameObject bag)
+        {
+            if (bag == null)
+                return;
+            if (Application.isPlaying)
+                Object.Destroy(bag);
+            else
+                Object.DestroyImmediate(bag);
+        }
+    }
+}

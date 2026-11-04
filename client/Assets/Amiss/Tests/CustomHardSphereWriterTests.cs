@@ -501,8 +501,13 @@ namespace Amiss.Tests
             writer.ClearPalmField();
             Assert.AreEqual("free", slow.Membership,
                 "dropping the field releases the trapped ball");
-            Assert.AreEqual(new Vector3(0.4f, 0f, 0f), slow.VelocityMPerS,
-                "the trap stores and returns the captured velocity");
+            Assert.AreEqual(Vector3.zero, slow.VelocityMPerS,
+                "the trap releases a cooled ball, not the speed it caught");
+
+            writer.Advance(2, FrozenWriterConfiguration.FixedDeltaTimeSeconds);
+            Assert.AreEqual(Vector3.zero, slow.VelocityMPerS,
+                "the released ball keeps no drift on later Ticks");
+            Assert.AreEqual(new Vector3(0f, 1.5f, 0f), slow.PositionM);
         }
 
         [Test]

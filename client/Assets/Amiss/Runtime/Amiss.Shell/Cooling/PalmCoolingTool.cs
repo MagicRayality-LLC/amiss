@@ -14,7 +14,8 @@ namespace Amiss.Shell.Cooling
     /// owns the physics push. Each frame with a live field it submits the two
     /// palm centres, the declared tube radii, the pass unit, and the capture
     /// threshold to the writer through <see cref="IPalmCoolingHost"/>; when the
-    /// gesture drops it clears the field so balls fly free again. The writer
+    /// gesture drops it clears the field: every other ball flies free again,
+    /// while a trapped ball is let go at rest. The writer
     /// applies and measures the pass debit itself, and the temperature readout
     /// follows the speed drop. No ledger contact is opened: a pass is a field
     /// event, not a tool impact.
