@@ -167,9 +167,28 @@ namespace Amiss.Shell.Simulation
                 readout = new TemperatureReadoutSnapshot(trialIdReader(), lastTick,
                     lastViewId, measurement, ledger, Revision);
             if (entry != null)
-                SessionEventCommitted?.Invoke("effective_action", endTick, Revision);
+                SessionEventCommitted?.Invoke(SessionKindFor(entry.PropId), endTick,
+                    Revision);
             return new SweptClosure(active.ContactId, active.PropId, active.StartTick,
                 endTick, entry?.WorkJ ?? 0.0, closureReason, entry, true);
+        }
+
+        /// <summary>
+        /// Names the prop in the session event (founder correction,
+        /// 2026-11-04). The teacher reads these kinds as facts, so a bat
+        /// strike must not arrive as the same opaque event as a bare-hand hit
+        /// or a cloth-bag absorption. An unknown prop keeps the older generic
+        /// kind.
+        /// </summary>
+        static string SessionKindFor(string propId)
+        {
+            if (string.Equals(propId, BatTool.PropId, StringComparison.Ordinal))
+                return "bat_hit";
+            if (string.Equals(propId, BatTool.FistPropId, StringComparison.Ordinal))
+                return "fist_hit";
+            if (string.Equals(propId, SandbagTool.PropId, StringComparison.Ordinal))
+                return "cloth_bag_absorbed";
+            return "effective_action";
         }
 
         public const string TrackingLostAborted = "tracking_lost_aborted";

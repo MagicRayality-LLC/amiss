@@ -68,7 +68,7 @@ namespace Amiss.Tests
             memory.RecordExchange("turn-later", "a later question",
                 new[] { "a later answer" }, new[] { Ref(9) }, "stage-a", "policy-a");
             memory.RecordEvent("trial_started", 0, "trial-live", 1);
-            memory.RecordEvent("effective_action", 2, "trial-live", 9);
+            memory.RecordEvent("bat_hit", 2, "trial-live", 9);
 
             var payload = ContextPayloadBuilder.Build(Source(memory));
             var context = (IReadOnlyDictionary<string, object>)payload["compressed_session_context"];
@@ -78,13 +78,14 @@ namespace Amiss.Tests
                 IReadOnlyDictionary<string, object>>().ToArray();
 
             // A contact commit advances the Trial revision during one
-            // conversation; that must not erase what was said before it.
+            // conversation; that must not erase what was said before it, and
+            // the prop-named hit event must survive into the payload.
             Assert.AreEqual(2, exchanges.Length);
             Assert.AreEqual("turn-earlier", exchanges[0]["turn_id"]);
             Assert.AreEqual("turn-later", exchanges[1]["turn_id"]);
             Assert.AreEqual(2, events.Length);
             Assert.AreEqual("trial_started", events[0]["kind"]);
-            Assert.AreEqual("effective_action", events[1]["kind"]);
+            Assert.AreEqual("bat_hit", events[1]["kind"]);
         }
 
         [Test]

@@ -373,8 +373,8 @@ namespace Amiss.Tests
             var effectiveEvents = new List<string>();
             runtime.SessionEventCommitted = (kind, trialId, tick, revision) =>
             {
-                if (kind == "effective_action")
-                    effectiveEvents.Add(trialId + ":" + tick + ":" + revision);
+                if (kind == "fist_hit" || kind == "bat_hit")
+                    effectiveEvents.Add(kind + ":" + trialId + ":" + tick + ":" + revision);
             };
 
             bat.Consume(BatContactFixtures.Accepted(
@@ -397,7 +397,39 @@ namespace Amiss.Tests
                 "the contacted swing closes as one more commit, not one per sample");
             Assert.AreEqual(1, bat.Readout.Ledger.Contacts.Count);
             Assert.AreEqual(1, effectiveEvents.Count);
+            StringAssert.StartsWith("fist_hit:", effectiveEvents[0],
+                "a bare-hand closure names the fist instead of an opaque action");
             StringAssert.EndsWith(":" + bat.Readout.ContactCommits, effectiveEvents[0]);
+        }
+
+        [Test]
+        public void ContactClosureNamesTheBatThatStruckTheBall()
+        {
+            // Founder correction (2026-11-04): the teacher must know the bat
+            // was used, so a contacted barrel closure records `bat_hit` rather
+            // than the generic `effective_action`.
+            var (runtime, writer, bat) = StartedTrial("trial-bat-event-kind");
+            var kinds = new List<string>();
+            runtime.SessionEventCommitted = (kind, trialId, tick, revision) =>
+            {
+                if (trialId == "trial-bat-event-kind")
+                    kinds.Add(kind);
+            };
+
+            var ball = runtime.CurrentView.Balls[0];
+            writer.IsolateBalls();
+            writer.PlaceBall(ball.EntityId, new Vector3(0.02f, 0.6f, 0f), Vector3.zero);
+            var frame = new BatSweepFrame(new Vector3(0f, 0f, 0f),
+                new Vector3(0f, 0.7f, 0f), new Vector3(3f, 0f, 0f),
+                new Vector3(3f, 0f, 0f));
+            bat.Consume(BatContactFixtures.Accepted(
+                Vector3.zero, new Vector3(3f, 0f, 0f), 1), 1, frame);
+            runtime.Step(1);
+            bat.Close();
+
+            CollectionAssert.Contains(kinds, "bat_hit",
+                "the held barrel closure must name the bat");
+            CollectionAssert.DoesNotContain(kinds, "effective_action");
         }
 
         [Test]

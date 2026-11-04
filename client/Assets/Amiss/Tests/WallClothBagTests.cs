@@ -124,7 +124,7 @@ namespace Amiss.Tests
             {
                 var target = bag.transform.position + new Vector3(0f, -0.3f, -1.8f);
                 var forward = (bag.transform.position - target).normalized;
-                Assert.IsTrue(bag.TryFetch(target, forward), "aim plus pinch");
+                Assert.IsTrue(bag.TryFetch(target, forward, 1), "aim plus pinch");
                 Assert.AreEqual(ClothBagState.Fetching, bag.State);
 
                 for (var frame = 0; frame < 30 && bag.State == ClothBagState.Fetching;
@@ -132,7 +132,13 @@ namespace Amiss.Tests
                     bag.FetchTickTo(target, 0.02f);
 
                 Assert.AreEqual(ClothBagState.Held, bag.State);
+                Assert.AreEqual(1, bag.HeldSide,
+                    "the fetched bag is owned by the hand that pulled it in");
                 Assert.Less(Vector3.Distance(target, bag.transform.position), 0.0001f);
+
+                bag.ReleaseHold();
+                Assert.AreEqual(ClothBagState.Floating, bag.State,
+                    "a fetched bag can be let go and floats where it arrived");
             }
             finally
             {

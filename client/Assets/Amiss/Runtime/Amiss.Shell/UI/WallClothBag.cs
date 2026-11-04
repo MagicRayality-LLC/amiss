@@ -308,11 +308,8 @@ namespace Amiss.Shell
                         lastGripTime = Time.time;
                         HoldTick(hasFrame ? anchor : pointer.position, 0f);
                     }
-                    else if (pointerValid &&
-                             TryFetch(pointer.position, pointer.forward))
-                    {
-                        fetchSide = side;
-                    }
+                    else if (pointerValid)
+                        TryFetch(pointer.position, pointer.forward, side);
                 }
             }
             if (thrown)
@@ -453,6 +450,12 @@ namespace Amiss.Shell
         /// <summary>When this bag settled to its most recent float, across all bags.</summary>
         public float FloatTime => floatTime;
 
+        /// <summary>
+        /// The hand side holding this bag (0 left, 1 right), or -1 when it is
+        /// not held. A far fetch assigns the hand that pulled the bag in.
+        /// </summary>
+        public int HeldSide => held ? holdSide : -1;
+
         public void SetVisible(bool visible)
         {
             if (!visible)
@@ -509,7 +512,7 @@ namespace Amiss.Shell
             return BeginHold();
         }
 
-        public bool TryFetch(Vector3 handPosition, Vector3 handForward)
+        public bool TryFetch(Vector3 handPosition, Vector3 handForward, int side = -1)
         {
             if (held || fetching)
                 return false;
@@ -529,7 +532,7 @@ namespace Amiss.Shell
                     return false;
             }
             fetching = true;
-            fetchSide = -1;
+            fetchSide = side;
             fetchFrom = transform.position;
             fetchT = 0f;
             floating = false;
@@ -564,6 +567,10 @@ namespace Amiss.Shell
             if (fetchT >= 1f)
             {
                 fetching = false;
+                // The fetched bag now belongs to the hand that fetched it;
+                // without this the held bag has no owning side, so the hand
+                // loop can never move or release it and it freezes in mid-air.
+                holdSide = fetchSide;
                 BeginHold();
                 transform.position = target;
             }

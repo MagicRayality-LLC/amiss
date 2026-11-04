@@ -254,6 +254,20 @@ namespace Amiss.Shell
                 case "cloth_bag_released":
                     return "You have the cloth bag. A ball that hits it loses energy, " +
                            "so watch the reading.";
+                case "bat_hit":
+                    return reading.Length > 0
+                        ? "That bat strike changed the energy in the room. The reading is " +
+                          reading + ". What do you notice now?"
+                        : "That bat strike changed the energy in the room. " +
+                          "What do you notice now?";
+                case "fist_hit":
+                    return reading.Length > 0
+                        ? "That hand hit changed the energy in the room. The reading is " +
+                          reading + ". What do you notice now?"
+                        : "That hand hit changed the energy in the room. " +
+                          "What do you notice now?";
+                case "cloth_bag_absorbed":
+                    return "A ball hit the cloth bag and lost energy, so watch the reading.";
                 case "effective_action":
                     return reading.Length > 0
                         ? "That hit changed the energy in the room. The reading is " +
