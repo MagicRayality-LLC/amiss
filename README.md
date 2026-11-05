@@ -2,11 +2,144 @@
 
 Mixed-reality physics on Quest. Every experiment starts when the expected result is wrong.
 
-The headset renders the scene, tracks the person, and runs the simulation. The simulation is the source of truth for each trial. An instructor changes the next trial through the tools in `schema/`.
+The headset renders the scene, tracks the person, and runs the simulation. The
+simulation is the source of truth for each trial. An instructor changes the next
+trial through the tools in `schema/`.
 
-This repository contains the headset client, the local simulation, the tool schema, and the public instructor policy in `policy/`.
+This repository contains the headset client, the local simulation, the tool
+schema, and the public instructor policy in `policy/`.
 
-## Layout
+## Built during the hackathon
+
+Amiss was built for the Meta Global AI Developer Hackathon, 2026-10-26 to
+2026-11-04.
+
+Before kickoff this project was an idea. Every file in this repository was
+written during the event: there is no pre-hackathon code and no earlier history
+in this tree. The work split into four days of design and architecture, two days
+laying the foundations, and four days validating and fine-tuning on device.
+
+What is in the build:
+
+- A Unity 6 headset client with room scan, world-locked panels, hand tracking,
+  controllers, and passthrough.
+- A deterministic headless simulation kernel in Python that is the contract
+  oracle for every trial.
+- Nine dependency-free JSON Schema contracts, validated against 67 fixture cases.
+- A public instructor policy pack, versioned and digest-verified on the device;
+  a missing, edited, or incompatible pack is refused with a readable reason and
+  is never replaced by a second supply.
+- An evaluation transport with typed failures, fixed deadlines, whole-reply
+  admission, and one closed provenance record per admitted model reply.
+- Two proposal validators, one in Python and one in C#, checked against the same
+  shared vector file so they cannot drift silently.
+
+## Prerequisites
+
+The suites need only Python. The client build needs Unity and an activated licence.
+
+| Need | Version used here | Used by |
+|---|---|---|
+| Python 3 | 3.14.4 measured, standard library only | simulation tests, schema validator |
+| Unity Editor | 6000.6.5f1, revision 3ff58d469c8a | client build |
+| Unity modules | Android Build Support, OpenJDK, Android SDK & NDK Tools, IL2CPP | client build |
+| Unity licence | activated in Unity Hub; a batchmode build stops without one | client build |
+| Android platform-tools | any current `adb` | installing on a headset |
+| Headset | Quest 3 or Quest Pro with developer mode enabled | running the build |
+
+Exact Unity package versions are in `client/Packages/packages-lock.json`, and the
+frozen build identity is in `client/README.md`.
+
+Check a machine in one command:
+
+```bash
+client/tools/check-prereqs.sh
+```
+
+It prints what is present, what is missing, and the two commands that run the
+suites. It installs nothing and touches no network service.
+
+On a machine with no Unity, expect about 25 GB of disk and 30 to 60 minutes for
+the editor and modules, then 30 to 60 minutes for the first IL2CPP build.
+
+## Verify without a key
+
+Nothing in this section needs a headset, a network connection, or an API key.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s simulation/tests -v
+PYTHONDONTWRITEBYTECODE=1 python3 schema/validate.py
+```
+
+The first command runs 241 tests. It covers trial and guide scenarios, the
+proposal validator, the deterministic runtime, the temperature episode model,
+the policy pack reader, the evaluation transport, and the shared vectors.
+
+The second command validates all nine schema documents against 67 fixture
+cases. It rejects duplicate keys, non-finite numbers, excessive nesting,
+unsupported contract majors, masked measurements, and cross-field envelope
+inconsistencies. Recorded fixtures are checked by recomputing their SHA-256
+digests, so a tampered fixture fails closed without any network or model call.
+
+Both commands use only the Python standard library.
+
+## How it works
+
+```
+Quest headset (Unity 6)
+  room scan -> wall display, switch, props
+  headset physics -> measurements on every trial
+
+        context payload (bounded 32 KiB compressed)
+                     |
+                     v
+  evaluation transport  ---->  Meta Model API (muse-spark-1.3)
+        ^                            |
+        |    one structured tool call |
+        +----------------------------+
+                     |
+                     v
+  proposal validator: schema, allowed actions, seven ordered checks
+                     |
+                     v
+  execute, or refuse and continue on the local default path
+                     |
+                     v
+  provenance record: model, endpoint, request id, timestamps,
+                     tokens, prompt hash, response hash, mode
+```
+
+The model proposes; the simulation decides. Physics is never generated by the
+model, so a trial cannot report an invented result. A proposal outside the
+allowed tool space is refused and the lesson continues on its deterministic
+default path.
+
+## Where the Meta model sits
+
+- **Model.** `muse-spark-1.3`, called through the Meta Model API with the
+  person's own key. No other model is called at runtime. Speech recognition and
+  the fixed spoken lines use Wit.ai, Meta's speech platform, and the build runs
+  fully with voice disabled.
+- **Tools.** Exactly five closed operations: `state.read`, `trial.propose`,
+  `trial.orchestrate`, `presentation.request`, and `speech.emit`. Each has a
+  closed parameter union; text exists only in subtitle and speech operations.
+- **Deadlines.** A 5 s connect deadline and a 30 s complete-response deadline,
+  both declared in the shared vectors. A timeout, an offline path, or a refusal
+  returns a typed failure instead of a response.
+- **Policy.** `policy/` carries the instructor's system instructions, next
+  questions, allowed actions, and mistake classification as versioned data. The
+  transport assembles the policy envelope only at the send boundary, and the
+  pack's digests are verified on the device before use.
+- **Provenance.** `schema/schemas/model-provenance.schema.json` defines a closed
+  ten-field record: approved model and endpoint, local request id, UTC
+  timestamps, nullable token usage, SHA-256 request and response hashes, and
+  `live | recorded` mode. It has no body, credential, account, or free-form
+  diagnostic field.
+- **Recorded mode.** A recorded reply travels through the same admission path and
+  keeps `mode = recorded` wherever it is shown, so a replay is never presented
+  as a live call.
+
+## Repository layout
 
 | Path | Contents |
 |---|---|
@@ -16,10 +149,7 @@ This repository contains the headset client, the local simulation, the tool sche
 | `policy/` | The public instructor supply: system instructions, rules, next questions, allowed actions, mistake classification, and the mechanical stage data. `policy/README.md` documents its versioning and integrity scheme. |
 
 The build copies `policy/` into the bundle at setup and build time, changes no
-bytes, and verifies the pack digests on the device. A missing, edited, or
-incompatible pack is refused with a readable reason; it is never replaced by a
-second supply, and the local cards, evidence pairs, and default path continue
-without dynamic wording.
+bytes, and verifies the pack digests on the device.
 
 ## Debug build
 
@@ -45,50 +175,67 @@ without a resolved target.
 
 ## Playing the evaluation build
 
-Open the app; the episode hub appears. Run or accept the room scan, then
-press LAUNCH. That press loads the room saved on this headset, confirms it,
-and overlays its wall surfaces with light-blue, half-transparent virtual
-walls. The wall display, the PA speaker above it, and the red knife switch to
-its right then appear on the nearest usable wall, and the trial has not
-started yet.
+Open the app; the episode hub appears. Run or accept the room scan, then press
+LAUNCH. That press loads the room saved on this headset, confirms it, and
+overlays its wall surfaces with light-blue, half-transparent virtual walls. The
+wall display, the PA speaker above it, and the red knife switch to its right
+then appear on the nearest usable wall, and the trial has not started yet.
 
 To start episode one, close the knife switch — pinch it, press it with a
-fingertip, or point at it and pull the trigger — or press START TRIAL in the
-hub. Both do the same thing: the hub closes, the blades render closed, and
-the trial runs. A start that is refused, for example by the safety hold,
-leaves the room confirmed and the blades open, so you can try again.
+fingertip, or point at it and pull the trigger — or press START TRIAL in the hub.
+Both do the same thing: the hub closes, the blades render closed, and the trial
+runs. A start that is refused, for example by the safety hold, leaves the room
+confirmed and the blades open, so you can try again.
 
 Balls fill the room and collide elastically. The wall display shows only the
 temperature of the ball group in kelvin, Celsius, and Fahrenheit, with a graph
-of that temperature over time. Hitting balls with the bat does work on them,
-and the temperature follows their speed.
+of that temperature over time. Hitting balls with the bat does work on them, and
+the temperature follows their speed.
 
-The hub (menu button, or palm up and pinch) holds the settings. WALLS turns
-the translucent confirmed-room walls on or off without changing room
-collision or the trial. The live instructor needs a Meta Model API key, and
-voice also needs a Wit Client
-Access Token (create a free app at wit.ai and copy its Client Access Token).
+The hub (menu button, or palm up and pinch) holds the settings. WALLS turns the
+translucent confirmed-room walls on or off without changing room collision or
+the trial.
+
+## Keys and voice
+
+The live instructor needs a Meta Model API key, and voice also needs a Wit
+Client Access Token (create a free app at wit.ai and copy its Client Access
+Token).
+
 Add both keys at the first install from the PC that installed the build:
 `client/tools/build-install-debug.sh` offers it after install, or run
-`client/tools/set-keys.sh` at any time. Paste each value at the hidden
-prompt; the hub status then reads "keys imported from PC", and each saved
-value shows only a masked tail. Without the PC, use the hub fields instead:
-type or PASTE into META MODEL API KEY and press SAVE KEY, and type or PASTE
-into WIT CLIENT TOKEN and press SAVE TOKEN or Enter. Use MIC once to enable
-voice: before the first capture a consent notice appears; press MIC again to
-accept it and grant the app microphone access. Trial start then speaks the
-episode's fixed local goal through Wit without a model request. Automatic
-listening continues during answers; speak to interrupt playback immediately,
-without pressing MIC. MIC remains an explicit interruption fallback and global
-voice off control. The instructor receives the current session's completed
-conversation and its mechanical Trial events within the 32 KiB compressed-context
-bound, held only for that session. After 15 quiet seconds it continues the lesson
-from that conversation, the recorded actions, and the current reading; a local
-line is the fallback when no model reply is available. On Quest
-Pro, Android voice-communication capture uses acoustic echo cancellation; wearer
-speech and echo behavior still need wearer-led verification. Keys and tokens are
-stored only on the device and are never
-part of this repository. Without them the experiment still runs locally, and
-the voice and model features stay off.
+`client/tools/set-keys.sh` at any time. Paste each value at the hidden prompt;
+the hub status then reads "keys imported from PC", and each saved value shows
+only a masked tail.
+
+Without the PC, use the hub fields instead: type or PASTE into META MODEL API
+KEY and press SAVE KEY, and type or PASTE into WIT CLIENT TOKEN and press SAVE
+TOKEN or Enter. Use MIC once to enable voice: before the first capture a consent
+notice appears; press MIC again to accept it and grant the app microphone
+access. Trial start then speaks the episode's fixed local goal through Wit
+without a model request. Automatic listening continues during answers; speak to
+interrupt playback immediately, without pressing MIC. MIC remains an explicit
+interruption fallback and global voice off control.
+
+The instructor receives the current session's completed conversation and its
+mechanical trial events within the 32 KiB compressed-context bound, held only
+for that session. After 15 quiet seconds it continues the lesson from that
+conversation, the recorded actions, and the current reading; a local line is the
+fallback when no model reply is available.
+
+On Quest Pro, Android voice-communication capture uses acoustic echo
+cancellation; wearer speech and echo behavior still need wearer-led
+verification. Keys and tokens are stored only on the device and are never part
+of this repository. Without them the experiment still runs locally, and the
+voice and model features stay off.
+
+## What this build does not claim
+
+- No hosted demo is served from this repository, and no store or release build
+  is produced here.
+- No live model call, device latency figure, or device performance result is
+  claimed by these suites; they prove the mechanics behind injected transports.
+- Wearer-led voice and echo behavior on Quest Pro remain to be verified by the
+  person wearing it.
 
 Copyright MagicRayality LLC. All rights reserved. No license is granted to copy, modify, or distribute this repository.

@@ -66,10 +66,13 @@ pinned versions rather than bumping existing ones.
 For a public checkout, `tools/build-debug.sh` builds only
 `Builds/Amiss-debug.apk`. It uses Unity debug signing with the custom keystore
 disabled; it does not build a store or release package and needs no company
-credential. Install Unity 6000.6.5f1 with Android Build Support, IL2CPP, and an
-Android SDK/JDK. Standard Unity Hub paths on Linux, macOS, and Windows Git
-Bash are detected automatically. On any other setup, set `UNITY` to the
-editor executable first:
+credential. Install Unity 6000.6.5f1 with Android Build Support, the
+OpenJDK and Android SDK & NDK Tools modules, and IL2CPP, and activate the
+editor licence in Unity Hub first: a batchmode build stops before compiling
+without one. `tools/check-prereqs.sh` reports which of these are present on the
+machine. Standard Unity Hub paths on Linux, macOS, and Windows Git Bash are
+detected automatically. On any other setup, set `UNITY` to the editor
+executable first:
 
 ```bash
 UNITY=/path/to/Unity client/tools/build-debug.sh
