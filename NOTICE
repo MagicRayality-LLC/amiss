@@ -1,0 +1,13 @@
+Amiss
+Copyright 2026 MagicRayality LLC
+
+This repository includes software and assets from third parties. They remain
+under their own licences and are not relicensed by the Apache License 2.0:
+
+- Meta XR SDK packages (com.meta.xr.*): Meta Platforms, Inc.
+- Unity engine, Unity registry packages, and TextMesh Pro: Unity Technologies.
+- Liberation Sans font: SIL Open Font License 1.1, as shipped with TextMesh Pro.
+- OpenXR plugin, URP, and other registry packages: their respective licences.
+
+The project code in client/, simulation/, schema/, and policy/ is licensed under
+the Apache License 2.0. See LICENSE.

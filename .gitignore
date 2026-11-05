@@ -4,6 +4,10 @@
 .idea/
 .vscode/
 
+# A local .env holds a person's own credentials. It is never committed, and a
+# copied template must not appear as a stageable file.
+.env
+
 # Unity build scratch and generated output. The policy pack is staged from
 # policy/ at setup/build time; the staged copy is never committed, so policy/
 # stays the one source of truth.

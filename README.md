@@ -238,4 +238,10 @@ voice and model features stay off.
 - Wearer-led voice and echo behavior on Quest Pro remain to be verified by the
   person wearing it.
 
-Copyright MagicRayality LLC. All rights reserved. No license is granted to copy, modify, or distribute this repository.
+## License
+
+The code in this repository is licensed under the Apache License 2.0. See
+`LICENSE`. Third-party SDKs, engine packages, and fonts keep their own
+licences; see `NOTICE`.
+
+Copyright MagicRayality LLC.
